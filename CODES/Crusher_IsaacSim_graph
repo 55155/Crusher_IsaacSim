@@ -1,0 +1,127 @@
+// Crusher_IsaacSim
+digraph {
+	dpi=150 rankdir=TB
+	node [fontsize=10]
+	edge [fontsize=9]
+	base_link [label=base_link fillcolor=lightblue shape=box style=filled]
+	"1_Slider_jig_1" [label="1_Slider_jig_1" fillcolor=lightblue shape=box style=filled]
+	"1_Braket1_1" [label="1_Braket1_1" fillcolor=lightblue shape=box style=filled]
+	"1_Wall1_1" [label="1_Wall1_1" fillcolor=lightblue shape=box style=filled]
+	"1_Guide2_1" [label="1_Guide2_1" fillcolor=lightblue shape=box style=filled]
+	"1_Guide1_1" [label="1_Guide1_1" fillcolor=lightblue shape=box style=filled]
+	"2_Braket2_1" [label="2_Braket2_1" fillcolor=lightblue shape=box style=filled]
+	"3_Bevel_GearBox_1" [label="3_Bevel_GearBox_1" fillcolor=lightblue shape=box style=filled]
+	"4_Bevel_GearBox2_1" [label="4_Bevel_GearBox2_1" fillcolor=lightblue shape=box style=filled]
+	"4_Motor1_RearBearing_1" [label="4_Motor1_RearBearing_1" fillcolor=lightblue shape=box style=filled]
+	"5_Motor1_RearSnapring_1" [label="5_Motor1_RearSnapring_1" fillcolor=lightblue shape=box style=filled]
+	"4_Motor1_FrontBearing_1" [label="4_Motor1_FrontBearing_1" fillcolor=lightblue shape=box style=filled]
+	"5_Motor1_FrontSnapring_1" [label="5_Motor1_FrontSnapring_1" fillcolor=lightblue shape=box style=filled]
+	"4_Shaft_1" [label="4_Shaft_1" fillcolor=lightblue shape=box style=filled]
+	"5_Key_1" [label="5_Key_1" fillcolor=lightblue shape=box style=filled]
+	"5_Link1_1" [label="5_Link1_1" fillcolor=lightblue shape=box style=filled]
+	"6_Link2_1" [label="6_Link2_1" fillcolor=lightblue shape=box style=filled]
+	"7_Link3_1" [label="7_Link3_1" fillcolor=lightblue shape=box style=filled]
+	"8_Link3_Shaft_1" [label="8_Link3_Shaft_1" fillcolor=lightblue shape=box style=filled]
+	"9_PLATE_v3_1" [label="9_PLATE_v3_1" fillcolor=lightblue shape=box style=filled]
+	"2_Linear_bush_1" [label="2_Linear_bush_1" fillcolor=lightblue shape=box style=filled]
+	"2_Wall3_1" [label="2_Wall3_1" fillcolor=lightblue shape=box style=filled]
+	"2_GearCase2_1" [label="2_GearCase2_1" fillcolor=lightblue shape=box style=filled]
+	"2_GearCase3_1" [label="2_GearCase3_1" fillcolor=lightblue shape=box style=filled]
+	"2__Motor2_Braket_1" [label="2__Motor2_Braket_1" fillcolor=lightblue shape=box style=filled]
+	"3_Motor2_1" [label="3_Motor2_1" fillcolor=lightblue shape=box style=filled]
+	"4_Motor2_Shaft_1" [label="4_Motor2_Shaft_1" fillcolor=lightblue shape=box style=filled]
+	"5_Coupler_1" [label="5_Coupler_1" fillcolor=lightblue shape=box style=filled]
+	"6_DcutShaft_1" [label="6_DcutShaft_1" fillcolor=lightblue shape=box style=filled]
+	"7_Holder_Bearing2_1" [label="7_Holder_Bearing2_1" fillcolor=lightblue shape=box style=filled]
+	"7_Holder_Bearing1_1" [label="7_Holder_Bearing1_1" fillcolor=lightblue shape=box style=filled]
+	"2_Left_Wall1_1" [label="2_Left_Wall1_1" fillcolor=lightblue shape=box style=filled]
+	"4_Reducer1_1" [label="4_Reducer1_1" fillcolor=lightblue shape=box style=filled]
+	"5_Reducer2_1" [label="5_Reducer2_1" fillcolor=lightblue shape=box style=filled]
+	"6_Motor1_Bolt_1" [label="6_Motor1_Bolt_1" fillcolor=lightblue shape=box style=filled]
+	"6_Motor1_Braket_1" [label="6_Motor1_Braket_1" fillcolor=lightblue shape=box style=filled]
+	"7_Motor1_Body_1" [label="7_Motor1_Body_1" fillcolor=lightblue shape=box style=filled]
+	"1_Wall2_1" [label="1_Wall2_1" fillcolor=lightblue shape=box style=filled]
+	"3_GearCase1_1" [label="3_GearCase1_1" fillcolor=lightblue shape=box style=filled]
+	"7_SpurGear_1" [label="7_SpurGear_1" fillcolor=lightblue shape=box style=filled]
+	"3_RackGear_1" [label="3_RackGear_1" fillcolor=lightblue shape=box style=filled]
+	base_link -> "1_Slider_jig_1" [label="Baselink_Sliderjig
+(fixed)" color=gray fontcolor=gray]
+	base_link -> "1_Braket1_1" [label="Baselink_Braket1
+(fixed)" color=gray fontcolor=gray]
+	base_link -> "1_Wall1_1" [label="Baselink_Wall1
+(fixed)" color=gray fontcolor=gray]
+	base_link -> "1_Guide2_1" [label="Baselink_Guide2
+(fixed)" color=gray fontcolor=gray]
+	base_link -> "1_Guide1_1" [label="Rigid 19
+(fixed)" color=gray fontcolor=gray]
+	"1_Braket1_1" -> "2_Braket2_1" [label="Rigid 20
+(fixed)" color=gray fontcolor=gray]
+	"2_Braket2_1" -> "3_Bevel_GearBox_1" [label="Rigid 21
+(fixed)" color=gray fontcolor=gray]
+	"3_Bevel_GearBox_1" -> "4_Bevel_GearBox2_1" [label="Rigid 22
+(fixed)" color=gray fontcolor=gray]
+	"3_Bevel_GearBox_1" -> "4_Motor1_RearBearing_1" [label="Rigid 23
+(fixed)" color=gray fontcolor=gray]
+	"4_Motor1_RearBearing_1" -> "5_Motor1_RearSnapring_1" [label="Rigid 24
+(fixed)" color=gray fontcolor=gray]
+	"3_Bevel_GearBox_1" -> "4_Motor1_FrontBearing_1" [label="Rigid 25
+(fixed)" color=gray fontcolor=gray]
+	"4_Motor1_FrontBearing_1" -> "5_Motor1_FrontSnapring_1" [label="Rigid 26
+(fixed)" color=gray fontcolor=gray]
+	"3_Bevel_GearBox_1" -> "4_Shaft_1" [label="Revolute 27
+(continuous)" color=green fontcolor=green]
+	"4_Shaft_1" -> "5_Key_1" [label="Rigid 28
+(fixed)" color=gray fontcolor=gray]
+	"4_Shaft_1" -> "5_Link1_1" [label="Rigid 29
+(fixed)" color=gray fontcolor=gray]
+	"5_Link1_1" -> "6_Link2_1" [label="Revolute 30
+(continuous)" color=green fontcolor=green]
+	"6_Link2_1" -> "7_Link3_1" [label="Revolute 31
+(continuous)" color=green fontcolor=green]
+	"7_Link3_1" -> "8_Link3_Shaft_1" [label="Rigid 32
+(fixed)" color=gray fontcolor=gray]
+	"8_Link3_Shaft_1" -> "9_PLATE_v3_1" [label="Rigid 33
+(fixed)" color=gray fontcolor=gray]
+	"1_Slider_jig_1" -> "2_Linear_bush_1" [label="Rigid 34
+(fixed)" color=gray fontcolor=gray]
+	"1_Wall2_1" -> "2_Wall3_1" [label="Rigid 35
+(fixed)" color=gray fontcolor=gray]
+	"1_Wall2_1" -> "2_GearCase2_1" [label="Rigid 36
+(fixed)" color=gray fontcolor=gray]
+	"1_Wall1_1" -> "2_GearCase3_1" [label="Rigid 37
+(fixed)" color=gray fontcolor=gray]
+	"1_Wall1_1" -> "2__Motor2_Braket_1" [label="Rigid 39
+(fixed)" color=gray fontcolor=gray]
+	"2__Motor2_Braket_1" -> "3_Motor2_1" [label="Rigid 40
+(fixed)" color=gray fontcolor=gray]
+	"3_Motor2_1" -> "4_Motor2_Shaft_1" [label="Revolute 41
+(continuous)" color=green fontcolor=green]
+	"4_Motor2_Shaft_1" -> "5_Coupler_1" [label="Rigid 42
+(fixed)" color=gray fontcolor=gray]
+	"5_Coupler_1" -> "6_DcutShaft_1" [label="Rigid 43
+(fixed)" color=gray fontcolor=gray]
+	"6_DcutShaft_1" -> "7_Holder_Bearing2_1" [label="Revolute 44
+(continuous)" color=green fontcolor=green]
+	"6_DcutShaft_1" -> "7_Holder_Bearing1_1" [label="Revolute 45
+(continuous)" color=green fontcolor=green]
+	"1_Guide1_1" -> "2_Left_Wall1_1" [label="Slider 48
+(prismatic)" color=red fontcolor=red]
+	"3_Bevel_GearBox_1" -> "4_Reducer1_1" [label="Rigid 50
+(fixed)" color=gray fontcolor=gray]
+	"4_Reducer1_1" -> "5_Reducer2_1" [label="Rigid 52
+(fixed)" color=gray fontcolor=gray]
+	"5_Reducer2_1" -> "6_Motor1_Bolt_1" [label="Rigid 53
+(fixed)" color=gray fontcolor=gray]
+	"5_Reducer2_1" -> "6_Motor1_Braket_1" [label="Rigid 54
+(fixed)" color=gray fontcolor=gray]
+	"6_Motor1_Braket_1" -> "7_Motor1_Body_1" [label="Rigid 55
+(fixed)" color=gray fontcolor=gray]
+	base_link -> "1_Wall2_1" [label="Baselink_Wall2
+(fixed)" color=gray fontcolor=gray]
+	"2_GearCase2_1" -> "3_GearCase1_1" [label="GearCase2_GearCase3
+(fixed)" color=gray fontcolor=gray]
+	"6_DcutShaft_1" -> "7_SpurGear_1" [label="DcutShaft_SpurGear
+(fixed)" color=gray fontcolor=gray]
+	"2_Left_Wall1_1" -> "3_RackGear_1" [label="Rigid 60
+(fixed)" color=gray fontcolor=gray]
+}

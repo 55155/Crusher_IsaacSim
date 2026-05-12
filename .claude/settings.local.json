@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git config *)",
+      "Bash(gh auth *)",
+      "PowerShell(git config --global user.name)",
+      "PowerShell(git config --global user.email)",
+      "PowerShell(git credential-manager --version 2>&1)"
+    ]
+  }
+}
