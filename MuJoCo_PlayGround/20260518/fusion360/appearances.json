@@ -1,0 +1,2291 @@
+{
+  "7_SpurGear": {
+    "본체1": {
+      "appearance_name": "Opaque(176,176,176)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.02
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.5
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": false
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2
+      }
+    }
+  },
+  "7_Holder_Bearing2": {
+    "본체1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.264575131106
+      }
+    }
+  },
+  "4_Motor2_Shaft": {
+    "본체1": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "7_Holder_Bearing1": {
+    "본체1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.264575131106
+      }
+    }
+  },
+  "6_DcutShaft": {
+    "본체2": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "4_Motor1_RearBearing": {
+    "본체1": {
+      "appearance_name": "Opaque(202,209,238)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.02
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.5
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": false
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2
+      }
+    }
+  },
+  "4_Motor1_FrontBearing": {
+    "본체1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "3_RackGear": {
+    "본체135": {
+      "appearance_name": "PSOLRGB-176-176-176",
+      "객체별 색상": {
+        "type": "bool",
+        "value": false
+      },
+      "공유": {
+        "type": "ChoiceProperty"
+      },
+      "색조 색상": {
+        "type": "color",
+        "rgba": [
+          80,
+          80,
+          80,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "색조": {
+        "type": "bool",
+        "value": false
+      },
+      "다른 재료의 색상 사용": {
+        "type": "bool",
+        "value": true
+      },
+      "최대 거리": {
+        "type": "float",
+        "value": 4.0
+      },
+      "앰비언트 폐색": {
+        "type": "bool",
+        "value": false
+      },
+      "견본": {
+        "type": "int",
+        "value": 16
+      },
+      "뒷면 발췌": {
+        "type": "bool",
+        "value": false
+      },
+      "양": {
+        "type": "float",
+        "value": 0.3
+      },
+      "범프": {
+        "type": "color",
+        "rgba": [
+          0,
+          0,
+          0,
+          255
+        ]
+      },
+      "잘라내기": {
+        "type": "float",
+        "value": 1.0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          176,
+          176,
+          176,
+          0
+        ]
+      },
+      "이미지 페이드": {
+        "type": "float",
+        "value": 1.0
+      },
+      "광택": {
+        "type": "float",
+        "value": 0.5
+      },
+      "강조 표시": {
+        "type": "bool",
+        "value": false
+      },
+      "반사 최대 추적 깊이": {
+        "type": "int",
+        "value": 0
+      },
+      "반사 광택 견본": {
+        "type": "int",
+        "value": 12
+      },
+      "반사도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "기울기": {
+        "type": "float",
+        "value": 0.0
+      },
+      "굴절 최대 추적 깊이": {
+        "type": "int",
+        "value": -1
+      },
+      "굴절 광택 견본": {
+        "type": "int",
+        "value": 12
+      },
+      "굴절": {
+        "type": "float",
+        "value": 1.52
+      },
+      "반투명도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "다른 재료와 혼합": {
+        "type": "bool",
+        "value": false
+      },
+      "소스": {
+        "type": "float",
+        "value": 0.0
+      },
+      "색상 온도": {
+        "type": "float",
+        "value": 6500.0
+      },
+      "필터 색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "자가 조명": {
+        "type": "float",
+        "value": 0.0
+      },
+      "투명도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "모드": {
+        "type": "int",
+        "value": 4
+      }
+    }
+  },
+  "5_Motor1_FrontSnapring": {
+    "본체1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "base_link": {
+    "본체3": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "2_Linear_bush": {
+    "본체1": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "7_Link3": {
+    "본체1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "9_PLATE v3": {
+    "본체1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.264575131106
+      }
+    }
+  },
+  "5_Motor1_RearSnapring": {
+    "본체1": {
+      "appearance_name": "Opaque(202,209,238)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.02
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.5
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": false
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2
+      }
+    }
+  },
+  "8_Link3_Shaft": {
+    "본체1": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "1_Guide1": {
+    "Guide1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "5_Reducer2": {
+    "Reducer2": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "6_Motor1_Bolt": {
+    "본체1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "3_Motor2": {
+    "본체1": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "2_Braket2": {
+    "본체1": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "5_Link1": {
+    "본체1": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "1_Guide2": {
+    "Guide2": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "5_Key": {
+    "Key": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.264575131106
+      }
+    }
+  },
+  "1_Braket1": {
+    "본체1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "1_Wall1": {
+    "Wall1": {
+      "appearance_name": "EPX 150 - 에어 베이크드(탄소 M2 M3 L1 3D 프린터 포함)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.05
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.75
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          255,
+          170,
+          34,
+          255
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": true
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.26
+      }
+    }
+  },
+  "3_Bevel_GearBox": {
+    "Bevel_GearBox": {
+      "appearance_name": "철 - 주조",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2
+      }
+    }
+  },
+  "4_Bevel_GearBox2": {
+    "Bevel_GearBox2": {
+      "appearance_name": "ABS(흰색)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.05289999999999999
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.18
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          0,
+          234,
+          205,
+          0
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": true
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "7_Motor1_Body": {
+    "Motor1_Body": {
+      "appearance_name": "ABS(흰색)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.05289999999999999
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.18
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          0,
+          234,
+          205,
+          0
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": true
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "5_Coupler": {
+    "Coupler": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.264575131106
+      }
+    }
+  },
+  "6_Motor1_Braket": {
+    "Motor1_Braket": {
+      "appearance_name": "철 - 주조",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2
+      }
+    }
+  },
+  "2_GearCase2": {
+    "GearCase2": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "6_Link2": {
+    "본체1": {
+      "appearance_name": "Opaque(63,63,63)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.02
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.5
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": false
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2
+      }
+    }
+  },
+  "4_Reducer1": {
+    "Reducer1": {
+      "appearance_name": "ABS(흰색)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.05289999999999999
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.18
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          0,
+          234,
+          205,
+          0
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": true
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "4_Shaft": {
+    "Shaft": {
+      "appearance_name": "알루미늄 - 연마",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.0774596669241
+      }
+    }
+  },
+  "3_GearCase1": {
+    "GearCase1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.264575131106
+      }
+    }
+  },
+  "2_Left_Wall1": {
+    "Left_Wall1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "2_GearCase3": {
+    "GearCase3": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  },
+  "1_Wall2": {
+    "Wall2": {
+      "appearance_name": "EPX 150 - 에어 베이크드(탄소 M2 M3 L1 3D 프린터 포함)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.05
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.75
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          255,
+          170,
+          34,
+          255
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": true
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.26
+      }
+    }
+  },
+  "2_ Motor2_Braket": {
+    "Braket3": {
+      "appearance_name": "EPX 150 - 에어 베이크드(탄소 M2 M3 L1 3D 프린터 포함)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.05
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.75
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          255,
+          170,
+          34,
+          255
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": true
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.26
+      }
+    }
+  },
+  "2_Wall3": {
+    "Wall3": {
+      "appearance_name": "EPX 150 - 에어 베이크드(탄소 M2 M3 L1 3D 프린터 포함)",
+      "재료 유형": {
+        "type": "int",
+        "value": 0
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "방사": {
+        "type": "bool",
+        "value": false
+      },
+      "반사율": {
+        "type": "float",
+        "value": 0.05
+      },
+      "방사 광도": {
+        "type": "float",
+        "value": 0.0
+      },
+      "광도 배율": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "깊이": {
+        "type": "float",
+        "value": 0.75
+      },
+      "가중치": {
+        "type": "color",
+        "rgba": [
+          255,
+          170,
+          34,
+          255
+        ]
+      },
+      "반투명도": {
+        "type": "bool",
+        "value": true
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.26
+      }
+    }
+  },
+  "1_Slider_jig": {
+    "Body1": {
+      "appearance_name": "강철 - 새틴",
+      "재료 유형": {
+        "type": "int",
+        "value": 1
+      },
+      "색상": {
+        "type": "color",
+        "rgba": [
+          255,
+          255,
+          255,
+          0
+        ]
+      },
+      "색상 공간": {
+        "type": "ChoiceProperty"
+      },
+      "URN": {
+        "type": "string",
+        "value": ""
+      },
+      "이방성": {
+        "type": "float",
+        "value": 0.0
+      },
+      "이미지": {
+        "type": "AppearanceTextureProperty"
+      },
+      "NDF": {
+        "type": "ChoiceProperty"
+      },
+      "회전": {
+        "type": "float",
+        "value": 0.0
+      },
+      "거칠기": {
+        "type": "float",
+        "value": 0.2645751311064591
+      }
+    }
+  }
+}
