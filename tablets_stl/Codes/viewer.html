@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Tablet Shape Viewer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: #0d1117;
+  color: #cdd6f4;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── Left Panel ─────────────────────────────────────── */
+.panel {
+  width: 300px;
+  min-width: 300px;
+  background: #161b22;
+  border-right: 1px solid #21262d;
+  padding: 28px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+}
+
+.brand { font-size: 10px; font-weight: 700; letter-spacing: 3px; color: #58a6ff; text-transform: uppercase; }
+.panel h1 { font-size: 22px; font-weight: 700; color: #f0f6fc; line-height: 1.3; margin-top: 4px; }
+.divider { height: 1px; background: #21262d; flex-shrink: 0; }
+.section-title { font-size: 10px; font-weight: 600; letter-spacing: 2px; color: #8b949e; text-transform: uppercase; margin-bottom: 14px; }
+
+/* ── Sliders ────────────────────────────────────────── */
+.slider-group { display: flex; flex-direction: column; gap: 22px; }
+
+.slider-item { display: flex; flex-direction: column; gap: 7px; }
+
+.slider-header { display: flex; justify-content: space-between; align-items: baseline; }
+
+.s-label { font-size: 13px; font-weight: 600; color: #e6edf3; }
+.s-label em { font-size: 11px; color: #8b949e; font-weight: 400; font-style: normal; margin-left: 5px; }
+
+.s-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.s-val .unit { font-size: 11px; font-weight: 400; color: #8b949e; margin-left: 2px; }
+
+.s-desc { font-size: 11px; color: #8b949e; }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.05s;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+/* Per-parameter colors */
+#sl-r  { --c: #58a6ff; }
+#sl-ar { --c: #3fb950; }
+#sl-cv { --c: #f78166; }
+
+#sl-r::-webkit-slider-thumb  { background: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,.25); }
+#sl-ar::-webkit-slider-thumb { background: #3fb950; box-shadow: 0 0 0 3px rgba(63,185,80,.25); }
+#sl-cv::-webkit-slider-thumb { background: #f78166; box-shadow: 0 0 0 3px rgba(247,129,102,.25); }
+
+#sl-r:hover::-webkit-slider-thumb  { box-shadow: 0 0 0 6px rgba(88,166,255,.3); }
+#sl-ar:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px rgba(63,185,80,.3); }
+#sl-cv:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px rgba(247,129,102,.3); }
+
+.val-r  { color: #58a6ff; }
+.val-ar { color: #3fb950; }
+.val-cv { color: #f78166; }
+
+/* ── Dimension Cards ────────────────────────────────── */
+.dim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.dim-card {
+  background: #0d1117;
+  border: 1px solid #21262d;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.dim-card .lbl { font-size: 10px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px; }
+.dim-card .val { font-size: 16px; font-weight: 700; color: #f0f6fc; font-variant-numeric: tabular-nums; }
+.dim-card .val .u { font-size: 11px; font-weight: 400; color: #8b949e; }
+
+/* ── File Box ───────────────────────────────────────── */
+.file-box {
+  background: #0d1117;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: 'Consolas', monospace;
+  font-size: 11px;
+  color: #a371f7;
+  word-break: break-all;
+  line-height: 1.5;
+}
+.status { font-size: 11px; margin-top: 7px; text-align: center; }
+.status.ok      { color: #3fb950; }
+.status.loading { color: #e3b341; }
+.status.error   { color: #f85149; }
+
+/* ── 3D Viewport ─────────────────────────────────────── */
+#viewport {
+  flex: 1;
+  position: relative;
+  background: radial-gradient(ellipse at 60% 40%, #1c2333 0%, #0d1117 70%);
+}
+#viewport canvas { display: block; }
+
+.hint {
+  position: absolute;
+  bottom: 16px; right: 20px;
+  font-size: 11px; color: #30363d;
+  pointer-events: none;
+  line-height: 1.8;
+  text-align: right;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Left Panel ──────────────────────────────────── -->
+<div class="panel">
+
+  <div>
+    <div class="brand">Pharmaceutical Design</div>
+    <h1>Tablet Shape<br>Viewer</h1>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Sliders -->
+  <div>
+    <div class="section-title">Parameters</div>
+    <div class="slider-group">
+
+      <div class="slider-item">
+        <div class="slider-header">
+          <div class="s-label">R <em>단반경</em></div>
+          <div class="s-val val-r" id="val-r">—</div>
+        </div>
+        <input type="range" id="sl-r" min="0" max="9" step="1" value="4">
+        <div class="s-desc" id="desc-r"></div>
+      </div>
+
+      <div class="slider-item">
+        <div class="slider-header">
+          <div class="s-label">AR <em>형태비</em></div>
+          <div class="s-val val-ar" id="val-ar">—</div>
+        </div>
+        <input type="range" id="sl-ar" min="0" max="9" step="1" value="3">
+        <div class="s-desc" id="desc-ar"></div>
+      </div>
+
+      <div class="slider-item">
+        <div class="slider-header">
+          <div class="s-label">CV <em>곡률</em></div>
+          <div class="s-val val-cv" id="val-cv">—</div>
+        </div>
+        <input type="range" id="sl-cv" min="0" max="9" step="1" value="2">
+        <div class="s-desc" id="desc-cv"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Dimensions -->
+  <div>
+    <div class="section-title">Dimensions</div>
+    <div class="dim-grid">
+      <div class="dim-card">
+        <div class="lbl">단축 직경</div>
+        <div class="val" id="d-minor">—</div>
+      </div>
+      <div class="dim-card">
+        <div class="lbl">장축 직경</div>
+        <div class="val" id="d-major">—</div>
+      </div>
+      <div class="dim-card">
+        <div class="lbl">전체 두께</div>
+        <div class="val" id="d-thick">—</div>
+      </div>
+      <div class="dim-card">
+        <div class="lbl">구면 반경</div>
+        <div class="val" id="d-rs">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- File info -->
+  <div>
+    <div class="section-title">STL File</div>
+    <div class="file-box" id="filename">—</div>
+    <div class="status loading" id="status">준비 중...</div>
+  </div>
+
+</div>
+
+<!-- ── 3D Viewport ─────────────────────────────────── -->
+<div id="viewport">
+  <div class="hint">
+    드래그 — 회전<br>
+    스크롤 — 줌<br>
+    우클릭 — 이동
+  </div>
+</div>
+
+<!-- ── Three.js (importmap) ────────────────────────── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE      from 'three';
+import { STLLoader }   from 'three/addons/loaders/STLLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Parameter Tables ──────────────────────────────────
+const RADII   = [4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5];
+const ASPECTS = [1.0, 1.17, 1.33, 1.5, 1.67, 1.83, 2.0, 2.17, 2.33, 2.5];
+const CURVS   = [0.08, 0.11, 0.14, 0.17, 0.20, 0.23, 0.26, 0.29, 0.32, 0.35];
+
+const AR_DESCS = ['원형','원에 가까운 타원','타원','타원형','완만한 타원형',
+                  '타원 캡렛','캡렛','긴 캡렛','매우 긴 캡렛','장방형'];
+const CV_DESCS = ['매우 편평','편평','표준 편평','표준 볼록','표준',
+                  '일반 볼록','볼록','강한 볼록','매우 볼록','구면형'];
+
+// ── Three.js Scene ────────────────────────────────────
+const vp = document.getElementById('viewport');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(vp.clientWidth, vp.clientHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+vp.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, vp.clientWidth / vp.clientHeight, 0.1, 2000);
+camera.position.set(35, 22, 35);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 1.8;
+
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(60, 90, 50);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+scene.add(sun);
+
+const fill = new THREE.DirectionalLight(0x9bbdff, 0.4);
+fill.position.set(-50, -20, -40);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffd580, 0.25);
+rim.position.set(10, -60, 30);
+scene.add(rim);
+
+// Floor grid (subtle)
+const grid = new THREE.GridHelper(60, 20, 0x21262d, 0x21262d);
+grid.position.y = -12;
+scene.add(grid);
+
+// Tablet material — white pill look
+const mat = new THREE.MeshPhysicalMaterial({
+  color:              0xf4f0e8,
+  metalness:          0.0,
+  roughness:          0.22,
+  clearcoat:          0.6,
+  clearcoatRoughness: 0.08,
+  reflectivity:       0.35,
+});
+
+// ── STL Loader ────────────────────────────────────────
+const loader = new STLLoader();
+let mesh = null;
+
+function loadSTL(fname) {
+  const el = {
+    fname:  document.getElementById('filename'),
+    status: document.getElementById('status'),
+  };
+
+  el.fname.textContent  = fname;
+  el.status.textContent = '⏳ 로딩 중...';
+  el.status.className   = 'status loading';
+
+  if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); mesh = null; }
+
+  loader.load(
+    fname,
+    (geo) => {
+      geo.computeVertexNormals();
+
+      // Center at origin
+      geo.computeBoundingBox();
+      const c = new THREE.Vector3();
+      geo.boundingBox.getCenter(c);
+      geo.translate(-c.x, -c.y, -c.z);
+
+      // Fit camera distance to bounding sphere
+      geo.computeBoundingSphere();
+      const r = geo.boundingSphere.radius;
+      const fovRad = camera.fov * Math.PI / 180;
+      const dist = (r / Math.sin(fovRad / 2)) * 1.35;
+      camera.position.set(dist * 0.72, dist * 0.5, dist * 0.72);
+      grid.position.y = -r * 1.1;
+      controls.target.set(0, 0, 0);
+      controls.update();
+
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.castShadow = true;
+      scene.add(mesh);
+
+      el.status.textContent = '✓ 로드 완료';
+      el.status.className   = 'status ok';
+    },
+    undefined,
+    () => {
+      el.status.textContent = '✗ 파일 없음 (STL 먼저 생성하세요)';
+      el.status.className   = 'status error';
+    }
+  );
+}
+
+// ── Slider Fill Helper ────────────────────────────────
+function fillSlider(el, color) {
+  const pct = (el.value / el.max) * 100;
+  el.style.background =
+    `linear-gradient(to right, ${color} ${pct}%, #21262d ${pct}%)`;
+}
+
+// ── UI Update ─────────────────────────────────────────
+function mm(v, dp = 1) {
+  return `${v.toFixed(dp)}<span class="u"> mm</span>`;
+}
+
+function update() {
+  const ri = +document.getElementById('sl-r').value;
+  const ai = +document.getElementById('sl-ar').value;
+  const ci = +document.getElementById('sl-cv').value;
+
+  const R  = RADII[ri];
+  const AR = ASPECTS[ai];
+  const CV = CURVS[ci];
+
+  // Slider fills
+  fillSlider(document.getElementById('sl-r'),  '#58a6ff');
+  fillSlider(document.getElementById('sl-ar'), '#3fb950');
+  fillSlider(document.getElementById('sl-cv'), '#f78166');
+
+  // Value labels
+  document.getElementById('val-r').innerHTML  = `${R.toFixed(1)}<span class="unit"> mm</span>`;
+  document.getElementById('val-ar').textContent = AR.toFixed(2);
+  document.getElementById('val-cv').textContent = CV.toFixed(2);
+
+  // Descriptions
+  document.getElementById('desc-r').textContent  = `직경 ${(R*2).toFixed(1)} mm`;
+  document.getElementById('desc-ar').textContent = `${AR_DESCS[ai]}  —  장축 ${(R*2*AR).toFixed(1)} mm`;
+  document.getElementById('desc-cv').textContent = CV_DESCS[ci];
+
+  // Derived dimensions
+  const cd = CV * 2 * R;
+  const bh = R * 0.20;
+  const th = bh + 2 * cd;
+  const Rs = (R*R + cd*cd) / (2*cd);
+
+  document.getElementById('d-minor').innerHTML = mm(R * 2);
+  document.getElementById('d-major').innerHTML = mm(R * 2 * AR);
+  document.getElementById('d-thick').innerHTML = mm(th, 2);
+  document.getElementById('d-rs').innerHTML    = mm(Rs, 1);
+
+  // Filename → load
+  const fname =
+    `tablet_R${R.toFixed(1)}_AR${AR.toFixed(2)}_CV${CV.toFixed(2)}.stl`;
+  loadSTL(fname);
+}
+
+['sl-r','sl-ar','sl-cv'].forEach(id =>
+  document.getElementById(id).addEventListener('input', update)
+);
+
+// ── Render Loop ───────────────────────────────────────
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+
+// ── Resize ────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const w = vp.clientWidth, h = vp.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+
+// ── Init ──────────────────────────────────────────────
+update();
+</script>
+</body>
+</html>
