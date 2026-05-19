@@ -132,7 +132,9 @@ def launch(stl_path: str):
 def _print_params(fname: str):
     """파일명에서 R/AR/CV 파라미터를 파싱해 출력합니다."""
     import re
-    m = re.search(r"R([\d.]+)_AR([\d.]+)_CV([\d.]+)", fname)
+    # 확장자 제거 후 파싱 → .stl이 CV 값에 붙는 문제 방지
+    stem = os.path.splitext(fname)[0]
+    m = re.search(r"R([\d.]+)_AR([\d.]+)_CV([\d.]+)", stem)
     if not m:
         return
     R, AR, CV = float(m.group(1)), float(m.group(2)), float(m.group(3))
