@@ -1,0 +1,69 @@
+# =============================================================================
+# Crusher_IsaacSim — Python 의존성
+# =============================================================================
+#
+# 설치 방법 (isaac_sim conda 환경):
+#   conda activate isaac_sim
+#   pip install -r requirements.txt
+#
+# ⚠️  아래 항목은 pip 으로 설치할 수 없습니다 (별도 안내 참고):
+#   - Isaac Sim / omni / carb / pxr  →  NVIDIA Isaac Sim 설치 시 번들 제공
+#   - adsk (Fusion 360 API)          →  Autodesk Fusion 360 내부 실행 전용
+#   - bpy  (Blender Python API)      →  Blender 내부 실행 전용
+#
+# =============================================================================
+
+
+# ── 수치 연산 ─────────────────────────────────────────────────────────────────
+numpy>=1.24
+
+
+# ── 3D 시각화 (Tablet Shape Viewer / Collision Viewer) ───────────────────────
+pyvista>=0.44
+pyvistaqt>=0.11
+PyQt5>=5.15
+
+
+# ── 메시 처리 ────────────────────────────────────────────────────────────────
+trimesh>=4.0
+
+# CoACD: 고품질 볼록 분해 (선택 사항 — 없으면 VHACD → 단일 hull 로 fallback)
+# pip install coacd
+# coacd>=1.0
+
+
+# ── MuJoCo 물리 시뮬레이션 ────────────────────────────────────────────────────
+mujoco>=3.0
+
+
+# ── MuJoCo Playground (JAX 기반 병렬 시뮬레이션) ────────────────────────────
+# GPU 사용 시: pip install "jax[cuda12]"
+# CPU 전용   : pip install "jax[cpu]"
+jax>=0.4
+ml-collections>=1.0
+mujoco-playground
+
+
+# ── 이미지 처리 ──────────────────────────────────────────────────────────────
+Pillow>=10.0
+
+
+# ── 기타 유틸리티 ────────────────────────────────────────────────────────────
+graphviz>=0.20
+
+
+# =============================================================================
+# Isaac Sim 환경 별도 설치 안내
+# =============================================================================
+#
+# NVIDIA Isaac Sim 은 pip 으로 설치되지 않습니다.
+# 아래 패키지들은 Isaac Sim 설치 후 자동으로 사용 가능합니다:
+#
+#   omni.*        — Omniverse Kit API
+#   carb          — Omniverse Carbonite
+#   pxr           — OpenUSD Python 바인딩 (usd-core)
+#   isaacsim.*    — Isaac Sim 전용 모듈
+#
+# 설치 참고: https://docs.omniverse.nvidia.com/isaacsim/latest/installation/install_workstation.html
+#
+# =============================================================================
