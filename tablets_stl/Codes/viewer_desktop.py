@@ -7,6 +7,7 @@ Tablet Shape Viewer — 데스크탑 앱
 
 import os
 import sys
+import subprocess
 
 # ── PyQt5 ────────────────────────────────────────────────────────
 from PyQt5.QtWidgets import (
@@ -272,6 +273,34 @@ class TabletViewer(QMainWindow):
         self.lbl_status.setAlignment(Qt.AlignCenter)
         pl.addWidget(self.lbl_status)
 
+        pl.addSpacing(12)
+
+        # ── MuJoCo 실행 버튼 ─────────────────────────────────────
+        from PyQt5.QtWidgets import QPushButton
+        self.btn_mujoco = QPushButton("▶  MuJoCo에서 열기")
+        self.btn_mujoco.setEnabled(False)
+        self.btn_mujoco.setStyleSheet(f"""
+            QPushButton {{
+                background: #b45309;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 9px;
+                font-size: 12px;
+                font-weight: 700;
+            }}
+            QPushButton:hover    {{ background: #d97706; }}
+            QPushButton:pressed  {{ background: #92400e; }}
+            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+        """)
+        self.btn_mujoco.clicked.connect(self._launch_mujoco)
+        pl.addWidget(self.btn_mujoco)
+
+        self.lbl_mujoco = QLabel("")
+        self.lbl_mujoco.setStyleSheet(f"color:{C_MUTED}; font-size:10px; background:transparent;")
+        self.lbl_mujoco.setAlignment(Qt.AlignCenter)
+        pl.addWidget(self.lbl_mujoco)
+
         pl.addSpacing(18)
         pl.addWidget(divider())
         pl.addSpacing(14)
@@ -408,6 +437,7 @@ class TabletViewer(QMainWindow):
         if not os.path.exists(fpath):
             self.lbl_status.setText("✗ 파일 없음 — STL을 먼저 생성하세요")
             self.lbl_status.setStyleSheet("color:#f85149; font-size:11px; background:transparent;")
+            self.btn_mujoco.setEnabled(False)
             self.plotter.render()
             return
 
@@ -455,11 +485,14 @@ class TabletViewer(QMainWindow):
             self.lbl_status.setStyleSheet(
                 "color:#3fb950; font-size:11px; background:transparent;"
             )
+            self.btn_mujoco.setEnabled(True)
+            self.lbl_mujoco.setText("")
         except Exception as e:
             self.lbl_status.setText(f"✗ 오류: {e}")
             self.lbl_status.setStyleSheet(
                 "color:#f85149; font-size:11px; background:transparent;"
             )
+            self.btn_mujoco.setEnabled(False)
 
     # ── 볼록 분해 ─────────────────────────────────────────────────
     def _run_decomposition(self):
@@ -579,6 +612,28 @@ class TabletViewer(QMainWindow):
             hull.export(out)
         self.lbl_decomp.setText(
             self.lbl_decomp.text() + f"\n📁 {len(self._hulls)}개 STL 저장 완료"
+        )
+
+    # ── MuJoCo 뷰어 실행 ──────────────────────────────────────────
+    def _launch_mujoco(self):
+        fpath = os.path.join(STL_DIR, self.lbl_fname.text())
+        if not os.path.exists(fpath):
+            self.lbl_mujoco.setText("✗ STL 파일 없음")
+            return
+
+        launcher = os.path.join(_HERE, "launch_mujoco.py")
+        if not os.path.exists(launcher):
+            self.lbl_mujoco.setText("✗ launch_mujoco.py 없음")
+            return
+
+        # 별도 프로세스로 실행 → PyVista 뷰어 블로킹 없음
+        subprocess.Popen(
+            [sys.executable, launcher, fpath],
+            creationflags=subprocess.CREATE_NEW_CONSOLE,   # 전용 콘솔 창
+        )
+        self.lbl_mujoco.setText("✓ MuJoCo 뷰어 실행 중…")
+        self.lbl_mujoco.setStyleSheet(
+            "color:#3fb950; font-size:10px; background:transparent;"
         )
 
     def closeEvent(self, event):
