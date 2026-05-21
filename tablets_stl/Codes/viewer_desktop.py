@@ -627,10 +627,11 @@ class TabletViewer(QMainWindow):
             return
 
         # 별도 프로세스로 실행 → PyVista 뷰어 블로킹 없음
-        subprocess.Popen(
-            [sys.executable, launcher, fpath],
-            creationflags=subprocess.CREATE_NEW_CONSOLE,   # 전용 콘솔 창
-        )
+        import platform
+        kwargs = {}
+        if platform.system() == "Windows":
+            kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+        subprocess.Popen([sys.executable, launcher, fpath], **kwargs)
         self.lbl_mujoco.setText("✓ MuJoCo 뷰어 실행 중…")
         self.lbl_mujoco.setStyleSheet(
             "color:#3fb950; font-size:10px; background:transparent;"

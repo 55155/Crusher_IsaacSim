@@ -127,6 +127,15 @@ python tablets_stl/Codes/collision_viewer.py
 
 ## 변경 이력
 
+### 2026-05-21 — macOS 호환성 수정 및 tablet_generator Fusion 360 등록
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `tablets_stl/Codes/viewer_desktop.py` | `subprocess.CREATE_NEW_CONSOLE` (Windows 전용) → `platform.system()` 감지 후 조건부 적용으로 macOS 호환 수정 |
+| `tablets_stl/stl/_tablet_index.csv` | Fusion 360 `tablet_generator` AddIn 실행으로 정제 STL 1,000개 생성 및 인덱스 갱신 |
+
+---
+
 ### 2026-05-20 — MuJoCo 통합 완성 및 구조 정리
 
 #### MuJoCo_PlayGround
