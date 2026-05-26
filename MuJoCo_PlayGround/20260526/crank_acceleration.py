@@ -95,8 +95,9 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
         slide_pos.append(data.qpos[qa_slider])
         slide_vel.append(data.qvel[da_slider])
         slide_acc.append(data.qacc[da_slider])
-        # xacc: 6D spatial acc in world frame → [ang_acc(3), lin_acc(3)]
-        xacc_buf.append(data.xacc[b_slider].copy())
+        # cacc: com-based spatial acc in world frame → [ang_acc(3), lin_acc(3)]
+        # (Python 바인딩에서 xacc 대신 cacc 사용)
+        xacc_buf.append(data.cacc[b_slider].copy())
 
         viewer.sync()
 
