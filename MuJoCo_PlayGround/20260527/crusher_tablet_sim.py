@@ -18,6 +18,11 @@ Crusher + Tablet 통합 시뮬레이션 — 힘 센서 실시간 기록
   local Z (Fusion 360 두께 방향) → world Y (슬라이더 압축 방향)
   quat = (0.7071, 0.7071, 0, 0)  — world X 축 기준 90° 회전
 
+▶ 고정 뒷벽
+  Crusher XML 의 L1_Wall1_1 (worldbody 고정 geom, contype/conaffinity=1) 이
+  Y≈WALL_Y_MM 위치에 이미 존재 → 알약은 L8 impact plate 와 L1_Wall1_1 사이에서 압축됨.
+  별도 back_wall 주입 불필요.
+
 ▶ 힘 측정
   data.cfrc_ext[tablet_body, 3:6] : contact + applied force (world frame) [N]
   data.sensordata (force site 센서) : 비교용
@@ -144,20 +149,10 @@ def _build_model(stl_path: str):
         "friction": ".5 .02 .01",
     })
 
-    # ── Back wall: 알약 반대편 고정 벽 ──────────────────────────────────
-    # 이 벽이 없으면 슬라이더가 알약을 밀 때 알약이 그냥 밀려나서
-    # 접촉력이 순간적 impulse 만 발생하고 사라짐 → 반력이 매우 작게 측정됨.
-    # 벽 중심: far face Y + 벽 반두께(5mm)
-    wall_y = (WALL_Y_MM + 5.0) * 1e-3
-    ET.SubElement(worldbody, "geom", {
-        "name":        "back_wall",
-        "type":        "box",
-        "pos":         f"{PLACE_X_MM*1e-3:.6f} {wall_y:.6f} {PLACE_Z_MM*1e-3:.6f}",
-        "size":        "0.060 0.005 0.060",   # 120mm × 10mm × 120mm
-        "rgba":        "0.35 0.55 0.90 0.85",
-        "contype":     "1",
-        "conaffinity": "1",
-    })
+    # ── 참고: 뒷면 고정 벽 ──────────────────────────────────────────────
+    # Crusher XML 의 L1_Wall1_1 (worldbody 고정 geom, contype=1/conaffinity=1) 이
+    # 이미 Y≈WALL_Y_MM 위치에 존재하므로 별도 back_wall 주입 불필요.
+    # 알약은 L8 impact plate 와 L1_Wall1_1 사이에서 압축됨.
 
     # ── Force / Torque 센서 (actuator 뒤에 추가) ─────────────────────
     sensor_sec = ET.SubElement(root, "sensor")
@@ -204,7 +199,7 @@ def run(stl_path: str):
     print(f"\n  Motor1_crank    : {MOTOR_CTRL} N·m")
     print(f"  측정 시간       : {SIM_DURATION} s")
     print(f"  알약 초기 Y     : {tablet_init_y*1e3:.2f} mm")
-    print(f"  Back wall Y     : {WALL_Y_MM:.2f} mm (고정 벽)")
+    print(f"  L1_Wall1_1 Y    : {WALL_Y_MM:.2f} mm (Crusher 고정 뒷벽)")
     print("\n  뷰어 종료 시 플롯이 자동 저장됩니다.\n")
     print(f"  {'Time':>6s} | {'Slider_Y':>9s} mm | {'Tablet_Y':>9s} mm | "
           f"{'Gap':>7s} mm | {'F_Y':>8s} N  | {'|F|':>7s} N")
@@ -287,7 +282,7 @@ def run(stl_path: str):
     axes1[0].plot(t, sy, color="tab:orange", linewidth=1.5, label="Slider Y (L8 body)")
     axes1[0].plot(t, ty, color="tab:blue",   linewidth=1.5, label="Tablet Y (center)")
     axes1[0].axhline(WALL_Y_MM, color="tab:red", linestyle=":", linewidth=1.2,
-                     label=f"Back wall Y = {WALL_Y_MM:.1f} mm")
+                     label=f"L1_Wall1_1 back face Y = {WALL_Y_MM:.1f} mm")
     axes1[0].set_ylabel("World Y [mm]")
     axes1[0].set_title("Y Position over Time")
     axes1[0].legend(fontsize=9)
@@ -306,7 +301,7 @@ def run(stl_path: str):
     fig2, axes2 = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
     fig2.suptitle(
         f"Tablet Normal Force (Y) & Cumulative Impulse\n"
-        f"Motor={MOTOR_CTRL} N·m  |  Back wall fixed at Y={WALL_Y_MM:.1f} mm",
+        f"Motor={MOTOR_CTRL} N·m  |  L1_Wall1_1 back face Y={WALL_Y_MM:.1f} mm",
         fontsize=12, fontweight="bold",
     )
     axes2[0].plot(t, fe[:, 1], color="tab:blue", linewidth=1.5,
