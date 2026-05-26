@@ -45,8 +45,8 @@ MJCF_DIR  = os.path.dirname(MJCF_PATH)
 STL_DIR   = os.path.normpath(os.path.join(_HERE, "..", "..", "tablets_stl", "stl"))
 
 # ── 시뮬레이션 파라미터 ───────────────────────────────────────────────
-SIM_DURATION = 5.0    # 측정 시간 [s]
-MOTOR_CTRL   = 5.0    # Motor1_crank 제어 입력 [N·m]
+SIM_DURATION = 10.0   # 측정 시간 [s]
+MOTOR_CTRL   = 0.5    # Motor1_crank 제어 입력 [N·m]
 
 # ── 태블릿 배치 위치 (mm) ─────────────────────────────────────────────
 PLACE_X_MM = -47.879
@@ -228,20 +228,20 @@ def run(stl_path: str):
     # ── 플롯 1: 성분별 힘 ────────────────────────────────────────────
     fig1, axes = plt.subplots(3, 2, figsize=(13, 9), sharex=True)
     fig1.suptitle(
-        f"Tablet Force — Crusher Simulation\n"
+        f"Tablet Force Components — Crusher Simulation\n"
         f"Motor={MOTOR_CTRL} N·m  |  STL={os.path.basename(stl_path)}",
         fontsize=12, fontweight="bold",
     )
-    axis_labels = ["X", "Y (슬라이드)", "Z (수직)"]
+    axis_labels = ["X", "Y (slide)", "Z (vertical)"]
     colors      = ["tab:red", "tab:blue", "tab:green"]
 
     for i in range(3):
         axes[i, 0].plot(t, fe[:, i], color=colors[i])
-        axes[i, 0].set_title(f"접촉력 F{axis_labels[i]}  [cfrc_ext, world frame]")
+        axes[i, 0].set_title(f"Contact Force F{axis_labels[i]}  [cfrc_ext, world frame]")
         axes[i, 0].set_ylabel("F [N]")
 
         axes[i, 1].plot(t, fs[:, i], color=colors[i], linestyle="--")
-        axes[i, 1].set_title(f"센서 출력 F{axis_labels[i]}  [force site]")
+        axes[i, 1].set_title(f"Sensor Output F{axis_labels[i]}  [force site]")
         axes[i, 1].set_ylabel("F [N]")
 
     for ax in axes.flat:
@@ -253,11 +253,11 @@ def run(stl_path: str):
 
     # ── 플롯 2: 합력 크기 ────────────────────────────────────────────
     fig2, ax2 = plt.subplots(figsize=(10, 4))
-    ax2.plot(t, fe_mag, color="tab:blue",   linewidth=1.5, label="|F| cfrc_ext (접촉력)")
+    ax2.plot(t, fe_mag, color="tab:blue",   linewidth=1.5, label="|F| cfrc_ext (contact force)")
     ax2.plot(t, fs_mag, color="tab:orange", linewidth=1.2, linestyle="--",
              alpha=0.8, label="|F| sensor (force site)")
     ax2.fill_between(t, 0, fe_mag, alpha=0.12, color="tab:blue")
-    ax2.set_title("Tablet 합력 크기 |F| over Time", fontsize=12)
+    ax2.set_title("Tablet Force Magnitude |F| over Time", fontsize=12)
     ax2.set_xlabel("Time [s]")
     ax2.set_ylabel("|F| [N]")
     ax2.legend()

@@ -296,6 +296,26 @@ class TabletViewer(QMainWindow):
         self.btn_mujoco.clicked.connect(self._launch_mujoco)
         pl.addWidget(self.btn_mujoco)
 
+        # ── Crusher 시뮬레이션 버튼 ──────────────────────────────
+        self.btn_crusher = QPushButton("⚙  Crusher 시뮬레이션")
+        self.btn_crusher.setEnabled(False)
+        self.btn_crusher.setStyleSheet(f"""
+            QPushButton {{
+                background: #6e40c9;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 9px;
+                font-size: 12px;
+                font-weight: 700;
+            }}
+            QPushButton:hover    {{ background: #8957e5; }}
+            QPushButton:pressed  {{ background: #553098; }}
+            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+        """)
+        self.btn_crusher.clicked.connect(self._launch_crusher_sim)
+        pl.addWidget(self.btn_crusher)
+
         self.lbl_mujoco = QLabel("")
         self.lbl_mujoco.setStyleSheet(f"color:{C_MUTED}; font-size:10px; background:transparent;")
         self.lbl_mujoco.setAlignment(Qt.AlignCenter)
@@ -438,6 +458,7 @@ class TabletViewer(QMainWindow):
             self.lbl_status.setText("✗ 파일 없음 — STL을 먼저 생성하세요")
             self.lbl_status.setStyleSheet("color:#f85149; font-size:11px; background:transparent;")
             self.btn_mujoco.setEnabled(False)
+            self.btn_crusher.setEnabled(False)
             self.plotter.render()
             return
 
@@ -486,6 +507,7 @@ class TabletViewer(QMainWindow):
                 "color:#3fb950; font-size:11px; background:transparent;"
             )
             self.btn_mujoco.setEnabled(True)
+            self.btn_crusher.setEnabled(True)
             self.lbl_mujoco.setText("")
         except Exception as e:
             self.lbl_status.setText(f"✗ 오류: {e}")
@@ -493,6 +515,7 @@ class TabletViewer(QMainWindow):
                 "color:#f85149; font-size:11px; background:transparent;"
             )
             self.btn_mujoco.setEnabled(False)
+            self.btn_crusher.setEnabled(False)
 
     # ── 볼록 분해 ─────────────────────────────────────────────────
     def _run_decomposition(self):
@@ -635,6 +658,31 @@ class TabletViewer(QMainWindow):
         self.lbl_mujoco.setText("✓ MuJoCo 뷰어 실행 중…")
         self.lbl_mujoco.setStyleSheet(
             "color:#3fb950; font-size:10px; background:transparent;"
+        )
+
+    # ── Crusher 시뮬레이션 실행 ───────────────────────────────────────
+    def _launch_crusher_sim(self):
+        fpath = os.path.join(STL_DIR, self.lbl_fname.text())
+        if not os.path.exists(fpath):
+            self.lbl_mujoco.setText("✗ STL 파일 없음")
+            return
+
+        sim_script = os.path.normpath(
+            os.path.join(_HERE, "..", "..",
+                         "MuJoCo_PlayGround", "20260527", "crusher_tablet_sim.py")
+        )
+        if not os.path.exists(sim_script):
+            self.lbl_mujoco.setText("✗ crusher_tablet_sim.py 없음")
+            return
+
+        import platform
+        kwargs = {}
+        if platform.system() == "Windows":
+            kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
+        subprocess.Popen([sys.executable, sim_script, fpath], **kwargs)
+        self.lbl_mujoco.setText("✓ Crusher 시뮬레이션 실행 중…")
+        self.lbl_mujoco.setStyleSheet(
+            "color:#a371f7; font-size:10px; background:transparent;"
         )
 
     def closeEvent(self, event):
