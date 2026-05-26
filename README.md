@@ -127,6 +127,36 @@ python tablets_stl/Codes/collision_viewer.py
 
 ## 변경 이력
 
+### 2026-05-26 — Crank-Slider 메커니즘 진단 및 좌표계 분석
+
+#### 핵심 발견
+
+| 항목 | 내용 |
+|------|------|
+| **Equality Constraint 타입 오류** | `connect`는 위치(3-DOF)만 구속 → L7-L8 사이 회전 자유도 미구속으로 진동 발생. `weld`(위치+방향 완전 고정)로 교체 필요 |
+| **Constraint Gap 원인 분석** | anchor=0.027 설정 시 L8 body와 10 mm 갭 발생 → 제약력 500 N (중력 12.7 N의 **39배**) → CCW 비정상 회전 유발 |
+| **크랭크 회전축 오해** | XML `axis="0 0 1"` (body local Z) + `quat="0.5 0.5 0.5 0.5"` → 실제 world 회전축 = **[1, 0, 0] (world X)**. 중력(-Z)과 수직이므로 최대 토크 발생 |
+| **MuJoCo 좌표계 변환** | `quat="0.5 0.5 0.5 0.5"` → R=`[[0,0,1],[1,0,0],[0,1,0]]` : URDF X→MuJoCo Y, URDF Y→MuJoCo Z, URDF Z→MuJoCo X |
+
+#### 신규 파일
+
+| 파일 | 내용 |
+|------|------|
+| `MuJoCo_PlayGround/20260526/coordinate_gizmo.py` | MuJoCo 월드 좌표계(XYZ 기즈모) 확인 스크립트. 뷰어 원점에 body frame 표시 |
+| `MuJoCo_PlayGround/20260526/open_urdf.py` | 원본 URDF를 MuJoCo로 직접 로드해 각 body 월드 위치·joint 목록 출력 및 뷰어 실행 |
+
+#### MJCF 수정 이력 (Crusher_IsaacSim_colored.xml)
+
+| 수정 | 내용 |
+|------|------|
+| L5-L6, L6-L7 hinge damping 추가 | `damping="0.5"` — 초기 불안정 진동 억제 |
+| L8 slide joint damping 추가 | `damping="5"` |
+| L8_Link3_Shaft_1 body pos 수정 | Rigid32 접합 위치 = `(-0.048302, 0.236278, 0.049431)` (URDF 실측 검증 완료) |
+| Equality Constraint anchor | URDF Rigid32 joint xyz=(0.037, 0, -0.005) 기준. **다음 단계: connect → weld 교체 예정** |
+| 뷰어 설정 | `mjVIS_CONVEXHULL=False`, `geomgroup[3]=False` — visual mesh 전용 표시 |
+
+---
+
 ### 2026-05-20 — MuJoCo 통합 완성 및 구조 정리
 
 #### MuJoCo_PlayGround

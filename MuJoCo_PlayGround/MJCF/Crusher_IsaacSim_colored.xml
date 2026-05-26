@@ -201,17 +201,16 @@
   </worldbody>
   <equality>
     <!-- 끊어진 Rigid 32 를 Equality Connect 로 재결합:
-         anchor = L7 body LOCAL frame 에서의 slider pin 위치 (URDF Rigid32 joint xyz)
-           = (0.037, 0, -0.005) [m]  ← L7 local frame 에서의 connecting rod 끝
-         MuJoCo connect anchor 는 body1 local frame 으로 저장되며
-         world constraint = L7_world_pos + L7_R @ (0.037, 0, -0.005)
-                          = (-0.048302, 0.236278, 0.049431) = slider pin world ✓
-         body2 (L8) origin 도 slider pin 위치이므로 constraint gap = 0 ✓
+         anchor = L7 body LOCAL frame 에서의 slider pin 위치
+           = (0.027, 0, -0.005) [m]  ← URDF 0.037 에서 world-Y -10mm 보정 (local_X -0.01)
+         world constraint = L7_world_pos + L7_R @ (0.027, 0, -0.005)
+                          = (-0.048302, 0.226278, 0.049431)
+         L8 body origin (0.236278) 과의 gap 1cm → 슬라이드 DOF 로 흡수
          solref="-50000 -500" : 직접 stiffness/damping → 1mm 변위에 50N 복원력
          solimp="0.99 0.9999 0.0001" : constraint impedance 최대화 -->
-    <connect name="crank_slider_loop"
+    <weld name="crank_slider_loop"
              body1="L7_Link3_1" body2="L8_Link3_Shaft_1"
-             anchor="0.037 0 -0.005"
+             anchor="0.027 0 -0.005"
              solref="-50000 -500"
              solimp="0.99 0.9999 0.0001" />
   </equality>
