@@ -45,7 +45,7 @@ MJCF_DIR  = os.path.dirname(MJCF_PATH)
 STL_DIR   = os.path.normpath(os.path.join(_HERE, "..", "..", "tablets_stl", "stl"))
 
 # ── 시뮬레이션 파라미터 ───────────────────────────────────────────────
-SIM_DURATION = 10.0   # 측정 시간 [s]
+SIM_DURATION = 30.0   # 측정 시간 [s]
 MOTOR_CTRL   = 0.5    # Motor1_crank 제어 입력 [N·m]
 
 # ── 태블릿 배치 위치 (mm) ─────────────────────────────────────────────
@@ -144,6 +144,21 @@ def _build_model(stl_path: str):
         "friction": ".5 .02 .01",
     })
 
+    # ── Back wall: 알약 반대편 고정 벽 ──────────────────────────────────
+    # 이 벽이 없으면 슬라이더가 알약을 밀 때 알약이 그냥 밀려나서
+    # 접촉력이 순간적 impulse 만 발생하고 사라짐 → 반력이 매우 작게 측정됨.
+    # 벽 중심: far face Y + 벽 반두께(5mm)
+    wall_y = (WALL_Y_MM + 5.0) * 1e-3
+    ET.SubElement(worldbody, "geom", {
+        "name":        "back_wall",
+        "type":        "box",
+        "pos":         f"{PLACE_X_MM*1e-3:.6f} {wall_y:.6f} {PLACE_Z_MM*1e-3:.6f}",
+        "size":        "0.060 0.005 0.060",   # 120mm × 10mm × 120mm
+        "rgba":        "0.35 0.55 0.90 0.85",
+        "contype":     "1",
+        "conaffinity": "1",
+    })
+
     # ── Force / Torque 센서 (actuator 뒤에 추가) ─────────────────────
     sensor_sec = ET.SubElement(root, "sensor")
     ET.SubElement(sensor_sec, "force",  {"name": "tablet_force",  "site": "tablet_force_site"})
@@ -162,28 +177,38 @@ def run(stl_path: str):
     print("  Crusher + Tablet 통합 시뮬레이션 — 힘 센서")
     print("=" * 58)
 
-    model, _ = _build_model(stl_path)
-    data      = mujoco.MjData(model)
+    model, thickness_m = _build_model(stl_path)
+    data = mujoco.MjData(model)
 
-    # ID 조회
-    b_tablet  = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY,     "tablet")
-    act_crank = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR,  "Motor1_crank")
-    s_id      = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SENSOR,    "tablet_force")
-    s_adr     = model.sensor_adr[s_id]   # sensordata 배열 시작 인덱스
+    # ── ID 조회 ──────────────────────────────────────────────────────
+    b_tablet  = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY,    "tablet")
+    b_slider  = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY,    "L8_Link3_Shaft_1")
+    act_crank = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, "Motor1_crank")
+    s_id      = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SENSOR,   "tablet_force")
+    s_adr     = model.sensor_adr[s_id]
+
+    tablet_init_y = (WALL_Y_MM - thickness_m * 1e3 / 2.0) * 1e-3  # [m]
 
     # ── 데이터 버퍼 ──────────────────────────────────────────────────
-    t_log  = []
-    f_ext  = []   # cfrc_ext[tablet, 3:6] — 외부 접촉력 (world frame)
-    f_sens = []   # sensordata 의 force site 출력 (비교용)
+    t_log    = []
+    f_ext    = []   # cfrc_ext[tablet, 3:6] — contact force (world frame) [N]
+    f_sens   = []   # force site sensor output (비교용) [N]
+    slider_y = []   # 슬라이더 body world Y [m]
+    tablet_y = []   # 알약 body world Y [m]
+    gap_log  = []   # 슬라이더 → 알약 near-face 간격 [mm]
 
     # ── 모터 ON ───────────────────────────────────────────────────────
     data.ctrl[act_crank] = MOTOR_CTRL
+    first_contact_t = None
 
-    print(f"\n  Motor1_crank  : {MOTOR_CTRL} N·m")
-    print(f"  측정 시간     : {SIM_DURATION} s")
-    print("  뷰어 종료 시 플롯이 자동 저장됩니다.\n")
-    print(f"  {'Time':>6s}  |  {'|F_contact|':>12s} N")
-    print("  " + "-" * 24)
+    print(f"\n  Motor1_crank    : {MOTOR_CTRL} N·m")
+    print(f"  측정 시간       : {SIM_DURATION} s")
+    print(f"  알약 초기 Y     : {tablet_init_y*1e3:.2f} mm")
+    print(f"  Back wall Y     : {WALL_Y_MM:.2f} mm (고정 벽)")
+    print("\n  뷰어 종료 시 플롯이 자동 저장됩니다.\n")
+    print(f"  {'Time':>6s} | {'Slider_Y':>9s} mm | {'Tablet_Y':>9s} mm | "
+          f"{'Gap':>7s} mm | {'F_Y':>8s} N  | {'|F|':>7s} N")
+    print("  " + "-" * 70)
 
     # ── 시뮬레이션 루프 ──────────────────────────────────────────────
     with mujoco.viewer.launch_passive(model, data) as viewer:
@@ -193,84 +218,151 @@ def run(stl_path: str):
         while viewer.is_running() and data.time < SIM_DURATION:
             mujoco.mj_step(model, data)
 
+            sy = float(data.xpos[b_slider, 1])
+            ty = float(data.xpos[b_tablet, 1])
+            gap_mm = (ty - sy) * 1e3
+
+            fe_now = data.cfrc_ext[b_tablet, 3:6].copy()
+            fs_now = data.sensordata[s_adr : s_adr + 3].copy()
+
             t_log.append(data.time)
+            slider_y.append(sy)
+            tablet_y.append(ty)
+            gap_log.append(gap_mm)
+            f_ext.append(fe_now)
+            f_sens.append(fs_now)
 
-            # 외부 접촉력: cfrc_ext[body, 3:6] = force (world frame) [N]
-            # cfrc_ext[body, 0:3] = torque (world frame) [N·m]
-            f_ext.append(data.cfrc_ext[b_tablet, 3:6].copy())
+            # 첫 접촉 감지 (|F_Y| > 0.1 N)
+            if first_contact_t is None and abs(fe_now[1]) > 0.1:
+                first_contact_t = data.time
+                print(f"  *** 첫 접촉: t={data.time:.3f}s  "
+                      f"F_Y={fe_now[1]:.2f}N  gap={gap_mm:.2f}mm ***")
 
-            # 비교용: force site 센서 출력 (m*a 기반, 중력 미포함)
-            f_sens.append(data.sensordata[s_adr : s_adr + 3].copy())
-
-            # 실시간 콘솔 출력 (50스텝 = 0.1s 마다)
-            if len(t_log) % 50 == 0:
-                mag = np.linalg.norm(f_ext[-1])
-                print(f"  {data.time:6.2f}s  |  {mag:12.2f}")
+            # 실시간 콘솔 (250 스텝 = 0.5s 마다)
+            if len(t_log) % 250 == 0:
+                mag = np.linalg.norm(fe_now)
+                print(f"  {data.time:6.2f}s | {sy*1e3:9.2f}    | {ty*1e3:9.2f}    | "
+                      f"{gap_mm:7.2f}    | {fe_now[1]:8.3f}    | {mag:7.3f}")
 
             viewer.sync()
 
     # ── numpy 변환 ───────────────────────────────────────────────────
-    t  = np.array(t_log)
-    fe = np.array(f_ext)    # (N, 3)  contact force
-    fs = np.array(f_sens)   # (N, 3)  sensor output
+    t   = np.array(t_log)
+    fe  = np.array(f_ext)
+    fs  = np.array(f_sens)
+    sy  = np.array(slider_y) * 1e3   # [mm]
+    ty  = np.array(tablet_y) * 1e3   # [mm]
+    gap = np.array(gap_log)
 
     if len(t) == 0:
-        print("[경고] 수집된 데이터 없음.")
+        print("[경고] 데이터 없음.")
         return
 
-    fe_mag = np.linalg.norm(fe, axis=1)
-    fs_mag = np.linalg.norm(fs, axis=1)
+    fe_mag  = np.linalg.norm(fe, axis=1)
+    J_Y     = float(np.trapz(fe[:, 1], t))
+    F_Y_max = float(fe[:, 1].max())
+    F_Y_min = float(fe[:, 1].min())
 
-    print(f"\n  수집 완료     : {len(t)} 스텝  ({t[-1]:.3f} s)")
-    print(f"  |F|_max       : {fe_mag.max():.2f} N  (접촉력)")
-    print(f"  F_Y max       : {fe[:, 1].max():.2f} N  (슬라이드 방향)")
+    print(f"\n  {'='*58}")
+    print(f"  수집 완료       : {len(t)} steps  ({t[-1]:.2f} s)")
+    print(f"  Slider Y range  : {sy.min():.1f} ~ {sy.max():.1f} mm")
+    print(f"  Tablet Y range  : {ty.min():.1f} ~ {ty.max():.1f} mm")
+    print(f"  Min gap         : {gap.min():.2f} mm  (<0 = penetration = contact)")
+    print(f"  F_Y range       : {F_Y_min:.3f} ~ {F_Y_max:.3f} N")
+    print(f"  |F| max         : {fe_mag.max():.3f} N")
+    print(f"  Impulse J_Y     : {J_Y:.5f} N·s  (= integral F_Y dt = delta mv_Y)")
+    if first_contact_t:
+        print(f"  First contact   : t = {first_contact_t:.3f} s")
+    else:
+        print("  [!] No contact detected — slider may not have reached tablet")
+    print(f"  {'='*58}")
 
-    # ── 플롯 1: 성분별 힘 ────────────────────────────────────────────
-    fig1, axes = plt.subplots(3, 2, figsize=(13, 9), sharex=True)
+    # ── 플롯 1: 위치 추적 ────────────────────────────────────────────
+    fig1, axes1 = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
     fig1.suptitle(
-        f"Tablet Force Components — Crusher Simulation\n"
+        f"Slider & Tablet Position — Crusher Simulation\n"
         f"Motor={MOTOR_CTRL} N·m  |  STL={os.path.basename(stl_path)}",
         fontsize=12, fontweight="bold",
     )
-    axis_labels = ["X", "Y (slide)", "Z (vertical)"]
-    colors      = ["tab:red", "tab:blue", "tab:green"]
+    axes1[0].plot(t, sy, color="tab:orange", linewidth=1.5, label="Slider Y (L8 body)")
+    axes1[0].plot(t, ty, color="tab:blue",   linewidth=1.5, label="Tablet Y (center)")
+    axes1[0].axhline(WALL_Y_MM, color="tab:red", linestyle=":", linewidth=1.2,
+                     label=f"Back wall Y = {WALL_Y_MM:.1f} mm")
+    axes1[0].set_ylabel("World Y [mm]")
+    axes1[0].set_title("Y Position over Time")
+    axes1[0].legend(fontsize=9)
+    axes1[0].grid(True, alpha=0.3)
 
-    for i in range(3):
-        axes[i, 0].plot(t, fe[:, i], color=colors[i])
-        axes[i, 0].set_title(f"Contact Force F{axis_labels[i]}  [cfrc_ext, world frame]")
-        axes[i, 0].set_ylabel("F [N]")
-
-        axes[i, 1].plot(t, fs[:, i], color=colors[i], linestyle="--")
-        axes[i, 1].set_title(f"Sensor Output F{axis_labels[i]}  [force site]")
-        axes[i, 1].set_ylabel("F [N]")
-
-    for ax in axes.flat:
-        ax.grid(True, alpha=0.3)
-        ax.axhline(0, color="k", linewidth=0.5)
-        ax.set_xlabel("Time [s]")
-
+    axes1[1].plot(t, gap, color="tab:purple", linewidth=1.5)
+    axes1[1].axhline(0, color="tab:red", linestyle="--", linewidth=0.8, label="Contact (gap=0)")
+    axes1[1].set_ylabel("Gap [mm]")
+    axes1[1].set_xlabel("Time [s]")
+    axes1[1].set_title("Slider to Tablet Near-Face Gap")
+    axes1[1].legend(fontsize=9)
+    axes1[1].grid(True, alpha=0.3)
     fig1.tight_layout()
 
-    # ── 플롯 2: 합력 크기 ────────────────────────────────────────────
-    fig2, ax2 = plt.subplots(figsize=(10, 4))
-    ax2.plot(t, fe_mag, color="tab:blue",   linewidth=1.5, label="|F| cfrc_ext (contact force)")
-    ax2.plot(t, fs_mag, color="tab:orange", linewidth=1.2, linestyle="--",
-             alpha=0.8, label="|F| sensor (force site)")
-    ax2.fill_between(t, 0, fe_mag, alpha=0.12, color="tab:blue")
-    ax2.set_title("Tablet Force Magnitude |F| over Time", fontsize=12)
-    ax2.set_xlabel("Time [s]")
-    ax2.set_ylabel("|F| [N]")
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
+    # ── 플롯 2: Y방향 Normal Force + Impulse ─────────────────────────
+    fig2, axes2 = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
+    fig2.suptitle(
+        f"Tablet Normal Force (Y) & Cumulative Impulse\n"
+        f"Motor={MOTOR_CTRL} N·m  |  Back wall fixed at Y={WALL_Y_MM:.1f} mm",
+        fontsize=12, fontweight="bold",
+    )
+    axes2[0].plot(t, fe[:, 1], color="tab:blue", linewidth=1.5,
+                  label="F_Y  cfrc_ext  (contact, world frame)")
+    axes2[0].plot(t, fs[:, 1], color="tab:orange", linewidth=1.0, linestyle="--",
+                  alpha=0.75, label="F_Y  force site sensor")
+    axes2[0].axhline(0, color="k", linewidth=0.5)
+    axes2[0].fill_between(t, 0, fe[:, 1], where=(fe[:, 1] > 0),
+                          alpha=0.15, color="tab:blue",  label="Compression (+Y)")
+    axes2[0].fill_between(t, 0, fe[:, 1], where=(fe[:, 1] < 0),
+                          alpha=0.15, color="tab:red",   label="Tension (-Y)")
+    axes2[0].set_ylabel("F_Y [N]")
+    axes2[0].set_title(f"Normal Force F_Y  (max={F_Y_max:.3f} N,  min={F_Y_min:.3f} N)")
+    axes2[0].legend(fontsize=9)
+    axes2[0].grid(True, alpha=0.3)
+
+    J_cumul = np.cumsum(fe[:, 1]) * float(model.opt.timestep)
+    axes2[1].plot(t, J_cumul, color="tab:green", linewidth=1.5,
+                  label=f"Cumul. Impulse J_Y = {J_Y:.4f} N·s")
+    axes2[1].axhline(0, color="k", linewidth=0.5)
+    axes2[1].set_ylabel("J_Y [N·s]")
+    axes2[1].set_xlabel("Time [s]")
+    axes2[1].set_title("Cumulative Impulse  J_Y = integral(F_Y dt)  =  delta(m * v_Y)")
+    axes2[1].legend(fontsize=9)
+    axes2[1].grid(True, alpha=0.3)
     fig2.tight_layout()
 
+    # ── 플롯 3: 3축 성분 ─────────────────────────────────────────────
+    fig3, axes3 = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
+    fig3.suptitle("Tablet Force Components  (cfrc_ext, world frame)",
+                  fontsize=12, fontweight="bold")
+    axis_info = [
+        ("X", "tab:red",   "Lateral force"),
+        ("Y", "tab:blue",  "Normal force  (compression direction)"),
+        ("Z", "tab:green", "Vertical force  (gravity + floor)"),
+    ]
+    for i, (lbl, col, desc) in enumerate(axis_info):
+        axes3[i].plot(t, fe[:, i], color=col, linewidth=1.2, label=f"F_{lbl}  [{desc}]")
+        axes3[i].axhline(0, color="k", linewidth=0.5)
+        axes3[i].set_ylabel(f"F_{lbl} [N]")
+        axes3[i].legend(fontsize=9, loc="upper right")
+        axes3[i].grid(True, alpha=0.3)
+    axes3[2].set_xlabel("Time [s]")
+    fig3.tight_layout()
+
     # ── 저장 ─────────────────────────────────────────────────────────
-    p1 = os.path.join(_HERE, "crusher_tablet_force_components.png")
-    p2 = os.path.join(_HERE, "crusher_tablet_force_magnitude.png")
-    fig1.savefig(p1, dpi=150, bbox_inches="tight")
-    fig2.savefig(p2, dpi=150, bbox_inches="tight")
-    print(f"\n  저장: {p1}")
-    print(f"  저장: {p2}")
+    paths = {
+        "position":     os.path.join(_HERE, "crusher_tablet_position.png"),
+        "normal_force": os.path.join(_HERE, "crusher_tablet_normal_force.png"),
+        "components":   os.path.join(_HERE, "crusher_tablet_force_components.png"),
+    }
+    fig1.savefig(paths["position"],     dpi=150, bbox_inches="tight")
+    fig2.savefig(paths["normal_force"], dpi=150, bbox_inches="tight")
+    fig3.savefig(paths["components"],   dpi=150, bbox_inches="tight")
+    for name, p in paths.items():
+        print(f"  saved [{name}]: {os.path.basename(p)}")
     plt.show()
 
 
