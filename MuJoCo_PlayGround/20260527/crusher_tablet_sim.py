@@ -27,20 +27,12 @@ import os
 import sys
 import re
 import argparse
-import threading
 import xml.etree.ElementTree as ET
 
 import numpy as np
 import matplotlib.pyplot as plt
 import mujoco
 import mujoco.viewer
-
-try:
-    import tkinter as tk
-    from tkinter import font as tkfont
-    _TK_AVAILABLE = True
-except ImportError:
-    _TK_AVAILABLE = False
 
 # ── 경로 ─────────────────────────────────────────────────────────────
 _HERE     = os.path.dirname(os.path.abspath(__file__))
@@ -59,108 +51,16 @@ WALL_Y_MM  = 336.199   # impact plate 벽 위치 (= 알약 중심 Y)
 PHASE1_STEPS = 500
 
 # ── Phase 2 시뮬레이션 파라미터 ──────────────────────────────────────
-SIM_DURATION = 30.0   # 측정 시간 [s]
-MOTOR_CTRL   = -0.5   # Motor1_crank 제어 입력 [N·m]  (음수 = CCW)
-MOTOR_DELAY  =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
+SIM_DURATION      = 30.0   # 측정 시간 [s]
+MOTOR_CTRL        = -0.5   # Motor1_crank 제어 입력 [N·m]  (음수 = CCW)
+MOTOR_DELAY       =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
+REVERSE_THRESHOLD =  0.5   # 압축 피크 감지: gap이 최솟값보다 이만큼 커지면 역전 [mm]
 
 # ── 알약 초기 자세 (쿼터니언) ────────────────────────────────────────
 # Step 1: X축 90°  → local-Z(두께) → world-Y(압축방향)
 # Step 2: Y축 90°  → 알약을 세로(roll)방향으로 90° 추가 회전
 # q = q_rollY(90°) ⊗ q_rotX(90°) = [0.5, 0.5, 0.5, -0.5]
 TAB_QUAT = np.array([0.5, 0.5, 0.5, -0.5])              # [qw, qx, qy, qz]
-
-
-# ─────────────────────────────────────────────────────────────────────
-# MuJoCo Viewer 단축키 목록
-# ─────────────────────────────────────────────────────────────────────
-_SHORTCUTS = [
-    # (섹션 헤더, key, 설명)  — key가 None이면 섹션 헤더
-    ("── 시뮬레이션 제어 ──", None, None),
-    (None, "Space",       "일시정지 / 재개"),
-    (None, "Backspace",   "시뮬레이션 리셋"),
-    (None, "→  (paused)", "한 스텝 전진"),
-    (None, "F7",          "슬로우모션 토글"),
-    ("── 렌더링 ──",         None, None),
-    (None, "W",           "★ 와이어프레임 토글"),
-    (None, "T",           "투명도 토글"),
-    (None, "H",           "그림자 토글"),
-    (None, "D",           "뎁스맵 토글"),
-    (None, "N",           "접촉점/법선 표시"),
-    (None, "I",           "관성 박스 표시"),
-    (None, "J",           "관절 축 표시"),
-    (None, "K",           "컨벡스헐 토글"),
-    (None, "L",           "라벨 토글"),
-    (None, "0 ~ 9",       "지오메트리 그룹 토글"),
-    ("── 카메라 ──",         None, None),
-    (None, "Tab",         "카메라 전환"),
-    (None, "Enter",       "카메라 재정렬"),
-    (None, "Esc",         "자유 카메라"),
-    (None, "Ctrl + A",    "카메라 정렬"),
-    ("── 기타 ──",           None, None),
-    (None, "F1",          "단축키 도움말 오버레이"),
-    (None, "F2",          "시뮬레이션 정보"),
-    (None, "F3",          "프로파일러"),
-    (None, "F4",          "센서 그래프"),
-]
-
-
-def _show_shortcuts_panel():
-    """MuJoCo Viewer 단축키 패널을 별도 스레드의 tkinter 창으로 표시."""
-    if not _TK_AVAILABLE:
-        return
-
-    BG       = "#1e1e2e"
-    HDR_BG   = "#313244"
-    HDR_FG   = "#cdd6f4"
-    KEY_FG   = "#f38ba8"   # 키 이름 — 분홍
-    KEY_STAR = "#f9e2af"   # ★ 강조 키 — 노랑
-    DESC_FG  = "#a6e3a1"   # 설명 — 초록
-    SEC_FG   = "#89dceb"   # 섹션 헤더 — 하늘
-
-    def _run():
-        root = tk.Tk()
-        root.title("MuJoCo Viewer  단축키")
-        root.configure(bg=BG)
-        root.resizable(False, False)
-        root.attributes("-topmost", True)
-
-        fnt_hdr  = tkfont.Font(family="Consolas", size=10, weight="bold")
-        fnt_sec  = tkfont.Font(family="Consolas", size=9,  weight="bold")
-        fnt_key  = tkfont.Font(family="Consolas", size=9,  weight="bold")
-        fnt_desc = tkfont.Font(family="Consolas", size=9)
-
-        # 상단 타이틀
-        tk.Label(root, text="  MuJoCo Viewer  단축키 참조  ",
-                 bg=HDR_BG, fg=HDR_FG, font=fnt_hdr,
-                 pady=6).pack(fill="x")
-
-        frame = tk.Frame(root, bg=BG, padx=10, pady=6)
-        frame.pack(fill="both", expand=True)
-
-        for sec, key, desc in _SHORTCUTS:
-            if key is None:          # 섹션 헤더
-                tk.Label(frame, text=sec, bg=BG, fg=SEC_FG,
-                         font=fnt_sec, anchor="w", pady=4
-                         ).pack(fill="x")
-            else:                    # 단축키 행
-                row = tk.Frame(frame, bg=BG)
-                row.pack(fill="x", pady=1)
-                star = key.startswith("★")
-                fg_k = KEY_STAR if star else KEY_FG
-                tk.Label(row, text=f"  {key:<16}",
-                         bg=BG, fg=fg_k, font=fnt_key,
-                         width=18, anchor="w").pack(side="left")
-                tk.Label(row, text=desc,
-                         bg=BG, fg=DESC_FG, font=fnt_desc,
-                         anchor="w").pack(side="left")
-
-        tk.Label(root, text="  창을 닫아도 시뮬레이션은 계속됩니다  ",
-                 bg=HDR_BG, fg="#6c7086", font=fnt_desc,
-                 pady=4).pack(fill="x")
-
-        root.mainloop()
-
-    threading.Thread(target=_run, daemon=True).start()
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -343,6 +243,10 @@ def run(stl_path: str):
     data.ctrl[act_crank] = 0.0
     phase2_start_t = data.time
     motor_on       = False
+    reversed_motor = False
+    min_gap_seen   = float("inf")
+    motor_on_t     = None
+    motor_rev_t    = None
 
     t_log    = []
     f_log    = []   # contact force (world XYZ)
@@ -352,11 +256,8 @@ def run(stl_path: str):
     first_contact_t = None
 
     print(f"  {'Time':>6s} | {'Slider_Y':>9s} mm | {'Tablet_Y':>9s} mm | "
-          f"{'Gap':>7s} mm | {'F_Y':>8s} N | {'ncon':>4s}")
+          f"{'Gap':>7s} mm | {'F_Y(N)':>8s} | {'ncon':>4s}")
     print("  " + "-" * 72)
-
-    # 단축키 패널 (별도 창, 데몬 스레드)
-    _show_shortcuts_panel()
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_JOINT]      = False
@@ -368,13 +269,27 @@ def run(stl_path: str):
 
         while viewer.is_running() and data.time < SIM_DURATION:
 
-            # MOTOR_DELAY 후 lock 해제 + 모터 ON
+            # ── MOTOR_DELAY 후 lock 해제 + 모터 ON ──────────────────
             if not motor_on and (data.time - phase2_start_t) >= MOTOR_DELAY:
                 data.eq_active[eq_lock_id] = 0
                 data.ctrl[act_crank]       = MOTOR_CTRL
-                motor_on = True
+                motor_on   = True
+                motor_on_t = data.time
                 print(f"  *** lock_crank 해제 + 모터 ON: t={data.time:.3f}s "
                       f"ctrl={MOTOR_CTRL} N·m (CCW) ***")
+
+            # ── 압축 피크 감지 → 크랭크 역전 (CW) ──────────────────
+            if motor_on and not reversed_motor:
+                if gap_log:
+                    cur_gap = gap_log[-1]
+                    if cur_gap < min_gap_seen:
+                        min_gap_seen = cur_gap
+                    elif cur_gap > min_gap_seen + REVERSE_THRESHOLD:
+                        data.ctrl[act_crank] = -MOTOR_CTRL   # 역전: CW
+                        reversed_motor = True
+                        motor_rev_t    = data.time
+                        print(f"  *** 압축 피크 감지 → 크랭크 역전 CW: "
+                              f"t={data.time:.3f}s  min_gap={min_gap_seen:.2f}mm ***")
 
             mujoco.mj_step(model, data)
             # mocap body: mj_step 후 위치 자동 유지 (덮어쓰기 불필요)
@@ -461,21 +376,34 @@ def run(stl_path: str):
     axes1[1].legend(fontsize=9); axes1[1].grid(True, alpha=0.3)
     fig1.tight_layout()
 
-    # 그림 2: F_Y + 임펄스
+    # 그림 2: 법선 반력 F_Y + 임펄스
     fig2, axes2 = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
-    fig2.suptitle(f"Contact Force F_Y & Impulse — {title_base}",
+    fig2.suptitle(f"Normal Contact Force (World-Y) — {title_base}",
                   fontsize=11, fontweight="bold")
-    axes2[0].plot(t, fc[:, 1], color="tab:blue", lw=1.5, label="Contact F_Y (world)")
+    axes2[0].plot(t, fc[:, 1], color="tab:blue", lw=1.5,
+                  label="Normal Force F_Y  (tablet ← impact plate)")
     axes2[0].fill_between(t, 0, fc[:, 1], where=(fc[:, 1] > 0),
-                           alpha=0.12, color="tab:blue")
+                           alpha=0.12, color="tab:blue", label="압축 (양)")
     axes2[0].fill_between(t, 0, fc[:, 1], where=(fc[:, 1] < 0),
-                           alpha=0.12, color="tab:red")
+                           alpha=0.12, color="tab:red",  label="인장 (음)")
+    # 이벤트 마커
+    if motor_on_t is not None:
+        axes2[0].axvline(motor_on_t, color="tab:orange", ls="--", lw=1.2,
+                         label=f"모터 ON (t={motor_on_t:.2f}s)")
+    if motor_rev_t is not None:
+        axes2[0].axvline(motor_rev_t, color="tab:red", ls="--", lw=1.2,
+                         label=f"크랭크 역전 (t={motor_rev_t:.2f}s, gap최솟값={min_gap_seen:.2f}mm)")
     axes2[0].set_ylabel("F_Y [N]")
-    axes2[0].set_title(f"max={F_Y_max:.3f} N  min={F_Y_min:.3f} N")
-    axes2[0].legend(fontsize=9); axes2[0].grid(True, alpha=0.3)
+    axes2[0].set_title(f"max={F_Y_max:.3f} N  min={F_Y_min:.3f} N  "
+                       f"(법선방향=World-Y, 양=압축)")
+    axes2[0].legend(fontsize=8); axes2[0].grid(True, alpha=0.3)
     J_cumul = np.cumsum(fc[:, 1]) * float(model.opt.timestep)
     axes2[1].plot(t, J_cumul, color="tab:green", lw=1.5,
-                  label=f"J_Y = {J_Y:.4f} N·s")
+                  label=f"누적 임펄스 J_Y = {J_Y:.4f} N·s")
+    if motor_on_t is not None:
+        axes2[1].axvline(motor_on_t, color="tab:orange", ls="--", lw=1.2)
+    if motor_rev_t is not None:
+        axes2[1].axvline(motor_rev_t, color="tab:red", ls="--", lw=1.2)
     axes2[1].set_ylabel("J_Y [N·s]"); axes2[1].set_xlabel("Time [s]")
     axes2[1].legend(fontsize=9); axes2[1].grid(True, alpha=0.3)
     fig2.tight_layout()

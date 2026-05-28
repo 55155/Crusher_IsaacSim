@@ -376,6 +376,76 @@ class TabletViewer(QMainWindow):
         self._hulls = []       # 분해된 trimesh 목록 (내보내기용)
         self._hull_fpath = ""  # 현재 분해된 STL 경로
 
+        pl.addSpacing(18)
+        pl.addWidget(divider())
+        pl.addSpacing(10)
+
+        # ── 단축키 패널 ──────────────────────────────────────────────
+        pl.addWidget(label("SHORTCUTS", 9, C_MUTED, True))
+        pl.addSpacing(8)
+
+        shortcuts_data = [
+            # (key_text, desc_text, is_header)
+            ("마우스",              "",                        True),
+            ("좌클릭 드래그",       "회전",                    False),
+            ("우클릭 드래그",       "팬 (이동)",               False),
+            ("스크롤",              "줌 인 / 아웃",            False),
+            ("렌더링",              "",                        True),
+            ("W",                   "★ 와이어프레임 토글",     False),
+            ("S",                   "솔리드(표면) 렌더링",     False),
+            ("카메라",              "",                        True),
+            ("R",                   "카메라 리셋",             False),
+            ("F",                   "선택 점 포커스",          False),
+            ("기타",                "",                        True),
+            ("Q",                   "뷰어 창 닫기",            False),
+            ("P",                   "점 선택 (Pick)",          False),
+            ("C",                   "원근 ↔ 평행 투영",        False),
+            ("I",                   "좌표축 표시 토글",        False),
+        ]
+
+        sc_widget = QWidget()
+        sc_widget.setStyleSheet(
+            f"background:{C_BG}; border:1px solid {C_BORDER}; border-radius:6px;"
+        )
+        sc_layout = QVBoxLayout(sc_widget)
+        sc_layout.setContentsMargins(10, 8, 10, 8)
+        sc_layout.setSpacing(1)
+
+        for key_txt, desc_txt, is_header in shortcuts_data:
+            if is_header:
+                hdr = QLabel(f"  {key_txt}")
+                hdr.setStyleSheet(
+                    f"color:{C_BLUE}; font-size:10px; font-weight:700;"
+                    f"background:transparent; padding-top:5px;"
+                )
+                sc_layout.addWidget(hdr)
+            else:
+                row_w = QWidget()
+                row_w.setStyleSheet("background:transparent;")
+                row_l = QHBoxLayout(row_w)
+                row_l.setContentsMargins(0, 0, 0, 0)
+                row_l.setSpacing(4)
+
+                is_star = "★" in desc_txt
+                key_color  = C_ORANGE if is_star else "#f78166"
+                desc_color = C_GREEN  if is_star else C_MUTED
+
+                lbl_key = QLabel(key_txt)
+                lbl_key.setFixedWidth(90)
+                lbl_key.setStyleSheet(
+                    f"color:{key_color}; font-size:10px; font-family:Consolas;"
+                    f"font-weight:700; background:transparent;"
+                )
+                lbl_desc = QLabel(desc_txt)
+                lbl_desc.setStyleSheet(
+                    f"color:{desc_color}; font-size:10px; background:transparent;"
+                )
+                row_l.addWidget(lbl_key)
+                row_l.addWidget(lbl_desc)
+                sc_layout.addWidget(row_w)
+
+        pl.addWidget(sc_widget)
+
         pl.addStretch()
 
         # ── 3D 뷰포트 ────────────────────────────────────────────
