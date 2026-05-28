@@ -213,6 +213,7 @@
              anchor="0.027 0 -0.005"
              solref="-50000 -500"
              solimp="0.99 0.9999 0.0001" />
+    <!-- lock_crank 제거: 모터(Motor1_crank)가 크랭크를 자유롭게 구동할 수 있도록 삭제 -->
   </equality>
   <!-- ── Actuator 목록 ──────────────────────────────────────────────────── -->
   <actuator>
@@ -221,4 +222,20 @@
     <!-- Motor2: Left_Wall 프리즈매틱 슬라이드 구동 (L1_Guide1_1 → L2_Left_Wall1_1) -->
     <motor name="Motor2_left_wall" joint="L1_Guide1_1_L2_Left_Wall1_1"       gear="1" ctrlrange="-100 100" />
   </actuator>
+  <!-- ── Keyframe ─────────────────────────────────────────────────────────
+       qpos 순서 (njnt=8):
+         [0] L3_Bevel_GearBox_1_L4_Shaft_1   hinge  ← 크랭크 (90° = π/2)
+         [1] L5_Link1_1_L6_Link2_1            hinge
+         [2] L6_Link2_1_L7_Link3_1            hinge
+         [3] L3_Motor2_1_L4_Motor2_Shaft_1    hinge
+         [4] L6_DcutShaft_1_L7_Holder_Bearing2_1  hinge
+         [5] L6_DcutShaft_1_L7_Holder_Bearing1_1  hinge
+         [6] L1_Guide1_1_L2_Left_Wall1_1      slide
+         [7] L2_Linear_bush_1_L8_Link3_Shaft_1 slide
+       초기 0° 에서 링크간 충돌 → 크랭크 90° 에서 시작하여 충돌 회피  -->
+  <keyframe>
+    <key name="crank_90deg"
+         qpos="1.5708 0 0 0 0 0 0 0"
+         qvel="0 0 0 0 0 0 0 0" />
+  </keyframe>
 </mujoco>

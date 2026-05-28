@@ -98,6 +98,14 @@ def _build_model(stl_path: str, R_mm: float):
     for kf in root.findall("keyframe"):
         root.remove(kf)
 
+    # ② 크랭크 lock 제거: equality/joint[@name="lock_crank"] → 모터가 크랭크를 구동할 수 있도록
+    eq_sec = root.find("equality")
+    if eq_sec is not None:
+        for jc in eq_sec.findall("joint"):
+            if jc.get("name") == "lock_crank":
+                eq_sec.remove(jc)
+                print("  [모델] lock_crank equality 제거 완료")
+
     # ③-a tablet mesh + material asset
     asset = root.find("asset")
     ET.SubElement(asset, "mesh", {
