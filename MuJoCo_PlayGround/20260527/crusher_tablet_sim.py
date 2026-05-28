@@ -56,8 +56,10 @@ MOTOR_CTRL   = -0.5   # Motor1_crank 제어 입력 [N·m]  (음수 = CCW)
 MOTOR_DELAY  =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
 
 # ── 알약 초기 자세 (쿼터니언) ────────────────────────────────────────
-# local-Z(두께방향) → world-Y(압축방향): X축 기준 90° 회전
-TAB_QUAT = np.array([0.7071068, 0.7071068, 0.0, 0.0])   # [qw, qx, qy, qz]
+# Step 1: X축 90°  → local-Z(두께) → world-Y(압축방향)
+# Step 2: Y축 90°  → 알약을 세로(roll)방향으로 90° 추가 회전
+# q = q_rollY(90°) ⊗ q_rotX(90°) = [0.5, 0.5, 0.5, -0.5]
+TAB_QUAT = np.array([0.5, 0.5, 0.5, -0.5])              # [qw, qx, qy, qz]
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -125,7 +127,7 @@ def _build_model(stl_path: str, R_mm: float):
         "name":  "tablet",
         "mocap": "true",
         "pos":   f"{pos_x:.6f} {pos_y:.6f} {pos_z:.6f}",
-        "quat":  f"{TAB_QUAT[0]} {TAB_QUAT[1]} {TAB_QUAT[2]} {TAB_QUAT[3]}",
+        "quat":  " ".join(f"{v:.7f}" for v in TAB_QUAT),
     })
     ET.SubElement(tab, "geom", {
         "name":     "tablet_geom",
