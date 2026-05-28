@@ -13,6 +13,9 @@
 5. [의존성 설치](#의존성-설치)
 6. [주의 사항](#주의-사항)
 
+> **✅ 2026-05-27 신규** — Crusher + Tablet 통합 시뮬레이션 환경 완성.  
+> STL 파일 하나를 지정하면 알약을 Crusher 내부에 배치하고 접촉력을 자동 측정합니다. → [바로가기](#5-crusher--tablet-통합-시뮬레이션-실행)
+
 ---
 
 ## 프로젝트 개요
@@ -60,6 +63,9 @@ Crusher_IsaacSim/
 │   │
 │   ├── 20260520/
 │   │   └── open_crusher_colored.py   ← ★ 색상+Ground XML Python 뷰어 (신규)
+│   │
+│   ├── 20260527/
+│   │   └── crusher_tablet_sim.py     ← ★ Crusher + Tablet 통합 시뮬레이션 (2-Phase)
 │   │
 │   ├── mujoco.bat                     ← ★ 더블클릭으로 뷰어 실행 (상대경로 수정)
 │   └── convert_urdf_to_mjcf.py        ← URDF → MJCF 변환기
@@ -118,6 +124,39 @@ python tablets_stl/Codes/collision_viewer.py
 - 4가지 보기 모드: 원본 메시 / 볼록 껍질 / 겹침 보기 / 면 법선
 - 거친(8) / 표준(16) / 정밀(32) / 최정밀(64) hull 프리셋
 
+### 5. Crusher + Tablet 통합 시뮬레이션 실행
+
+```bash
+conda activate isaac_sim
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py <tablet.stl>
+
+# 파일 선택 다이얼로그로 실행
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
+```
+
+#### 동작 방식
+
+| 단계 | 내용 |
+|------|------|
+| **Phase 1** (뷰어 없음, 500 스텝) | 크랭크 90° 세팅 + 알약 위치 고정 → Crusher 메커니즘 안정화 |
+| **Phase 2** (뷰어 오픈) | 알약을 충돌판(impact plate) 벽면에 고정한 채 모터 구동 → 접촉 반력 측정 |
+
+#### 핵심 구조
+
+- **XML 파일 없음** — `Crusher_IsaacSim_colored.xml` 을 메모리에서 파싱 후 Tablet body/sensor 노드를 추가, `MjModel.from_xml_string(xml_str, assets={"tablet.stl": bytes})` 으로 직접 로드
+- **알약 고정 방식** — `freejoint`(6자유도)를 달고 매 스텝 `qpos`·`qvel` 을 초기값으로 덮어씀 (kinematic hold). 물리 엔진은 계속 동작하므로 `cfrc_ext` 접촉 반력이 정상 측정됨
+- **출력** — 위치·힘·임펄스 그래프 3종을 PNG로 저장
+
+#### 알약 배치 좌표 (MuJoCo world frame)
+
+| 축 | 값 | 의미 |
+|----|----|------|
+| X | −47.879 mm | 충돌판 중심 정렬 |
+| Y | 336.199 mm | 충돌판(back wall) 면에 밀착 |
+| Z | 50.108 mm | 수직 높이 |
+
+---
+
 ### 4. 정제 STL 생성 (Fusion 360 전용)
 
 `tablets_stl/Codes/tablet_generator.py` 참조.  
@@ -126,6 +165,25 @@ python tablets_stl/Codes/collision_viewer.py
 ---
 
 ## 변경 이력
+
+### 2026-05-27 — Crusher + Tablet 통합 시뮬레이션 완성
+
+#### 신규 파일
+
+| 파일 | 내용 |
+|------|------|
+| `MuJoCo_PlayGround/20260527/crusher_tablet_sim.py` | Crusher XML + Tablet STL을 메모리에서 조합해 2-Phase 통합 시뮬레이션 실행. Phase 1(메커니즘 안정화) → Phase 2(알약 고정 + 접촉력 측정 + 그래프 저장) |
+
+#### 주요 변경 사항
+
+| 항목 | 내용 |
+|------|------|
+| **알약 고정 방식** | freejoint(6자유도) + 매 스텝 kinematic hold (qpos/qvel 덮어쓰기) → 알약을 공간에 고정하면서 cfrc_ext 접촉 반력 측정 가능 |
+| **알약 배치** | Y 좌표를 `WALL_Y_MM`(336.199 mm)으로 설정 — 충돌판 벽면에 중심 밀착 |
+| **MJCF 구성** | 별도 XML 파일 없음 — 기존 Crusher XML을 메모리에서 파싱 후 Tablet body / sensor 노드 동적 삽입 |
+| **뷰어 site 구 제거** | `sitegroup` 전체 `False` — 중심부 구 형태 gizmo 비표시 |
+
+---
 
 ### 2026-05-26 — Crank-Slider 메커니즘 진단 및 좌표계 분석
 
