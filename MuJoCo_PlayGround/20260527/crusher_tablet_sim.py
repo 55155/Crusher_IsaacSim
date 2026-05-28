@@ -27,12 +27,20 @@ import os
 import sys
 import re
 import argparse
+import threading
 import xml.etree.ElementTree as ET
 
 import numpy as np
 import matplotlib.pyplot as plt
 import mujoco
 import mujoco.viewer
+
+try:
+    import tkinter as tk
+    from tkinter import font as tkfont
+    _TK_AVAILABLE = True
+except ImportError:
+    _TK_AVAILABLE = False
 
 # ── 경로 ─────────────────────────────────────────────────────────────
 _HERE     = os.path.dirname(os.path.abspath(__file__))
@@ -60,6 +68,99 @@ MOTOR_DELAY  =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
 # Step 2: Y축 90°  → 알약을 세로(roll)방향으로 90° 추가 회전
 # q = q_rollY(90°) ⊗ q_rotX(90°) = [0.5, 0.5, 0.5, -0.5]
 TAB_QUAT = np.array([0.5, 0.5, 0.5, -0.5])              # [qw, qx, qy, qz]
+
+
+# ─────────────────────────────────────────────────────────────────────
+# MuJoCo Viewer 단축키 목록
+# ─────────────────────────────────────────────────────────────────────
+_SHORTCUTS = [
+    # (섹션 헤더, key, 설명)  — key가 None이면 섹션 헤더
+    ("── 시뮬레이션 제어 ──", None, None),
+    (None, "Space",       "일시정지 / 재개"),
+    (None, "Backspace",   "시뮬레이션 리셋"),
+    (None, "→  (paused)", "한 스텝 전진"),
+    (None, "F7",          "슬로우모션 토글"),
+    ("── 렌더링 ──",         None, None),
+    (None, "W",           "★ 와이어프레임 토글"),
+    (None, "T",           "투명도 토글"),
+    (None, "H",           "그림자 토글"),
+    (None, "D",           "뎁스맵 토글"),
+    (None, "N",           "접촉점/법선 표시"),
+    (None, "I",           "관성 박스 표시"),
+    (None, "J",           "관절 축 표시"),
+    (None, "K",           "컨벡스헐 토글"),
+    (None, "L",           "라벨 토글"),
+    (None, "0 ~ 9",       "지오메트리 그룹 토글"),
+    ("── 카메라 ──",         None, None),
+    (None, "Tab",         "카메라 전환"),
+    (None, "Enter",       "카메라 재정렬"),
+    (None, "Esc",         "자유 카메라"),
+    (None, "Ctrl + A",    "카메라 정렬"),
+    ("── 기타 ──",           None, None),
+    (None, "F1",          "단축키 도움말 오버레이"),
+    (None, "F2",          "시뮬레이션 정보"),
+    (None, "F3",          "프로파일러"),
+    (None, "F4",          "센서 그래프"),
+]
+
+
+def _show_shortcuts_panel():
+    """MuJoCo Viewer 단축키 패널을 별도 스레드의 tkinter 창으로 표시."""
+    if not _TK_AVAILABLE:
+        return
+
+    BG       = "#1e1e2e"
+    HDR_BG   = "#313244"
+    HDR_FG   = "#cdd6f4"
+    KEY_FG   = "#f38ba8"   # 키 이름 — 분홍
+    KEY_STAR = "#f9e2af"   # ★ 강조 키 — 노랑
+    DESC_FG  = "#a6e3a1"   # 설명 — 초록
+    SEC_FG   = "#89dceb"   # 섹션 헤더 — 하늘
+
+    def _run():
+        root = tk.Tk()
+        root.title("MuJoCo Viewer  단축키")
+        root.configure(bg=BG)
+        root.resizable(False, False)
+        root.attributes("-topmost", True)
+
+        fnt_hdr  = tkfont.Font(family="Consolas", size=10, weight="bold")
+        fnt_sec  = tkfont.Font(family="Consolas", size=9,  weight="bold")
+        fnt_key  = tkfont.Font(family="Consolas", size=9,  weight="bold")
+        fnt_desc = tkfont.Font(family="Consolas", size=9)
+
+        # 상단 타이틀
+        tk.Label(root, text="  MuJoCo Viewer  단축키 참조  ",
+                 bg=HDR_BG, fg=HDR_FG, font=fnt_hdr,
+                 pady=6).pack(fill="x")
+
+        frame = tk.Frame(root, bg=BG, padx=10, pady=6)
+        frame.pack(fill="both", expand=True)
+
+        for sec, key, desc in _SHORTCUTS:
+            if key is None:          # 섹션 헤더
+                tk.Label(frame, text=sec, bg=BG, fg=SEC_FG,
+                         font=fnt_sec, anchor="w", pady=4
+                         ).pack(fill="x")
+            else:                    # 단축키 행
+                row = tk.Frame(frame, bg=BG)
+                row.pack(fill="x", pady=1)
+                star = key.startswith("★")
+                fg_k = KEY_STAR if star else KEY_FG
+                tk.Label(row, text=f"  {key:<16}",
+                         bg=BG, fg=fg_k, font=fnt_key,
+                         width=18, anchor="w").pack(side="left")
+                tk.Label(row, text=desc,
+                         bg=BG, fg=DESC_FG, font=fnt_desc,
+                         anchor="w").pack(side="left")
+
+        tk.Label(root, text="  창을 닫아도 시뮬레이션은 계속됩니다  ",
+                 bg=HDR_BG, fg="#6c7086", font=fnt_desc,
+                 pady=4).pack(fill="x")
+
+        root.mainloop()
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -253,6 +354,9 @@ def run(stl_path: str):
     print(f"  {'Time':>6s} | {'Slider_Y':>9s} mm | {'Tablet_Y':>9s} mm | "
           f"{'Gap':>7s} mm | {'F_Y':>8s} N | {'ncon':>4s}")
     print("  " + "-" * 72)
+
+    # 단축키 패널 (별도 창, 데몬 스레드)
+    _show_shortcuts_panel()
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_JOINT]      = False
