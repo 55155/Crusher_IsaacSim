@@ -54,7 +54,7 @@ PHASE1_STEPS = 500
 SIM_DURATION      = 30.0   # 측정 시간 [s]
 MOTOR_CTRL        = -0.5   # Motor1_crank 제어 입력 [N·m]  (음수 = CCW)
 MOTOR_DELAY       =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
-REVERSE_THRESHOLD =  0.5   # 압축 피크 감지: gap이 최솟값보다 이만큼 커지면 역전 [mm]
+REVERSE_F_THRESHOLD = 5.0  # 역전 트리거: 법선 접촉력이 이 값을 초과하면 역전 [N]
 
 # ── 알약 초기 자세 (쿼터니언) ────────────────────────────────────────
 # Step 1: X축 90°  → local-Z(두께) → world-Y(압축방향)
@@ -244,7 +244,6 @@ def run(stl_path: str):
     phase2_start_t = data.time
     motor_on       = False
     reversed_motor = False
-    min_gap_seen   = float("inf")
     motor_on_t     = None
     motor_rev_t    = None
 
@@ -278,18 +277,17 @@ def run(stl_path: str):
                 print(f"  *** lock_crank 해제 + 모터 ON: t={data.time:.3f}s "
                       f"ctrl={MOTOR_CTRL} N·m (CCW) ***")
 
-            # ── 압축 피크 감지 → 크랭크 역전 (CW) ──────────────────
-            if motor_on and not reversed_motor:
-                if gap_log:
-                    cur_gap = gap_log[-1]
-                    if cur_gap < min_gap_seen:
-                        min_gap_seen = cur_gap
-                    elif cur_gap > min_gap_seen + REVERSE_THRESHOLD:
-                        data.ctrl[act_crank] = -MOTOR_CTRL   # 역전: CW
-                        reversed_motor = True
-                        motor_rev_t    = data.time
-                        print(f"  *** 압축 피크 감지 → 크랭크 역전 CW: "
-                              f"t={data.time:.3f}s  min_gap={min_gap_seen:.2f}mm ***")
+            # ── 접촉력 기반 역전: F_Y > REVERSE_F_THRESHOLD 이면 CW 역전 ──
+            if motor_on and not reversed_motor and f_log:
+                fy_now = abs(f_log[-1][1])   # 이전 스텝 법선 반력 크기
+                if fy_now > REVERSE_F_THRESHOLD:
+                    data.ctrl[act_crank] = -MOTOR_CTRL   # 역전: CW
+                    reversed_motor = True
+                    motor_rev_t    = data.time
+                    cur_gap        = gap_log[-1] if gap_log else float("nan")
+                    print(f"  *** 접촉력 역전 트리거: t={data.time:.3f}s  "
+                          f"F_Y={fy_now:.2f}N > {REVERSE_F_THRESHOLD}N  "
+                          f"gap={cur_gap:.2f}mm → 크랭크 CW ***")
 
             mujoco.mj_step(model, data)
             # mocap body: mj_step 후 위치 자동 유지 (덮어쓰기 불필요)
@@ -392,7 +390,7 @@ def run(stl_path: str):
                          label=f"모터 ON (t={motor_on_t:.2f}s)")
     if motor_rev_t is not None:
         axes2[0].axvline(motor_rev_t, color="tab:red", ls="--", lw=1.2,
-                         label=f"크랭크 역전 (t={motor_rev_t:.2f}s, gap최솟값={min_gap_seen:.2f}mm)")
+                         label=f"크랭크 역전 (t={motor_rev_t:.2f}s, F>{REVERSE_F_THRESHOLD}N)")
     axes2[0].set_ylabel("F_Y [N]")
     axes2[0].set_title(f"max={F_Y_max:.3f} N  min={F_Y_min:.3f} N  "
                        f"(법선방향=World-Y, 양=압축)")
