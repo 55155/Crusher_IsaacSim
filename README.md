@@ -13,8 +13,8 @@
 5. [의존성 설치](#의존성-설치)
 6. [주의 사항](#주의-사항)
 
-> **✅ 2026-05-27 신규** — Crusher + Tablet 통합 시뮬레이션 환경 완성.  
-> STL 파일 하나를 지정하면 알약을 Crusher 내부에 배치하고 접촉력을 자동 측정합니다. → [바로가기](#5-crusher--tablet-통합-시뮬레이션-실행)
+> **✅ 2026-05-28 업데이트** — 알약 고정 방식을 **mocap body**로 전환 (관통 문제 해결), 법선 반력 측정·플롯, 접촉력 기반 크랭크 자동 역전 구현.  
+> → [Crusher + Tablet 시뮬레이션 바로가기](#5-crusher--tablet-통합-시뮬레이션-실행)
 
 ---
 
@@ -138,13 +138,18 @@ python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
 
 | 단계 | 내용 |
 |------|------|
-| **Phase 1** (뷰어 없음, 500 스텝) | 크랭크 90° 세팅 + 알약 위치 고정 → Crusher 메커니즘 안정화 |
-| **Phase 2** (뷰어 오픈) | 알약을 충돌판(impact plate) 벽면에 고정한 채 모터 구동 → 접촉 반력 측정 |
+| **Phase 1** (뷰어 없음, 500 스텝) | `lock_crank` equality 활성 (−90° 고정) → Crusher 메커니즘 안정화 |
+| **Phase 2 — 대기** (0 ~ 3 s) | 뷰어 오픈, 모터 OFF. 알약은 mocap body로 충돌판 벽면에 고정 |
+| **Phase 2 — 압축** (3 s ~) | `lock_crank` 해제 → Motor CCW −0.5 N·m 구동 → 슬라이더 전진, 법선 반력 측정 |
+| **Phase 2 — 역전** (접촉력 > 5 N) | 접촉 법선력이 임계값 초과 → 크랭크 CW 역전, 슬라이더 후퇴 |
 
 #### 핵심 구조
 
-- **XML 파일 없음** — `Crusher_IsaacSim_colored.xml` 을 메모리에서 파싱 후 Tablet body/sensor 노드를 추가, `MjModel.from_xml_string(xml_str, assets={"tablet.stl": bytes})` 으로 직접 로드
-- **알약 고정 방식** — `freejoint`(6자유도)를 달고 매 스텝 `qpos`·`qvel` 을 초기값으로 덮어씀 (kinematic hold). 물리 엔진은 계속 동작하므로 `cfrc_ext` 접촉 반력이 정상 측정됨
+- **XML 파일 없음** — `Crusher_IsaacSim_colored.xml` 을 메모리에서 파싱, Tablet body 노드를 동적 삽입 후 `MjModel.from_xml_string()` 으로 직접 로드
+- **알약 고정 방식 — mocap body** — `mocap="true"` 선언으로 MuJoCo가 알약을 불가침 강체 벽으로 인식. `data.mocap_pos / mocap_quat` 으로 위치·자세 제어. 관통 없음
+- **접촉력 측정** — `data.contact` + `mj_contactForce()` → contact frame → world frame 변환. 알약에 작용하는 법선 반력(F_Y) 수집
+- **크랭크 제어** — `lock_crank` equality (polycoef=−π/2) 런타임 해제 (`data.eq_active`), 접촉력 기반 자동 역전
+- **알약 자세** — X축 90° + Y축 90° 합성 쿼터니언 `[0.5, 0.5, 0.5, −0.5]` → 장축이 수직(world-Z) 방향
 - **출력** — 위치·힘·임펄스 그래프 3종을 PNG로 저장
 
 #### 알약 배치 좌표 (MuJoCo world frame)
@@ -165,6 +170,54 @@ python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
 ---
 
 ## 변경 이력
+
+### 2026-05-28 — 알약 물리 고정 방식 전환 및 반력 측정 파이프라인 완성
+
+#### 핵심 변경
+
+| 항목 | 변경 전 | 변경 후 |
+|------|---------|---------|
+| **알약 고정 방식** | freejoint + 매 스텝 qpos/qvel 덮어쓰기 (kinematic hold) | `mocap="true"` body — 관통 없는 불가침 강체 벽 |
+| **접촉력 측정** | `cfrc_ext` (부정확, 유령 body 문제) | `data.contact` + `mj_contactForce()` → world frame 변환 |
+| **크랭크 초기 각도** | +90° | **−90°** |
+| **모터 방향** | CW (+0.5 N·m) | **CCW (−0.5 N·m)**, 3초 지연 후 구동 |
+| **크랭크 역전 트리거** | gap 기반 (슬라이더 위치) → 벽 접촉 시 고착으로 동작 안 됨 | **접촉력 기반** `|F_Y| > 5 N` → 신뢰성 있는 역전 |
+| **알약 자세** | X축 90° (눕힘) | X축 90° + Y축 90° 합성 → **세로(수직) 방향** |
+
+#### 상세 내용
+
+**① mocap body 전환 (관통 문제 해결)**
+- `freejoint` 방식에서는 MuJoCo contact solver가 분리 impulse를 계산해도 매 스텝 qpos를 덮어써서 슬라이더가 알약을 관통하는 문제 발생
+- `mocap="true"` body는 물리 엔진이 직접 불가침 강체로 취급 → 슬라이더가 알약을 밀어내고 알약은 고정 유지
+- 위치·자세 제어: `data.mocap_pos[mocap_id]`, `data.mocap_quat[mocap_id]`
+
+**② lock_crank equality 런타임 토글**
+- `Crusher_IsaacSim_colored.xml` 의 `lock_crank` (polycoef=−1.5708, solref=−100000) 로 Phase 1에서 크랭크를 −90°에 고정
+- Phase 2 시작 3초 후 `data.eq_active[eq_lock_id] = 0` 으로 해제 → 모터 CCW 구동
+
+**③ 접촉력 기반 크랭크 역전**
+- 기존 gap 기반: 슬라이더가 mocap 벽에 막히면 gap이 최솟값에 고착 → `elif gap > min + 0.5mm` 조건 영원히 불충족
+- **수정**: `|F_Y| > REVERSE_F_THRESHOLD (5 N)` 초과 시점에 `ctrl = +0.5 N·m` (CW) 역전
+- 역전 시각, 접촉력, gap 값을 콘솔 출력 및 플롯 마커로 기록
+
+**④ 법선 반력 플롯 개선**
+- F_Y 그래프 레이블을 "Normal Contact Force (World-Y)" 로 명확화
+- 모터 ON 시각, 크랭크 역전 시각을 수직선(axvline)으로 표시
+- 압축(양)/인장(음) 구간 fill_between 색 구분
+
+**⑤ Tablet Shape Viewer 단축키 패널 추가**
+- `viewer_desktop.py` 좌측 패널 하단에 PyVista 단축키 섹션 추가
+- 마우스 조작 / 렌더링(`W` 와이어프레임 ★) / 카메라 / 기타 4개 섹션
+
+#### 수정 파일
+
+| 파일 | 수정 내용 |
+|------|-----------|
+| `MuJoCo_PlayGround/20260527/crusher_tablet_sim.py` | mocap body, lock_crank 토글, CCW 모터, 역전 로직, 법선 반력 플롯 |
+| `MuJoCo_PlayGround/MJCF/Crusher_IsaacSim_colored.xml` | lock_crank polycoef −1.5708 복원 |
+| `tablets_stl/Codes/viewer_desktop.py` | PyVista 단축키 패널 추가 |
+
+---
 
 ### 2026-05-27 — Crusher + Tablet 통합 시뮬레이션 완성
 
