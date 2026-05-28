@@ -48,7 +48,8 @@ PHASE1_STEPS = 500
 
 # ── Phase 2 시뮬레이션 파라미터 ──────────────────────────────────────
 SIM_DURATION = 30.0   # 측정 시간 [s]
-MOTOR_CTRL   = 0.5    # Motor1_crank 제어 입력 [N·m]
+MOTOR_CTRL   = -0.5   # Motor1_crank 제어 입력 [N·m]  (음수 = CCW)
+MOTOR_DELAY  =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -196,8 +197,8 @@ def run(stl_path: str):
           f"tablet qpos[{tab_qadr}:{tab_qadr+7}]")
 
     # ── ❶ 초기 상태 설정 (qpos 직접 지정) ──────────────────────────
-    #   크랭크 90°, tablet 목표 위치, 속도 0
-    data.qpos[crank_qadr]          = np.pi / 2    # 90°
+    #   크랭크 -90°, tablet 목표 위치, 속도 0
+    data.qpos[crank_qadr]          = -np.pi / 2   # -90°
     data.qpos[tab_qadr:tab_qadr+3] = [px, py, pz]
     data.qpos[tab_qadr+3]          = 1.0          # qw
     data.qpos[tab_qadr+4:tab_qadr+7] = 0.0        # qx qy qz
@@ -223,10 +224,13 @@ def run(stl_path: str):
 
     # ── ❸ Phase 2: tablet 고정 유지 + 뷰어 + 측정 ───────────────────
     print(f"\n◆ Phase 2: tablet 고정 유지 → 뷰어 오픈")
-    print(f"  Motor1_crank ctrl = {MOTOR_CTRL} N·m")
+    print(f"  Motor1_crank ctrl = {MOTOR_CTRL} N·m  (CCW)")
+    print(f"  모터 지연 = {MOTOR_DELAY} s  →  t={data.time + MOTOR_DELAY:.2f}s 에 구동")
     print(f"  측정 시간 = {SIM_DURATION} s\n")
 
-    data.ctrl[act_crank] = MOTOR_CTRL   # 모터 ON
+    data.ctrl[act_crank] = 0.0          # 초기에는 모터 OFF
+    phase2_start_t = data.time          # Phase 2 시작 시각 기록
+    motor_on = False
 
     t_log    = []
     f_ext    = []
@@ -249,6 +253,13 @@ def run(stl_path: str):
             viewer.opt.sitegroup[sg] = False
 
         while viewer.is_running() and data.time < SIM_DURATION:
+            # 모터 지연: Phase 2 시작 후 MOTOR_DELAY 초 경과 시 CCW 구동
+            if not motor_on and (data.time - phase2_start_t) >= MOTOR_DELAY:
+                data.ctrl[act_crank] = MOTOR_CTRL
+                motor_on = True
+                print(f"  *** 모터 ON: t={data.time:.3f}s  "
+                      f"ctrl={MOTOR_CTRL} N·m (CCW) ***")
+
             mujoco.mj_step(model, data)
 
             # 알약 위치·속도 고정
