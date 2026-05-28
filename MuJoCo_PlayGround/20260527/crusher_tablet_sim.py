@@ -98,13 +98,7 @@ def _build_model(stl_path: str, R_mm: float):
     for kf in root.findall("keyframe"):
         root.remove(kf)
 
-    # ② 크랭크 lock 제거: equality/joint[@name="lock_crank"] → 모터가 크랭크를 구동할 수 있도록
-    eq_sec = root.find("equality")
-    if eq_sec is not None:
-        for jc in eq_sec.findall("joint"):
-            if jc.get("name") == "lock_crank":
-                eq_sec.remove(jc)
-                print("  [모델] lock_crank equality 제거 완료")
+    # ② lock_crank equality 는 유지 → 런타임에 data.eq_active 로 해제
 
     # ③-a tablet mesh + material asset
     asset = root.find("asset")
@@ -183,17 +177,19 @@ def run(stl_path: str):
 
     # ── ID 조회 ──────────────────────────────────────────────────────
     crank_jid  = mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_JOINT, "L3_Bevel_GearBox_1_L4_Shaft_1")
+        model, mujoco.mjtObj.mjOBJ_JOINT,    "L3_Bevel_GearBox_1_L4_Shaft_1")
     tab_jid    = mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_JOINT, "tablet_free")
+        model, mujoco.mjtObj.mjOBJ_JOINT,    "tablet_free")
     act_crank  = mujoco.mj_name2id(
         model, mujoco.mjtObj.mjOBJ_ACTUATOR, "Motor1_crank")
     b_tablet   = mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_BODY, "tablet")
+        model, mujoco.mjtObj.mjOBJ_BODY,     "tablet")
     b_slider   = mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_BODY, "L8_Link3_Shaft_1")
+        model, mujoco.mjtObj.mjOBJ_BODY,     "L8_Link3_Shaft_1")
     s_id       = mujoco.mj_name2id(
-        model, mujoco.mjtObj.mjOBJ_SENSOR, "tablet_force")
+        model, mujoco.mjtObj.mjOBJ_SENSOR,   "tablet_force")
+    eq_lock_id = mujoco.mj_name2id(
+        model, mujoco.mjtObj.mjOBJ_EQUALITY, "lock_crank")
 
     crank_qadr = model.jnt_qposadr[crank_jid]
     tab_qadr   = model.jnt_qposadr[tab_jid]
@@ -202,7 +198,8 @@ def run(stl_path: str):
 
     print(f"\n  nq={model.nq}  |  "
           f"crank qpos[{crank_qadr}]  "
-          f"tablet qpos[{tab_qadr}:{tab_qadr+7}]")
+          f"tablet qpos[{tab_qadr}:{tab_qadr+7}]  "
+          f"lock_crank eq_id={eq_lock_id}")
 
     # ── ❶ 초기 상태 설정 (qpos 직접 지정) ──────────────────────────
     #   크랭크 -90°, tablet 목표 위치, 속도 0
@@ -230,10 +227,9 @@ def run(stl_path: str):
     print(f"  ✔ Phase 1 완료  crank={crank_deg:.1f}°  "
           f"sim_time={data.time:.3f}s")
 
-    # ── ❸ Phase 2: tablet 고정 유지 + 뷰어 + 측정 ───────────────────
-    print(f"\n◆ Phase 2: tablet 고정 유지 → 뷰어 오픈")
-    print(f"  Motor1_crank ctrl = {MOTOR_CTRL} N·m  (CCW)")
-    print(f"  모터 지연 = {MOTOR_DELAY} s  →  t={data.time + MOTOR_DELAY:.2f}s 에 구동")
+    # ── ❸ Phase 2: lock 유지 → 3초 후 lock 해제 + 모터 CCW 구동 ────
+    print(f"\n◆ Phase 2: 뷰어 오픈  (lock_crank 활성 상태)")
+    print(f"  {MOTOR_DELAY:.1f}s 후 lock_crank 해제 → Motor1_crank {MOTOR_CTRL} N·m (CCW) 구동")
     print(f"  측정 시간 = {SIM_DURATION} s\n")
 
     data.ctrl[act_crank] = 0.0          # 초기에는 모터 OFF
@@ -261,11 +257,12 @@ def run(stl_path: str):
             viewer.opt.sitegroup[sg] = False
 
         while viewer.is_running() and data.time < SIM_DURATION:
-            # 모터 지연: Phase 2 시작 후 MOTOR_DELAY 초 경과 시 CCW 구동
+            # 3초 후: lock_crank 해제 + 모터 CCW 구동
             if not motor_on and (data.time - phase2_start_t) >= MOTOR_DELAY:
+                data.eq_active[eq_lock_id] = 0   # lock_crank equality OFF
                 data.ctrl[act_crank] = MOTOR_CTRL
                 motor_on = True
-                print(f"  *** 모터 ON: t={data.time:.3f}s  "
+                print(f"  *** lock_crank 해제 + 모터 ON: t={data.time:.3f}s  "
                       f"ctrl={MOTOR_CTRL} N·m (CCW) ***")
 
             mujoco.mj_step(model, data)

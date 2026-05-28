@@ -213,7 +213,13 @@
              anchor="0.027 0 -0.005"
              solref="-50000 -500"
              solimp="0.99 0.9999 0.0001" />
-    <!-- lock_crank 제거: 모터(Motor1_crank)가 크랭크를 자유롭게 구동할 수 있도록 삭제 -->
+    <!-- 크랭크 초기 위치 고정: q_crank = -π/2 = -1.5708 rad (-90°)
+         시뮬레이션 런타임에 data.eq_active[id]=0 으로 해제 후 모터 구동 -->
+    <joint name="lock_crank"
+           joint1="L3_Bevel_GearBox_1_L4_Shaft_1"
+           polycoef="-1.5708 0 0 0 0"
+           solimp="0.99 0.9999 0.0001"
+           solref="-100000 -1000" />
   </equality>
   <!-- ── Actuator 목록 ──────────────────────────────────────────────────── -->
   <actuator>
