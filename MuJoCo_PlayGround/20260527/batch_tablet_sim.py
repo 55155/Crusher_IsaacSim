@@ -76,7 +76,8 @@ PLOT_DIR    = os.path.join(_SIM_RESULT, "plot")
 PLACE_X_MM    = -47.879
 PLACE_Z_MM    =  50.108
 WALL_Y_MM     = 336.199   # impact plate 벽 표면 Y [mm]
-#   알약 중심 Y = WALL_Y_MM - R_mm  (단반경만큼 벽 앞에 배치)
+#   알약 중심 Y = WALL_Y_MM - half_th  (두께의 절반만큼 벽 앞에 → 표면이 벽에 정확히 접촉)
+#   half_th = th / 2  where th = R_mm * 0.20 + 2 * (CV * 2 * R_mm)
 PHASE1_STEPS  = 500
 MOTOR_CTRL    = -0.5      # [N·m]  음수 = CCW
 MOTOR_DELAY   =  3.0      # [s]
@@ -100,12 +101,12 @@ def _parse_params(fname: str):
     return float(m.group(1)), float(m.group(2)), float(m.group(3))
 
 
-def _build_model(stl_path: str, R_mm: float):
+def _build_model(stl_path: str, R_mm: float, half_th: float):
     pos_x = PLACE_X_MM * 1e-3
     pos_z = PLACE_Z_MM * 1e-3
-    # 알약 중심 Y = 벽면 - 단반경(R_mm)
-    # TAB_QUAT 기준 World-Y 방향 반경 = R_mm → 중심 오프셋 적용
-    pos_y = (WALL_Y_MM - R_mm) * 1e-3
+    # 알약 중심 Y = 벽면 - 두께의 절반
+    # → 알약 표면이 벽면에 정확히 접촉 (관통/이격 없음)
+    pos_y = (WALL_Y_MM - half_th) * 1e-3
 
     tree = ET.parse(MJCF_PATH)
     root = tree.getroot()
@@ -186,8 +187,13 @@ def run_headless(task: tuple) -> dict:
         return _err(stem, stl_path, R_mm, AR, CV,
                     f"파일명 파싱 실패: {fname}", t_wall0)
 
+    # 두께 및 절반값 계산 (배치 Y 오프셋에 사용)
+    cd      = CV * 2 * R_mm
+    th      = R_mm * 0.20 + 2 * cd
+    half_th = th / 2.0
+
     try:
-        model, (px, py, pz) = _build_model(stl_path, R_mm)
+        model, (px, py, pz) = _build_model(stl_path, R_mm, half_th)
     except Exception as e:
         return _err(stem, stl_path, R_mm, AR, CV,
                     f"모델 빌드 실패: {e}", t_wall0)

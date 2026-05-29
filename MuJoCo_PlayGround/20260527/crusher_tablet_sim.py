@@ -19,7 +19,8 @@ Crusher + Tablet 통합 시뮬레이션
 ▶ 배치 좌표 (MuJoCo world frame)
     PLACE_X_MM = -47.879  →  MuJoCo X
     PLACE_Z_MM =  50.108  →  MuJoCo Z
-    WALL_Y_MM  = 336.199  →  MuJoCo Y  (충돌판 벽, 알약 중심)
+    WALL_Y_MM  = 336.199  →  MuJoCo Y  (충돌판 벽 표면)
+    알약 중심 Y = WALL_Y_MM - half_th  (두께 절반만큼 앞에 → 표면이 벽에 접촉)
 
 ▶ 실행
     conda activate isaac_sim
@@ -60,7 +61,8 @@ PLOT_DIR    = os.path.join(_SIM_RESULT, "plot")
 PLACE_X_MM = -47.879
 PLACE_Z_MM =  50.108
 WALL_Y_MM  = 336.199   # impact plate 벽 표면 Y [mm]
-#   알약 중심 Y = WALL_Y_MM - R_mm  (단반경만큼 벽 앞에 배치 → 표면이 벽에 접촉)
+#   알약 중심 Y = WALL_Y_MM - half_th  (두께의 절반만큼 벽 앞에 → 표면이 벽에 정확히 접촉)
+#   half_th = th / 2  where th = R_mm * 0.20 + 2 * (CV * 2 * R_mm)
 
 # ── Phase 1 스텝 수 (뷰어 없이 안정화) ──────────────────────────────
 PHASE1_STEPS = 500
@@ -110,7 +112,7 @@ def _parse_params(fname: str):
 
 
 # ─────────────────────────────────────────────────────────────────────
-def _build_model(stl_path: str, R_mm: float):
+def _build_model(stl_path: str, R_mm: float, half_th: float):
     """
     Crusher XML + Tablet STL → MjModel (메모리 내 조합).
 
@@ -118,19 +120,24 @@ def _build_model(stl_path: str, R_mm: float):
       ② keyframe 제거  → nq 불일치 방지
       ③ tablet body    → mocap="true" + geom  (freejoint/site/sensor 없음)
          mocap body는 joint가 없으므로 nq 변경 없음
+
+    배치 기준:
+      알약 중심 Y = WALL_Y_MM - half_th
+        → 두께의 절반만큼 벽 앞에 배치하여 표면이 벽면에 딱 닿음
+        → (TAB_QUAT 기준 World-Y 방향 = 두께 방향)
     """
     pos_x = PLACE_X_MM * 1e-3
     pos_z = PLACE_Z_MM * 1e-3
-    # 알약 중심 Y = 벽면 - 단반경(R_mm)
-    #   현재 TAB_QUAT([√2/2,0,√2/2,0]) 기준 body-Y → World-Y
-    #   → World-Y 방향 반경 = R_mm (장경)
-    #   → 중심을 R_mm 만큼 안쪽으로 당겨야 알약 표면이 벽면에 접촉
-    pos_y = (WALL_Y_MM - R_mm) * 1e-3
+    # 알약 중심 Y = 벽면 - 두께의 절반
+    #   TAB_QUAT([√2/2,0,√2/2,0]) 기준: body-Z(두께) → World-X,
+    #   body-Y(단반경) → World-Y, body-X(장반경) → World-Z
+    #   → World-Y 압축 방향: 두께(th) 절반 오프셋으로 표면이 벽에 정확히 접촉
+    pos_y = (WALL_Y_MM - half_th) * 1e-3
 
-    center_y_mm = WALL_Y_MM - R_mm
+    center_y_mm = WALL_Y_MM - half_th
     print(f"  배치 [mm] : X={PLACE_X_MM:.3f}  "
           f"Y_wall={WALL_Y_MM:.3f}  Y_center={center_y_mm:.3f}  "
-          f"Z={PLACE_Z_MM:.3f}  (offset=-R={-R_mm:.3f}mm)")
+          f"Z={PLACE_Z_MM:.3f}  (offset=-th/2={-half_th:.3f}mm)")
     print(f"  배치 [m]  : X={pos_x:.5f}  Y={pos_y:.5f}  Z={pos_z:.5f}")
 
     # ── Crusher XML 파싱 ─────────────────────────────────────────────
@@ -229,10 +236,11 @@ def run(stl_path: str):
         print(f"[ERROR] 파일명 파싱 실패: {fname}")
         sys.exit(1)
 
-    cd = CV * 2 * R_mm
-    th = R_mm * 0.20 + 2 * cd
+    cd      = CV * 2 * R_mm
+    th      = R_mm * 0.20 + 2 * cd
+    half_th = th / 2.0
     print(f"  STL  : {fname}")
-    print(f"  R={R_mm:.1f}mm  AR={AR:.2f}  CV={CV:.2f}  두께≈{th:.2f}mm")
+    print(f"  R={R_mm:.1f}mm  AR={AR:.2f}  CV={CV:.2f}  두께≈{th:.2f}mm  half_th={half_th:.2f}mm")
     print()
 
     # ── 결과 저장 경로 설정 ─────────────────────────────────────────
@@ -245,7 +253,7 @@ def run(stl_path: str):
     print(f"  파일 prefix: {result_stem}\n")
 
     # ── 모델 로드 ────────────────────────────────────────────────────
-    model, (px, py, pz) = _build_model(stl_path, R_mm)
+    model, (px, py, pz) = _build_model(stl_path, R_mm, half_th)
     data = mujoco.MjData(model)
 
     # ── ID 조회 ──────────────────────────────────────────────────────
