@@ -1,5 +1,5 @@
 """
-crusher_tablet_sim.py  [v4 — mocap tablet]
+crusher_tablet_sim.py  [v5 — moving-window reversal + realtime plot]
 Crusher + Tablet 통합 시뮬레이션
 
 ▶ 알약 고정 방식: mocap body
@@ -12,6 +12,8 @@ Crusher + Tablet 통합 시뮬레이션
 
 ▶ Phase 2  (뷰어 오픈)
     MOTOR_DELAY 초 후 lock_crank 해제 → Motor CCW 구동 → 접촉력 기록
+    ★ Moving-window stall 감지: 크랭크 속도가 STALL_VEL_THR 미만으로
+      STALL_WINDOW 스텝 연속 유지 시 방향 전환 (CCW ↔ CW 반복)
 
 ▶ 배치 좌표 (MuJoCo world frame)
     PLACE_X_MM = -47.879  →  MuJoCo X
@@ -28,8 +30,10 @@ import sys
 import re
 import argparse
 import xml.etree.ElementTree as ET
+from collections import deque
 
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import mujoco
 import mujoco.viewer
@@ -51,10 +55,18 @@ WALL_Y_MM  = 336.199   # impact plate 벽 위치 (= 알약 중심 Y)
 PHASE1_STEPS = 500
 
 # ── Phase 2 시뮬레이션 파라미터 ──────────────────────────────────────
-SIM_DURATION      = 30.0   # 측정 시간 [s]
-MOTOR_CTRL        = -0.5   # Motor1_crank 제어 입력 [N·m]  (음수 = CCW)
-MOTOR_DELAY       =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
-REVERSE_F_THRESHOLD = 5.0  # 역전 트리거: 법선 접촉력이 이 값을 초과하면 역전 [N]
+SIM_DURATION = 30.0   # 측정 시간 [s]
+MOTOR_CTRL   = -0.5   # Motor1_crank 제어 입력 [N·m]  (음수 = CCW)
+MOTOR_DELAY  =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
+
+# ── Moving-window stall 감지 파라미터 ────────────────────────────────
+#   크랭크 각속도가 STALL_VEL_THR [rad/s] 미만인 상태가
+#   STALL_WINDOW 스텝 연속 지속되면 방향 전환
+STALL_WINDOW  = 30     # 연속 판정 스텝 수 (timestep=0.002s → 0.06 s)
+STALL_VEL_THR = 0.05   # 크랭크 속도 임계 [rad/s]
+
+# ── 실시간 플롯 갱신 주기 ─────────────────────────────────────────────
+RT_PLOT_INTERVAL = 20  # 몇 스텝마다 실시간 플롯 갱신
 
 # ── 알약 초기 자세 (쿼터니언) ────────────────────────────────────────
 # Step 1: X축 90°  → local-Z(두께) → world-Y(압축방향)
@@ -208,10 +220,11 @@ def run(stl_path: str):
     eq_lock_id = mujoco.mj_name2id(
         model, mujoco.mjtObj.mjOBJ_EQUALITY, "lock_crank")
 
-    crank_qadr = model.jnt_qposadr[crank_jid]
+    crank_qadr = model.jnt_qposadr[crank_jid]   # qpos 배열 인덱스
+    crank_vadr = model.jnt_dofadr[crank_jid]    # qvel 배열 인덱스 (속도 감시용)
     mocap_id   = model.body_mocapid[b_tablet]   # mocap 배열 인덱스
 
-    print(f"\n  nq={model.nq}  |  crank qpos[{crank_qadr}]  "
+    print(f"\n  nq={model.nq}  |  crank qpos[{crank_qadr}] qvel[{crank_vadr}]  "
           f"mocap_id={mocap_id}  lock_crank eq_id={eq_lock_id}")
 
     # ── ❶ 초기 상태 설정 ────────────────────────────────────────────
@@ -238,25 +251,50 @@ def run(stl_path: str):
     # ── ❸ Phase 2: lock 유지 → MOTOR_DELAY 후 해제 + CCW 구동 ────────
     print(f"\n◆ Phase 2: 뷰어 오픈  (lock_crank 활성)")
     print(f"  {MOTOR_DELAY:.1f}s 후 lock_crank 해제 → {MOTOR_CTRL} N·m CCW")
+    print(f"  stall 감지: |ω| < {STALL_VEL_THR} rad/s × {STALL_WINDOW} 스텝 → 방향 전환")
     print(f"  측정 시간 = {SIM_DURATION} s\n")
 
     data.ctrl[act_crank] = 0.0
     phase2_start_t = data.time
-    motor_on       = False
-    reversed_motor = False
-    motor_on_t     = None
-    motor_rev_t    = None
 
+    # ── 모터 상태 (moving-window stall 기반 양방향 역전) ─────────────
+    motor_on  = False
+    motor_on_t = None
+    motor_dir  = 0              # 0=off, +1=CCW, -1=CW
+    stall_buf  = deque(maxlen=STALL_WINDOW)
+    rev_events = []             # [(time, direction_str), ...]
+
+    # ── 데이터 로그 ──────────────────────────────────────────────────
     t_log    = []
     f_log    = []   # contact force (world XYZ)
+    vel_log  = []   # 크랭크 각속도 [rad/s]
     slider_y = []
     tablet_y = []
     gap_log  = []
     first_contact_t = None
 
     print(f"  {'Time':>6s} | {'Slider_Y':>9s} mm | {'Tablet_Y':>9s} mm | "
-          f"{'Gap':>7s} mm | {'F_Y(N)':>8s} | {'ncon':>4s}")
-    print("  " + "-" * 72)
+          f"{'Gap':>7s} mm | {'F_Y(N)':>8s} | {'ω(rad/s)':>9s} | {'ncon':>4s}")
+    print("  " + "-" * 82)
+
+    # ── 실시간 반력 플롯 초기화 ──────────────────────────────────────
+    plt.ion()
+    fig_rt, ax_rt = plt.subplots(figsize=(9, 3))
+    fig_rt.suptitle("실시간 법선 반력 F_Y  [N]  (world-Y 방향, 알약 기준)",
+                    fontsize=10)
+    line_fy, = ax_rt.plot([], [], color="tab:blue", lw=1.5,
+                          label="F_Y  [N]")
+    ax_rt.axhline(0, color="k", lw=0.5, ls="--")
+    ax_rt.set_xlabel("Time [s]")
+    ax_rt.set_ylabel("F_Y  [N]")
+    ax_rt.legend(fontsize=9)
+    ax_rt.grid(True, alpha=0.3)
+    fig_rt.tight_layout()
+    fig_rt.canvas.draw()
+    fig_rt.canvas.flush_events()
+
+    # 실시간 플롯에 그릴 이벤트 수직선 핸들 목록
+    _rt_vlines: list = []
 
     with mujoco.viewer.launch_passive(model, data) as viewer:
         viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_JOINT]      = False
@@ -271,23 +309,28 @@ def run(stl_path: str):
             # ── MOTOR_DELAY 후 lock 해제 + 모터 ON ──────────────────
             if not motor_on and (data.time - phase2_start_t) >= MOTOR_DELAY:
                 data.eq_active[eq_lock_id] = 0
-                data.ctrl[act_crank]       = MOTOR_CTRL
+                motor_dir = 1                          # +1 = CCW
+                data.ctrl[act_crank] = motor_dir * MOTOR_CTRL   # -0.5 N·m
                 motor_on   = True
                 motor_on_t = data.time
+                stall_buf.clear()
                 print(f"  *** lock_crank 해제 + 모터 ON: t={data.time:.3f}s "
-                      f"ctrl={MOTOR_CTRL} N·m (CCW) ***")
+                      f"ctrl={motor_dir * MOTOR_CTRL:.2f} N·m (CCW) ***")
 
-            # ── 접촉력 기반 역전: F_Y > REVERSE_F_THRESHOLD 이면 CW 역전 ──
-            if motor_on and not reversed_motor and f_log:
-                fy_now = abs(f_log[-1][1])   # 이전 스텝 법선 반력 크기
-                if fy_now > REVERSE_F_THRESHOLD:
-                    data.ctrl[act_crank] = -MOTOR_CTRL   # 역전: CW
-                    reversed_motor = True
-                    motor_rev_t    = data.time
-                    cur_gap        = gap_log[-1] if gap_log else float("nan")
-                    print(f"  *** 접촉력 역전 트리거: t={data.time:.3f}s  "
-                          f"F_Y={fy_now:.2f}N > {REVERSE_F_THRESHOLD}N  "
-                          f"gap={cur_gap:.2f}mm → 크랭크 CW ***")
+            # ── Moving-window stall 감지 → 방향 전환 ────────────────
+            if motor_on:
+                crank_vel = abs(data.qvel[crank_vadr])
+                stall_buf.append(crank_vel < STALL_VEL_THR)
+
+                if len(stall_buf) == STALL_WINDOW and all(stall_buf):
+                    motor_dir = -motor_dir               # CCW↔CW 전환
+                    data.ctrl[act_crank] = motor_dir * MOTOR_CTRL
+                    stall_buf.clear()
+                    dir_str = "CCW" if motor_dir > 0 else "CW"
+                    rev_events.append((data.time, dir_str))
+                    print(f"  *** 방향 전환 → {dir_str}  t={data.time:.3f}s "
+                          f"  ctrl={motor_dir * MOTOR_CTRL:.2f} N·m  "
+                          f"  ω={crank_vel:.4f} rad/s ***")
 
             mujoco.mj_step(model, data)
             # mocap body: mj_step 후 위치 자동 유지 (덮어쓰기 불필요)
@@ -295,19 +338,20 @@ def run(stl_path: str):
             sy     = float(data.xpos[b_slider, 1])
             ty_now = float(data.xpos[b_tablet, 1])
             gap_mm = (ty_now - sy) * 1e3
+            omega  = float(data.qvel[crank_vadr])
 
             # ── 접촉력 집계 (contact frame → world frame) ────────────
             fc_now = _sum_contact_force(model, data, b_tablet)
 
             t_log.append(data.time)
             f_log.append(fc_now.copy())
+            vel_log.append(omega)
             slider_y.append(sy)
             tablet_y.append(ty_now)
             gap_log.append(gap_mm)
 
             # 첫 접촉 감지
             if first_contact_t is None and data.ncon > 0:
-                # 알약과 관련된 접촉이 있는지 확인
                 for ci in range(data.ncon):
                     c = data.contact[ci]
                     if b_tablet in (model.geom_bodyid[c.geom1],
@@ -319,11 +363,41 @@ def run(stl_path: str):
 
             # 500 스텝마다 콘솔 출력
             if len(t_log) % 500 == 0:
+                dir_lbl = {1: "CCW", -1: "CW", 0: "---"}.get(motor_dir, "?")
                 print(f"  {data.time:6.2f}s | {sy*1e3:9.2f}    | "
                       f"{ty_now*1e3:9.2f}    | {gap_mm:7.2f}    | "
-                      f"{fc_now[1]:8.3f} | {data.ncon:4d}")
+                      f"{fc_now[1]:8.3f} | {omega:9.4f} | {data.ncon:4d}"
+                      f"  [{dir_lbl}]")
+
+            # ── 실시간 플롯 갱신 ─────────────────────────────────────
+            if len(t_log) % RT_PLOT_INTERVAL == 0 and len(t_log) > 1:
+                fy_data = [f[1] for f in f_log]
+                line_fy.set_data(t_log, fy_data)
+                ax_rt.relim()
+                ax_rt.autoscale_view()
+
+                # 이벤트 수직선 갱신 (모터 ON, 방향 전환)
+                for vl in _rt_vlines:
+                    try:
+                        vl.remove()
+                    except Exception:
+                        pass
+                _rt_vlines.clear()
+                if motor_on_t is not None:
+                    vl = ax_rt.axvline(motor_on_t, color="tab:orange",
+                                       ls="--", lw=1.0, label="모터 ON")
+                    _rt_vlines.append(vl)
+                for ev_t, ev_dir in rev_events:
+                    vl = ax_rt.axvline(ev_t, color="tab:red",
+                                       ls=":", lw=1.0, label=f"→{ev_dir}")
+                    _rt_vlines.append(vl)
+
+                fig_rt.canvas.draw_idle()
+                fig_rt.canvas.flush_events()
 
             viewer.sync()
+
+    plt.ioff()
 
     # ── 결과 집계 ─────────────────────────────────────────────────────
     if not t_log:
@@ -332,6 +406,7 @@ def run(stl_path: str):
 
     t   = np.array(t_log)
     fc  = np.array(f_log)          # (N, 3) world frame
+    vel = np.array(vel_log)        # (N,) 크랭크 각속도
     sy  = np.array(slider_y) * 1e3
     ty  = np.array(tablet_y) * 1e3
     gap = np.array(gap_log)
@@ -341,7 +416,7 @@ def run(stl_path: str):
     F_Y_max = float(fc[:, 1].max())
     F_Y_min = float(fc[:, 1].min())
 
-    print(f"\n  {'='*60}")
+    print(f"\n  {'='*62}")
     print(f"  수집    : {len(t)} steps  ({t[-1]:.2f} s)")
     print(f"  Slider Y range  : {sy.min():.1f} ~ {sy.max():.1f} mm")
     print(f"  Tablet Y range  : {ty.min():.1f} ~ {ty.max():.1f} mm")
@@ -349,15 +424,28 @@ def run(stl_path: str):
     print(f"  F_Y range       : {F_Y_min:.3f} ~ {F_Y_max:.3f} N")
     print(f"  |F| max         : {fc_mag.max():.3f} N")
     print(f"  Impulse J_Y     : {J_Y:.5f} N·s")
+    print(f"  ω_crank range   : {vel.min():.4f} ~ {vel.max():.4f} rad/s")
+    print(f"  방향 전환 횟수  : {len(rev_events)} 회")
+    for i, (ev_t, ev_dir) in enumerate(rev_events, 1):
+        print(f"    [{i}] t={ev_t:.3f}s → {ev_dir}")
     if first_contact_t:
         print(f"  First contact   : t = {first_contact_t:.3f} s")
     else:
         print("  [!] No contact detected")
-    print(f"  {'='*60}")
+    print(f"  {'='*62}")
 
     # ── 플롯 ─────────────────────────────────────────────────────────
-    title_base = (f"Motor={MOTOR_CTRL} N·m (CCW)  |  "
+    title_base = (f"Motor={MOTOR_CTRL} N·m (CCW init)  |  "
                   f"R={R_mm:.1f}mm AR={AR:.2f} CV={CV:.2f}")
+
+    # 공통 이벤트 마커 헬퍼
+    def _add_event_vlines(ax_):
+        if motor_on_t is not None:
+            ax_.axvline(motor_on_t, color="tab:orange", ls="--", lw=1.2,
+                        label=f"모터 ON (t={motor_on_t:.2f}s)")
+        for ev_t, ev_dir in rev_events:
+            ax_.axvline(ev_t, color="tab:red", ls=":", lw=1.0,
+                        label=f"→{ev_dir} (t={ev_t:.2f}s)")
 
     # 그림 1: 위치
     fig1, axes1 = plt.subplots(2, 1, figsize=(11, 6), sharex=True)
@@ -366,12 +454,14 @@ def run(stl_path: str):
     axes1[0].plot(t, ty, color="tab:blue",   lw=1.5, label="Tablet Y (mocap)")
     axes1[0].axhline(WALL_Y_MM, color="tab:red", ls=":", lw=1.2,
                      label=f"Wall Y={WALL_Y_MM:.1f}mm")
-    axes1[0].set_ylabel("World Y [mm]"); axes1[0].legend(fontsize=9)
+    _add_event_vlines(axes1[0])
+    axes1[0].set_ylabel("World Y [mm]"); axes1[0].legend(fontsize=8)
     axes1[0].grid(True, alpha=0.3)
     axes1[1].plot(t, gap, color="tab:purple", lw=1.5)
     axes1[1].axhline(0, color="tab:red", ls="--", lw=0.8, label="Contact (gap=0)")
+    _add_event_vlines(axes1[1])
     axes1[1].set_ylabel("Gap [mm]"); axes1[1].set_xlabel("Time [s]")
-    axes1[1].legend(fontsize=9); axes1[1].grid(True, alpha=0.3)
+    axes1[1].legend(fontsize=8); axes1[1].grid(True, alpha=0.3)
     fig1.tight_layout()
 
     # 그림 2: 법선 반력 F_Y + 임펄스
@@ -384,13 +474,7 @@ def run(stl_path: str):
                            alpha=0.12, color="tab:blue", label="압축 (양)")
     axes2[0].fill_between(t, 0, fc[:, 1], where=(fc[:, 1] < 0),
                            alpha=0.12, color="tab:red",  label="인장 (음)")
-    # 이벤트 마커
-    if motor_on_t is not None:
-        axes2[0].axvline(motor_on_t, color="tab:orange", ls="--", lw=1.2,
-                         label=f"모터 ON (t={motor_on_t:.2f}s)")
-    if motor_rev_t is not None:
-        axes2[0].axvline(motor_rev_t, color="tab:red", ls="--", lw=1.2,
-                         label=f"크랭크 역전 (t={motor_rev_t:.2f}s, F>{REVERSE_F_THRESHOLD}N)")
+    _add_event_vlines(axes2[0])
     axes2[0].set_ylabel("F_Y [N]")
     axes2[0].set_title(f"max={F_Y_max:.3f} N  min={F_Y_min:.3f} N  "
                        f"(법선방향=World-Y, 양=압축)")
@@ -398,12 +482,9 @@ def run(stl_path: str):
     J_cumul = np.cumsum(fc[:, 1]) * float(model.opt.timestep)
     axes2[1].plot(t, J_cumul, color="tab:green", lw=1.5,
                   label=f"누적 임펄스 J_Y = {J_Y:.4f} N·s")
-    if motor_on_t is not None:
-        axes2[1].axvline(motor_on_t, color="tab:orange", ls="--", lw=1.2)
-    if motor_rev_t is not None:
-        axes2[1].axvline(motor_rev_t, color="tab:red", ls="--", lw=1.2)
+    _add_event_vlines(axes2[1])
     axes2[1].set_ylabel("J_Y [N·s]"); axes2[1].set_xlabel("Time [s]")
-    axes2[1].legend(fontsize=9); axes2[1].grid(True, alpha=0.3)
+    axes2[1].legend(fontsize=8); axes2[1].grid(True, alpha=0.3)
     fig2.tight_layout()
 
     # 그림 3: XYZ 성분
@@ -416,16 +497,33 @@ def run(stl_path: str):
              ("Z (vertical)",             "tab:green")]):
         axes3[i].plot(t, fc[:, i], color=col, lw=1.2, label=f"F_{lbl}")
         axes3[i].axhline(0, color="k", lw=0.5)
-        axes3[i].set_ylabel("F [N]"); axes3[i].legend(fontsize=9)
+        _add_event_vlines(axes3[i])
+        axes3[i].set_ylabel("F [N]"); axes3[i].legend(fontsize=8)
         axes3[i].grid(True, alpha=0.3)
     axes3[2].set_xlabel("Time [s]")
     fig3.tight_layout()
 
+    # 그림 4: 크랭크 각속도
+    fig4, ax4 = plt.subplots(figsize=(11, 3))
+    fig4.suptitle(f"Crank Angular Velocity — {title_base}",
+                  fontsize=11, fontweight="bold")
+    ax4.plot(t, vel, color="tab:purple", lw=1.2, label="ω crank [rad/s]")
+    ax4.axhline(0, color="k", lw=0.5)
+    ax4.axhline( STALL_VEL_THR, color="gray", ls="--", lw=0.8,
+                 label=f"stall thr ±{STALL_VEL_THR} rad/s")
+    ax4.axhline(-STALL_VEL_THR, color="gray", ls="--", lw=0.8)
+    _add_event_vlines(ax4)
+    ax4.set_ylabel("ω [rad/s]"); ax4.set_xlabel("Time [s]")
+    ax4.legend(fontsize=8); ax4.grid(True, alpha=0.3)
+    fig4.tight_layout()
+
     # ── 저장 ─────────────────────────────────────────────────────────
     for fig, name in [
-        (fig1, "crusher_tablet_position.png"),
-        (fig2, "crusher_tablet_force_magnitude.png"),
-        (fig3, "crusher_tablet_force_components.png"),
+        (fig_rt, "crusher_tablet_realtime_force.png"),
+        (fig1,   "crusher_tablet_position.png"),
+        (fig2,   "crusher_tablet_force_magnitude.png"),
+        (fig3,   "crusher_tablet_force_components.png"),
+        (fig4,   "crusher_tablet_crank_velocity.png"),
     ]:
         p = os.path.join(_HERE, name)
         fig.savefig(p, dpi=150, bbox_inches="tight")

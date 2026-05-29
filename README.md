@@ -13,7 +13,7 @@
 5. [의존성 설치](#의존성-설치)
 6. [주의 사항](#주의-사항)
 
-> **✅ 2026-05-28 업데이트** — 알약 고정 방식을 **mocap body**로 전환 (관통 문제 해결), 법선 반력 측정·플롯, 접촉력 기반 크랭크 자동 역전 구현.  
+> **✅ 2026-05-29 업데이트** — **Moving-window stall 감지** 기반 양방향 크랭크 역전 (CCW ↔ CW 반복), **실시간 법선 반력 플롯** (`plt.ion()`), 크랭크 각속도 플롯 추가.  
 > → [Crusher + Tablet 시뮬레이션 바로가기](#5-crusher--tablet-통합-시뮬레이션-실행)
 
 ---
@@ -141,16 +141,17 @@ python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
 | **Phase 1** (뷰어 없음, 500 스텝) | `lock_crank` equality 활성 (−90° 고정) → Crusher 메커니즘 안정화 |
 | **Phase 2 — 대기** (0 ~ 3 s) | 뷰어 오픈, 모터 OFF. 알약은 mocap body로 충돌판 벽면에 고정 |
 | **Phase 2 — 압축** (3 s ~) | `lock_crank` 해제 → Motor CCW −0.5 N·m 구동 → 슬라이더 전진, 법선 반력 측정 |
-| **Phase 2 — 역전** (접촉력 > 5 N) | 접촉 법선력이 임계값 초과 → 크랭크 CW 역전, 슬라이더 후퇴 |
+| **Phase 2 — 역전** (stall 감지) | 크랭크 각속도 \|ω\| < 0.05 rad/s 가 30 step 연속 → 방향 전환 (CCW↔CW 반복) |
 
 #### 핵심 구조
 
 - **XML 파일 없음** — `Crusher_IsaacSim_colored.xml` 을 메모리에서 파싱, Tablet body 노드를 동적 삽입 후 `MjModel.from_xml_string()` 으로 직접 로드
 - **알약 고정 방식 — mocap body** — `mocap="true"` 선언으로 MuJoCo가 알약을 불가침 강체 벽으로 인식. `data.mocap_pos / mocap_quat` 으로 위치·자세 제어. 관통 없음
 - **접촉력 측정** — `data.contact` + `mj_contactForce()` → contact frame → world frame 변환. 알약에 작용하는 법선 반력(F_Y) 수집
-- **크랭크 제어** — `lock_crank` equality (polycoef=−π/2) 런타임 해제 (`data.eq_active`), 접촉력 기반 자동 역전
+- **크랭크 제어** — `lock_crank` equality (polycoef=−π/2) 런타임 해제 (`data.eq_active`), **moving-window stall 감지** 기반 양방향 자동 역전
 - **알약 자세** — X축 90° + Y축 90° 합성 쿼터니언 `[0.5, 0.5, 0.5, −0.5]` → 장축이 수직(world-Z) 방향
-- **출력** — 위치·힘·임펄스 그래프 3종을 PNG로 저장
+- **실시간 플롯** — `plt.ion()` 기반 실시간 F_Y 창이 시뮬레이터와 동시 업데이트 (20 step 마다)
+- **출력** — 위치·힘·임펄스·각속도 그래프 5종을 PNG로 저장
 
 #### 알약 배치 좌표 (MuJoCo world frame)
 
@@ -170,6 +171,51 @@ python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
 ---
 
 ## 변경 이력
+
+### 2026-05-29 — Moving-window 역전 알고리즘 + 실시간 반력 플롯
+
+#### 핵심 변경
+
+| 항목 | 변경 전 | 변경 후 |
+|------|---------|---------|
+| **크랭크 역전 방식** | 접촉력 임계(`\|F_Y\| > 5 N`) → CCW→CW 단방향, 복귀 없음 | **Moving-window stall 감지** — 양방향 (CCW↔CW 반복) |
+| **역전 트리거 조건** | 접촉력 크기 기반 | 크랭크 각속도 `\|ω\| < 0.05 rad/s` 30 step 연속 유지 |
+| **실시간 플롯** | 없음 (시뮬 종료 후 정적 PNG만) | `plt.ion()` 기반 F_Y 실시간 창 (20 step 간격 갱신) |
+| **출력 그래프** | 3종 (위치, 힘, XYZ 성분) | **5종** — 위치, 힘+임펄스, XYZ 성분, **실시간 스냅샷**, **크랭크 각속도** |
+| **콘솔 출력** | 위치·힘·접촉 수 | 위치·힘·각속도·현재 방향(`[CCW]`/`[CW]`) |
+
+#### 상세 내용
+
+**① Moving-window stall 감지 기반 양방향 역전**
+```
+STALL_WINDOW  = 30      # 연속 판정 스텝 수 (0.002 s × 30 = 0.06 s)
+STALL_VEL_THR = 0.05    # 크랭크 속도 임계 [rad/s]
+```
+- `deque(maxlen=30)` — 최신 30 스텝의 `|ω| < threshold` 불리언 기록
+- `all(stall_buf)` 가 True 되는 순간 `motor_dir = -motor_dir` 전환, deque 초기화
+- 부호 규칙: `data.ctrl[act_crank] = motor_dir × MOTOR_CTRL`
+  - `motor_dir = +1` (CCW) → ctrl = −0.5 N·m
+  - `motor_dir = −1` (CW) → ctrl = +0.5 N·m
+- CCW→CW, CW→CCW 모두 자동 처리. 역전 횟수·시각 콘솔 출력 및 플롯 마커 기록
+
+**② 실시간 법선 반력 플롯 (`plt.ion()`)**
+- 시뮬레이터 뷰어와 동시에 별도 창으로 F_Y [N] 실시간 표시
+- 20 step(0.04 s)마다 `line_fy.set_data()` + `ax_rt.relim()` + `flush_events()`
+- 방향 전환 이벤트 수직선(axvline)을 실시간 갱신
+- 시뮬 종료 후 `crusher_tablet_realtime_force.png` 로 저장
+
+**③ 크랭크 각속도 플롯 추가 (그림 4)**
+- `data.qvel[crank_vadr]` 로그를 시간 축으로 표시
+- stall 임계선 `±STALL_VEL_THR` 수평선 표시
+- 방향 전환 이벤트 수직선 동기화
+
+#### 수정 파일
+
+| 파일 | 수정 내용 |
+|------|-----------|
+| `MuJoCo_PlayGround/20260527/crusher_tablet_sim.py` | v5 — moving-window 역전, 실시간 플롯, 각속도 플롯, 다중 역전 이벤트 추적 |
+
+---
 
 ### 2026-05-28 — 알약 물리 고정 방식 전환 및 반력 측정 파이프라인 완성
 
