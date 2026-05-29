@@ -13,7 +13,8 @@ Crusher + Tablet 통합 시뮬레이션
 ▶ Phase 2  (뷰어 오픈)
     MOTOR_DELAY 초 후 lock_crank 해제 → Motor CCW 구동 → 접촉력 기록
     ★ Moving-window stall 감지: 크랭크 속도가 STALL_VEL_THR 미만으로
-      STALL_WINDOW 스텝 연속 유지 시 방향 전환 (CCW ↔ CW 반복)
+      STALL_TIME_S 초 연속 유지 시 방향 전환 (CCW ↔ CW 반복)
+      기본 2.0s → "지긋이 누르는 느낌" / STALL_TIME_S 로 조정
 
 ▶ 배치 좌표 (MuJoCo world frame)
     PLACE_X_MM = -47.879  →  MuJoCo X
@@ -71,8 +72,17 @@ MOTOR_DELAY  =  3.0   # 모터 구동 지연 시간 [s]  (Phase 2 시작 후)
 
 # ── Moving-window stall 감지 파라미터 ────────────────────────────────
 #   크랭크 각속도가 STALL_VEL_THR [rad/s] 미만인 상태가
-#   STALL_WINDOW 스텝 연속 지속되면 방향 전환
-STALL_WINDOW  = 30     # 연속 판정 스텝 수 (timestep=0.002s → 0.06 s)
+#   STALL_TIME_S 초 연속 지속되면 방향 전환 (지긋이 누르는 느낌)
+#
+#   STALL_WINDOW(스텝 수)는 실행 시 model.opt.timestep 에서 자동 계산:
+#     STALL_WINDOW = int(STALL_TIME_S / timestep)
+#     예) 2.0s / 0.002s = 1000 스텝
+#
+#   ▶ 조정 가이드
+#     0.5s  → 빠른 왕복 (테스트용)
+#     2.0s  → 지긋이 누르는 느낌  ← 기본값
+#     5.0s  → 장시간 압축 후 후퇴
+STALL_TIME_S  = 2.0    # stall 유지 판정 시간 [s]  ★ 조정 포인트
 STALL_VEL_THR = 0.05   # 크랭크 속도 임계 [rad/s]
 
 # ── 실시간 플롯 갱신 주기 ─────────────────────────────────────────────
@@ -279,9 +289,14 @@ def run(stl_path: str):
     print(f"  ✔ Phase 1 완료  crank={crank_deg:.1f}°  sim_time={data.time:.3f}s")
 
     # ── ❸ Phase 2: lock 유지 → MOTOR_DELAY 후 해제 + CCW 구동 ────────
+    # STALL_TIME_S → 스텝 수로 변환 (timestep은 모델에서 읽음)
+    _dt          = float(model.opt.timestep)
+    stall_window = max(1, int(round(STALL_TIME_S / _dt)))
+
     print(f"\n◆ Phase 2: 뷰어 오픈  (lock_crank 활성)")
     print(f"  {MOTOR_DELAY:.1f}s 후 lock_crank 해제 → {MOTOR_CTRL} N·m CCW")
-    print(f"  stall 감지: |ω| < {STALL_VEL_THR} rad/s × {STALL_WINDOW} 스텝 → 방향 전환")
+    print(f"  stall 감지: |ω| < {STALL_VEL_THR} rad/s  ×  {stall_window} 스텝"
+          f"  ({STALL_TIME_S:.1f}s)  → 방향 전환")
     print(f"  측정 시간 = {SIM_DURATION} s\n")
 
     data.ctrl[act_crank] = 0.0
@@ -291,7 +306,7 @@ def run(stl_path: str):
     motor_on  = False
     motor_on_t = None
     motor_dir  = 0              # 0=off, +1=CCW, -1=CW
-    stall_buf  = deque(maxlen=STALL_WINDOW)
+    stall_buf  = deque(maxlen=stall_window)
     rev_events = []             # [(time, direction_str), ...]
 
     # ── 데이터 로그 ──────────────────────────────────────────────────
@@ -354,7 +369,7 @@ def run(stl_path: str):
                 crank_vel = abs(data.qvel[crank_vadr])
                 stall_buf.append(crank_vel < STALL_VEL_THR)
 
-                if len(stall_buf) == STALL_WINDOW and all(stall_buf):
+                if len(stall_buf) == stall_window and all(stall_buf):
                     motor_dir = -motor_dir               # CCW↔CW 전환
                     data.ctrl[act_crank] = motor_dir * MOTOR_CTRL
                     stall_buf.clear()
@@ -570,7 +585,8 @@ def run(stl_path: str):
         w.writerow(["# MOTOR_CTRL_Nm", MOTOR_CTRL,
                     "MOTOR_DELAY_s", MOTOR_DELAY,
                     "SIM_DURATION_s", SIM_DURATION])
-        w.writerow(["# STALL_WINDOW", STALL_WINDOW,
+        w.writerow(["# STALL_TIME_S", STALL_TIME_S,
+                    "STALL_WINDOW_steps", stall_window,
                     "STALL_VEL_THR_rad_s", STALL_VEL_THR])
         w.writerow(["# PLACE_X_mm", PLACE_X_MM,
                     "PLACE_Y_mm (wall)", WALL_Y_MM,

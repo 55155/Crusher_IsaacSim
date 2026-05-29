@@ -80,7 +80,9 @@ WALL_Y_MM     = 336.199   # impact plate 벽 표면 Y [mm]
 PHASE1_STEPS  = 500
 MOTOR_CTRL    = -0.5      # [N·m]  음수 = CCW
 MOTOR_DELAY   =  3.0      # [s]
-STALL_WINDOW  = 30
+STALL_TIME_S  = 2.0    # stall 유지 판정 시간 [s]  ★ 조정 포인트
+#   STALL_WINDOW(스텝 수) = int(STALL_TIME_S / timestep) 으로 자동 계산
+#   예) 2.0s / 0.002s = 1000 스텝  → 지긋이 누르는 느낌
 STALL_VEL_THR = 0.05      # [rad/s]
 _s = np.sqrt(2.0) / 2.0
 TAB_QUAT = np.array([_s, 0.0, _s, 0.0])    # X90 + Y90 + Z90 합성
@@ -250,13 +252,17 @@ def _simulate(model, stl_path, fname, stem,
     mujoco.mj_forward(model, data)
 
     # ── Phase 2: 헤드리스 시뮬레이션 ─────────────────────────────────
+    # STALL_TIME_S → 스텝 수로 변환
+    _dt          = float(model.opt.timestep)
+    stall_window = max(1, int(round(STALL_TIME_S / _dt)))
+
     data.ctrl[act_crank] = 0.0
     phase2_start_t = data.time
 
     motor_on   = False
     motor_on_t = None
     motor_dir  = 0
-    stall_buf  = deque(maxlen=STALL_WINDOW)
+    stall_buf  = deque(maxlen=stall_window)
     rev_events = []
 
     t_log    = []
@@ -283,7 +289,7 @@ def _simulate(model, stl_path, fname, stem,
         if motor_on:
             crank_vel = abs(data.qvel[crank_vadr])
             stall_buf.append(crank_vel < STALL_VEL_THR)
-            if len(stall_buf) == STALL_WINDOW and all(stall_buf):
+            if len(stall_buf) == stall_window and all(stall_buf):
                 motor_dir = -motor_dir
                 data.ctrl[act_crank] = motor_dir * MOTOR_CTRL
                 stall_buf.clear()
@@ -348,7 +354,8 @@ def _simulate(model, stl_path, fname, stem,
                     "phase1_steps", PHASE1_STEPS])
         w.writerow(["# MOTOR_CTRL_Nm", MOTOR_CTRL,
                     "MOTOR_DELAY_s", MOTOR_DELAY])
-        w.writerow(["# STALL_WINDOW", STALL_WINDOW,
+        w.writerow(["# STALL_TIME_S", STALL_TIME_S,
+                    "STALL_WINDOW_steps", stall_window,
                     "STALL_VEL_THR_rad_s", STALL_VEL_THR])
         w.writerow(["# F_Y_max_N", f"{F_Y_max:.5f}",
                     "F_Y_min_N", f"{F_Y_min:.5f}",
@@ -465,7 +472,7 @@ def _save_summary_csv(results: list, summary_csv_path: str, sim_duration: float)
         w.writerow(["# Generated", datetime.now().isoformat(timespec="seconds")])
         w.writerow(["# sim_duration_s", sim_duration,
                     "MOTOR_CTRL_Nm", MOTOR_CTRL,
-                    "STALL_WINDOW", STALL_WINDOW])
+                    "STALL_TIME_S", STALL_TIME_S])
         w.writerow([])
         w.writerow(["stem", "R_mm", "AR", "CV",
                     "F_Y_max_N", "F_Y_min_N", "F_mag_max_N",
@@ -509,7 +516,7 @@ def _save_summary_plot(results: list, summary_plot_path: str):
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
     fig.suptitle(
         f"Batch Summary — {len(ok)}/{len(results)}개 성공\n"
-        f"Motor={MOTOR_CTRL} N·m  stall={STALL_VEL_THR} rad/s×{STALL_WINDOW}steps",
+        f"Motor={MOTOR_CTRL} N·m  stall={STALL_VEL_THR} rad/s × {STALL_TIME_S}s",
         fontsize=12, fontweight="bold")
 
     # ① R vs F_Y_max (AR 색상)
