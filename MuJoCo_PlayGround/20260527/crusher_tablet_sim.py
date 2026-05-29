@@ -1,5 +1,5 @@
 """
-crusher_tablet_sim.py  [v5 — moving-window reversal + realtime plot]
+crusher_tablet_sim.py  [v6 — CSV/Plot 자동 저장 (Sim_result/)]
 Crusher + Tablet 통합 시뮬레이션
 
 ▶ 알약 고정 방식: mocap body
@@ -28,9 +28,11 @@ Crusher + Tablet 통합 시뮬레이션
 import os
 import sys
 import re
+import csv
 import argparse
 import xml.etree.ElementTree as ET
 from collections import deque
+from datetime import datetime
 
 import numpy as np
 import matplotlib
@@ -45,6 +47,13 @@ MJCF_PATH = os.path.normpath(
 MJCF_DIR  = os.path.dirname(MJCF_PATH)
 STL_DIR   = os.path.normpath(
     os.path.join(_HERE, "..", "..", "tablets_stl", "stl"))
+
+# ── 결과 저장 디렉토리 ────────────────────────────────────────────────
+#   MuJoCo_PlayGround/Sim_result/csv/    ← 반력 프로파일 CSV
+#   MuJoCo_PlayGround/Sim_result/plot/   ← 그래프 PNG
+_SIM_RESULT = os.path.normpath(os.path.join(_HERE, "..", "Sim_result"))
+CSV_DIR     = os.path.join(_SIM_RESULT, "csv")
+PLOT_DIR    = os.path.join(_SIM_RESULT, "plot")
 
 # ── 배치 좌표 (mm, MuJoCo world frame) ──────────────────────────────
 PLACE_X_MM = -47.879
@@ -208,6 +217,15 @@ def run(stl_path: str):
     print(f"  R={R_mm:.1f}mm  AR={AR:.2f}  CV={CV:.2f}  두께≈{th:.2f}mm")
     print()
 
+    # ── 결과 저장 경로 설정 ─────────────────────────────────────────
+    os.makedirs(CSV_DIR,  exist_ok=True)
+    os.makedirs(PLOT_DIR, exist_ok=True)
+    stem        = os.path.splitext(fname)[0]              # 확장자 제거
+    ts          = datetime.now().strftime("%Y%m%d_%H%M%S")
+    result_stem = f"{stem}__{ts}"                         # e.g. tablet_R6.0_AR1.50_CV0.20__20260529_143022
+    print(f"  결과 저장: {_SIM_RESULT}")
+    print(f"  파일 prefix: {result_stem}\n")
+
     # ── 모델 로드 ────────────────────────────────────────────────────
     model, (px, py, pz) = _build_model(stl_path, R_mm)
     data = mujoco.MjData(model)
@@ -272,6 +290,8 @@ def run(stl_path: str):
     t_log    = []
     f_log    = []   # contact force (world XYZ)
     vel_log  = []   # 크랭크 각속도 [rad/s]
+    dir_log  = []   # 모터 방향 (+1 CCW / -1 CW / 0 off)
+    ncon_log = []   # 접촉 쌍 수
     slider_y = []
     tablet_y = []
     gap_log  = []
@@ -350,6 +370,8 @@ def run(stl_path: str):
             t_log.append(data.time)
             f_log.append(fc_now.copy())
             vel_log.append(omega)
+            dir_log.append(motor_dir)
+            ncon_log.append(data.ncon)
             slider_y.append(sy)
             tablet_y.append(ty_now)
             gap_log.append(gap_mm)
@@ -521,17 +543,76 @@ def run(stl_path: str):
     ax4.legend(fontsize=8); ax4.grid(True, alpha=0.3)
     fig4.tight_layout()
 
-    # ── 저장 ─────────────────────────────────────────────────────────
-    for fig, name in [
-        (fig_rt, "crusher_tablet_realtime_force.png"),
-        (fig1,   "crusher_tablet_position.png"),
-        (fig2,   "crusher_tablet_force_magnitude.png"),
-        (fig3,   "crusher_tablet_force_components.png"),
-        (fig4,   "crusher_tablet_crank_velocity.png"),
-    ]:
-        p = os.path.join(_HERE, name)
+    # ── CSV 저장 ──────────────────────────────────────────────────────
+    _DIR_STR = {1: "CCW", -1: "CW", 0: "off"}
+    csv_path = os.path.join(CSV_DIR, f"{result_stem}.csv")
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+
+        # ── 메타데이터 헤더 ──────────────────────────────────────────
+        w.writerow(["# Crusher Tablet Simulation — Force Profile"])
+        w.writerow(["# Generated", datetime.now().isoformat(timespec="seconds")])
+        w.writerow(["# STL file", fname])
+        w.writerow(["# R_mm", R_mm, "AR", AR, "CV", CV,
+                    "thickness_mm", f"{th:.3f}"])
+        w.writerow(["# timestep_s", float(model.opt.timestep),
+                    "solver", "Newton",
+                    "iterations", int(model.opt.iterations)])
+        w.writerow(["# MOTOR_CTRL_Nm", MOTOR_CTRL,
+                    "MOTOR_DELAY_s", MOTOR_DELAY,
+                    "SIM_DURATION_s", SIM_DURATION])
+        w.writerow(["# STALL_WINDOW", STALL_WINDOW,
+                    "STALL_VEL_THR_rad_s", STALL_VEL_THR])
+        w.writerow(["# PLACE_X_mm", PLACE_X_MM,
+                    "PLACE_Y_mm (wall)", WALL_Y_MM,
+                    "PLACE_Z_mm", PLACE_Z_MM])
+        w.writerow(["# F_Y_max_N", f"{F_Y_max:.5f}",
+                    "F_Y_min_N", f"{F_Y_min:.5f}",
+                    "Impulse_J_Y_Ns", f"{J_Y:.6f}"])
+        w.writerow(["# direction_changes", len(rev_events)])
+        for i, (ev_t, ev_dir) in enumerate(rev_events, 1):
+            w.writerow([f"#   rev[{i}]", f"t={ev_t:.4f}s", f"dir={ev_dir}"])
+        if first_contact_t:
+            w.writerow(["# first_contact_s", f"{first_contact_t:.5f}"])
+        w.writerow([])  # 빈 줄 구분
+
+        # ── 데이터 컬럼 ─────────────────────────────────────────────
+        w.writerow(["Time_s",
+                    "F_X_N", "F_Y_N", "F_Z_N", "F_mag_N",
+                    "Slider_Y_mm", "Tablet_Y_mm", "Gap_mm",
+                    "Crank_vel_rad_s", "Motor_dir", "ncon"])
+        for i in range(len(t_log)):
+            w.writerow([
+                f"{t_log[i]:.5f}",
+                f"{f_log[i][0]:.6f}",
+                f"{f_log[i][1]:.6f}",
+                f"{f_log[i][2]:.6f}",
+                f"{fc_mag[i]:.6f}",
+                f"{slider_y[i]*1e3:.4f}",
+                f"{tablet_y[i]*1e3:.4f}",
+                f"{gap_log[i]:.4f}",
+                f"{vel_log[i]:.6f}",
+                _DIR_STR.get(dir_log[i], "?"),
+                ncon_log[i],
+            ])
+
+    print(f"\n  ✔ CSV 저장: {csv_path}")
+
+    # ── 플롯 저장 (Sim_result/plot/) ─────────────────────────────────
+    plot_specs = [
+        (fig_rt, "realtime_force"),
+        (fig1,   "position"),
+        (fig2,   "force_magnitude"),
+        (fig3,   "force_components"),
+        (fig4,   "crank_velocity"),
+    ]
+    print(f"  ✔ Plot 저장 디렉토리: {PLOT_DIR}")
+    for fig, tag in plot_specs:
+        fname_png = f"{result_stem}__{tag}.png"
+        p = os.path.join(PLOT_DIR, fname_png)
         fig.savefig(p, dpi=150, bbox_inches="tight")
-        print(f"  saved: {name}")
+        print(f"     {fname_png}")
     plt.show()
 
 
