@@ -75,7 +75,8 @@ PLOT_DIR    = os.path.join(_SIM_RESULT, "plot")
 # ── 시뮬레이션 고정 파라미터 ─────────────────────────────────────────
 PLACE_X_MM    = -47.879
 PLACE_Z_MM    =  50.108
-WALL_Y_MM     = 336.199
+WALL_Y_MM     = 336.199   # impact plate 벽 표면 Y [mm]
+#   알약 중심 Y = WALL_Y_MM - R_mm  (단반경만큼 벽 앞에 배치)
 PHASE1_STEPS  = 500
 MOTOR_CTRL    = -0.5      # [N·m]  음수 = CCW
 MOTOR_DELAY   =  3.0      # [s]
@@ -97,10 +98,12 @@ def _parse_params(fname: str):
     return float(m.group(1)), float(m.group(2)), float(m.group(3))
 
 
-def _build_model(stl_path: str):
+def _build_model(stl_path: str, R_mm: float):
     pos_x = PLACE_X_MM * 1e-3
     pos_z = PLACE_Z_MM * 1e-3
-    pos_y = WALL_Y_MM  * 1e-3
+    # 알약 중심 Y = 벽면 - 단반경(R_mm)
+    # TAB_QUAT 기준 World-Y 방향 반경 = R_mm → 중심 오프셋 적용
+    pos_y = (WALL_Y_MM - R_mm) * 1e-3
 
     tree = ET.parse(MJCF_PATH)
     root = tree.getroot()
@@ -182,7 +185,7 @@ def run_headless(task: tuple) -> dict:
                     f"파일명 파싱 실패: {fname}", t_wall0)
 
     try:
-        model, (px, py, pz) = _build_model(stl_path)
+        model, (px, py, pz) = _build_model(stl_path, R_mm)
     except Exception as e:
         return _err(stem, stl_path, R_mm, AR, CV,
                     f"모델 빌드 실패: {e}", t_wall0)

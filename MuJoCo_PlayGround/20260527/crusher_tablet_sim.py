@@ -58,7 +58,8 @@ PLOT_DIR    = os.path.join(_SIM_RESULT, "plot")
 # ── 배치 좌표 (mm, MuJoCo world frame) ──────────────────────────────
 PLACE_X_MM = -47.879
 PLACE_Z_MM =  50.108
-WALL_Y_MM  = 336.199   # impact plate 벽 위치 (= 알약 중심 Y)
+WALL_Y_MM  = 336.199   # impact plate 벽 표면 Y [mm]
+#   알약 중심 Y = WALL_Y_MM - R_mm  (단반경만큼 벽 앞에 배치 → 표면이 벽에 접촉)
 
 # ── Phase 1 스텝 수 (뷰어 없이 안정화) ──────────────────────────────
 PHASE1_STEPS = 500
@@ -110,9 +111,16 @@ def _build_model(stl_path: str, R_mm: float):
     """
     pos_x = PLACE_X_MM * 1e-3
     pos_z = PLACE_Z_MM * 1e-3
-    pos_y = WALL_Y_MM  * 1e-3   # 알약 중심 = 벽면
+    # 알약 중심 Y = 벽면 - 단반경(R_mm)
+    #   현재 TAB_QUAT([√2/2,0,√2/2,0]) 기준 body-Y → World-Y
+    #   → World-Y 방향 반경 = R_mm (장경)
+    #   → 중심을 R_mm 만큼 안쪽으로 당겨야 알약 표면이 벽면에 접촉
+    pos_y = (WALL_Y_MM - R_mm) * 1e-3
 
-    print(f"  배치 [mm] : X={PLACE_X_MM:.3f}  Y={WALL_Y_MM:.3f}  Z={PLACE_Z_MM:.3f}")
+    center_y_mm = WALL_Y_MM - R_mm
+    print(f"  배치 [mm] : X={PLACE_X_MM:.3f}  "
+          f"Y_wall={WALL_Y_MM:.3f}  Y_center={center_y_mm:.3f}  "
+          f"Z={PLACE_Z_MM:.3f}  (offset=-R={-R_mm:.3f}mm)")
     print(f"  배치 [m]  : X={pos_x:.5f}  Y={pos_y:.5f}  Z={pos_z:.5f}")
 
     # ── Crusher XML 파싱 ─────────────────────────────────────────────
