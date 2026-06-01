@@ -185,6 +185,165 @@ python MuJoCo_PlayGround/20260527/batch_tablet_sim.py --limit 10 --save-plots --
 
 ---
 
+## CLI 레퍼런스
+
+### `crusher_tablet_sim.py` — 단일 알약 인터랙티브 시뮬레이션
+
+```
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py [STL] [옵션]
+```
+
+| 인자 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `stl` | `str` (위치 인자) | 없음 → 파일 다이얼로그 | Tablet STL 파일 경로 |
+| `--density KG_M3` | `float` | `1200.0` | 알약 밀도 \[kg/m³\] → solref τ 자동 계산 |
+| `--mass MG` | `float` | — | 실측 질량 \[mg\] → 형상 파라미터로 밀도 자동 계산 |
+
+> `--density`와 `--mass`는 **상호 배타**입니다. 둘 다 생략하면 기본 밀도 1200 kg/m³ 적용.
+
+#### 사용 예시
+
+```bash
+# 1. STL 경로 직접 지정 (기본 밀도)
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py \
+    tablets_stl/stl/tablet_R6.0_AR1.50_CV0.20.stl
+
+# 2. 밀도 직접 지정 — 경질 알약 (탄산칼슘 계열)
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py \
+    tablets_stl/stl/tablet_R6.0_AR1.50_CV0.20.stl \
+    --density 1600
+
+# 3. 실측 질량으로 밀도 자동 계산 — 320 mg 알약
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py \
+    tablets_stl/stl/tablet_R6.0_AR1.50_CV0.20.stl \
+    --mass 320
+
+# 4. STL 생략 → GUI 파일 선택 다이얼로그 열림
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py --density 1400
+```
+
+#### 출력 파일 (자동 저장)
+
+```
+MuJoCo_PlayGround/Sim_result/
+├── csv/
+│   └── {stem}__{YYYYMMDD_HHMMSS}.csv          ← 반력 프로파일 + 메타데이터
+└── plot/
+    ├── {stem}__{ts}__realtime_force.png        ← 실시간 F_Y 스냅샷
+    ├── {stem}__{ts}__position.png              ← Slider/Tablet Y + Gap
+    ├── {stem}__{ts}__force_magnitude.png       ← F_Y + 누적 임펄스
+    ├── {stem}__{ts}__force_components.png      ← F_X / F_Y / F_Z
+    └── {stem}__{ts}__crank_velocity.png        ← 크랭크 각속도 ω
+```
+
+---
+
+### `batch_tablet_sim.py` — 다수 알약 헤드리스 배치 시뮬레이션
+
+```
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py [옵션]
+```
+
+| 인자 | 타입 | 기본값 | 설명 |
+|------|------|--------|------|
+| `--stl-dir PATH` | `str` | `tablets_stl/stl` | STL 파일 디렉토리 |
+| `--duration SEC` | `float` | `10.0` | 정제 1개당 시뮬레이션 시간 \[s\] |
+| `--density KG_M3` | `float` | `1200.0` | 알약 밀도 \[kg/m³\] → 전체 배치에 일괄 적용 |
+| `--parallel` | flag | `False` | `multiprocessing.Pool` 병렬 실행 활성화 |
+| `--workers N` | `int` | `os.cpu_count()` | 병렬 워커 수 (`--parallel` 사용 시) |
+| `--save-plots` | flag | `False` | 정제별 개별 플롯 PNG 저장 (느림, 디스크 사용 많음) |
+| `--limit N` | `int` | 없음 (전체) | 처리할 STL 수 제한 (테스트·디버그용) |
+
+#### 사용 예시
+
+```bash
+# 1. 기본 순차 실행 — 전체 STL, 10s/tablet, 기본 밀도
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py
+
+# 2. 병렬 실행 — 8 워커, 경질 알약
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py \
+    --parallel --workers 8 \
+    --density 1500
+
+# 3. 긴 시뮬레이션 — 30s/tablet, 연질 알약
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py \
+    --duration 30 \
+    --density 950
+
+# 4. 빠른 테스트 — 10개만, plot 저장
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py \
+    --limit 10 --save-plots \
+    --density 1200
+
+# 5. 커스텀 STL 디렉토리
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py \
+    --stl-dir /path/to/custom_stl \
+    --parallel --workers 4 \
+    --density 1300
+```
+
+#### 출력 파일 (자동 저장)
+
+```
+MuJoCo_PlayGround/Sim_result/
+├── csv/
+│   ├── {YYYYMMDD_HHMMSS}/
+│   │   ├── tablet_R6.0_AR1.50_CV0.20.csv      ← 개별 반력 프로파일
+│   │   └── ...                                 ← (STL 1개당 CSV 1개)
+│   └── summary__{YYYYMMDD_HHMMSS}.csv          ← 배치 요약 (행=1정제)
+└── plot/
+    ├── {YYYYMMDD_HHMMSS}/
+    │   ├── tablet_R6.0_AR1.50_CV0.20__force.png ← 개별 플롯 (--save-plots 시)
+    │   └── ...
+    └── summary__{YYYYMMDD_HHMMSS}.png           ← 4패널 요약 산포도
+```
+
+#### summary CSV 컬럼
+
+| 컬럼 | 설명 |
+|------|------|
+| `stem` | STL 파일명 (확장자 제외) |
+| `R_mm`, `AR`, `CV` | 형상 파라미터 |
+| `density_kg_m3` | 사용된 밀도 |
+| `solref_tau_s` | 계산된 solref τ |
+| `F_Y_max_N` | 최대 법선 반력 \[N\] |
+| `F_Y_min_N` | 최소 법선 반력 \[N\] |
+| `F_mag_max_N` | 최대 합력 크기 \[N\] |
+| `Impulse_J_Y_Ns` | 누적 임펄스 J_Y \[N·s\] |
+| `first_contact_s` | 첫 접촉 발생 시각 \[s\] |
+| `direction_changes` | 크랭크 방향 전환 횟수 |
+| `n_steps` | 수집된 스텝 수 |
+| `wall_time_s` | 실제 소요 시간 \[s\] |
+| `error` | 오류 메시지 (정상 시 공백) |
+
+---
+
+### 주요 상수 (코드 상단에서 직접 수정)
+
+아래 상수는 CLI 인자 없이 코드에서 직접 조정합니다.
+
+#### `crusher_tablet_sim.py`
+
+| 상수 | 기본값 | 설명 |
+|------|--------|------|
+| `SIM_DURATION` | `30.0` s | Phase 2 측정 시간 |
+| `MOTOR_CTRL` | `-0.5` N·m | 크랭크 모터 토크 (음수=CCW) |
+| `MOTOR_DELAY` | `3.0` s | 모터 구동 지연 시간 |
+| `STALL_TIME_S` | `2.0` s | stall 판정 유지 시간 ("지긋이 누르는" 시간) |
+| `STALL_VEL_THR` | `0.05` rad/s | stall 판정 속도 임계값 |
+| `RT_PLOT_INTERVAL` | `20` steps | 실시간 플롯 갱신 주기 |
+| `DENSITY_REF_SOFT` | `900` kg/m³ | solref 매핑 연질 기준점 |
+| `DENSITY_REF_HARD` | `1800` kg/m³ | solref 매핑 경질 기준점 |
+| `SOLREF_TAU_SOFT` | `0.020` s | 연질 기준 τ (MuJoCo 기본값) |
+| `SOLREF_TAU_HARD` | `0.002` s | 경질 기준 τ (실용적 최솟값) |
+
+#### `batch_tablet_sim.py` (추가)
+
+| 상수 | 기본값 | 설명 |
+|------|--------|------|
+| `PHASE1_STEPS` | `500` steps | 메커니즘 안정화 스텝 수 |
+
 ---
 
 ## 밀도 기반 접촉 경도 모델
