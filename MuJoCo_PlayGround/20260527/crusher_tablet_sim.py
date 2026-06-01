@@ -736,6 +736,11 @@ if __name__ == "__main__":
         "--mass", type=float, default=None, metavar="MG",
         help="알약 실측 질량 [mg] → 형상 파라미터로 밀도 자동 계산")
 
+    # ── GUI 호환 옵션 (항상 저장하므로 플래그는 무시됨) ──────────────
+    parser.add_argument(
+        "--save-plots", action="store_true",
+        help="플롯 PNG 저장  (기본: 항상 저장, GUI 호환용 플래그)")
+
     args = parser.parse_args()
     stl_path = args.stl
 
