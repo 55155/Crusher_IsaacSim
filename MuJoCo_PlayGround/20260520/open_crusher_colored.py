@@ -27,6 +27,15 @@ MJCF_PATH = os.path.normpath(os.path.join(_HERE, "..", "MJCF", "Crusher_IsaacSim
 model = mujoco.MjModel.from_xml_path(MJCF_PATH)
 data  = mujoco.MjData(model)
 
+# ── Keyframe 로드: crank_90deg (index=0) ──────────────────────────────────
+# 초기 0° 에서 링크 충돌 발생 → 크랭크 90° 위치에서 시뮬레이션 시작
+import numpy as np
+if model.nkey > 0:
+    mujoco.mj_resetDataKeyframe(model, data, 0)   # 0 = "crank_90deg"
+    print(f"  ✔ keyframe[0] 'crank_90deg' 로드 — crank={np.degrees(data.qpos[0]):.1f}°")
+else:
+    print("  ⚠ keyframe 없음 — 기본 초기값(0°) 사용")
+
 with mujoco.viewer.launch_passive(model, data) as viewer:
     # ── Collision Hull OFF → visual mesh만 표시 ────────────────────────────
     viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONVEXHULL] = False
@@ -37,7 +46,7 @@ with mujoco.viewer.launch_passive(model, data) as viewer:
     print("MuJoCo 뷰어 실행 중...")
     print("  - Collision Hull 표시: OFF  (visual mesh 전용)")
     print("  - group=3 CoACD hull: 숨김")
-    print("  - 전방 조명(front2): ON")
+    print("  - 초기 자세: 크랭크 90°")
 
     while viewer.is_running():
         mujoco.mj_step(model, data)

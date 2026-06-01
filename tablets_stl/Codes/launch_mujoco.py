@@ -22,7 +22,7 @@ STL_DIR = os.path.normpath(os.path.join(_HERE, "..", "stl"))
 
 # ── MuJoCo 씬 XML 템플릿 ─────────────────────────────────────────────
 #
-# STL 단위: mm (Fusion 360 export 기본) → scale=".001 .001 .001" 으로 m 변환
+# STL 단위: mm (Fusion 360 export 기본) → scale=".01 .01 .01" 으로 m 변환 후 × 10 확대 (시각 확인용)
 #
 # 물성치:
 #   density  1200 kg/m³  — 일반 경구정(압축정) 밀도
@@ -57,8 +57,8 @@ _SCENE_XML = """\
               texrepeat="4 4" reflectance=".15"/>
     <material name="tablet" rgba=".85 .80 .72 1" specular=".4" shininess=".3"/>
 
-    <!-- STL 단위 mm → m 변환 -->
-    <mesh name="tablet_mesh" file="tablet.stl" scale=".001 .001 .001"/>
+    <!-- STL 단위 mm → m 변환 후 × 10 확대 (시각 확인용) -->
+    <mesh name="tablet_mesh" file="tablet.stl" scale=".01 .01 .01"/>
   </asset>
 
   <default>
@@ -77,12 +77,11 @@ _SCENE_XML = """\
     <geom name="floor" type="plane" size="0 0 .05"
           material="grid" condim="3"/>
 
-    <!-- 정제: 초기 위치 z=4cm (낙하 후 바닥에 정착) -->
-    <body name="tablet" pos="0 0 .04">
-      <freejoint name="tablet_free"/>
+    <!-- 정제: (0, 0, 5) 고정 배치 (freejoint 제거 → 중력 영향 없음) -->
+    <body name="tablet" pos="0 0 5">
       <geom name="tablet_geom" type="mesh" mesh="tablet_mesh"
             material="tablet" density="1200" condim="4"/>
-    </body>
+{com_sites}    </body>
   </worldbody>
 
 </mujoco>
@@ -108,14 +107,66 @@ def launch(stl_path: str):
     print(f"[Tablet → MuJoCo]")
     print(f"  파일   : {fname}")
 
+    import numpy as np
+
     # STL 바이너리를 assets 딕셔너리로 전달 → 임시 파일 없이 로드
     stl_bytes = open(stl_path, "rb").read()
     assets    = {"tablet.stl": stl_bytes}
 
+    # ── Pass 1: COM 계산 ─────────────────────────────────────────────
+    # site 없이 일단 로드 → body_ipos(body local frame 질량 중심) 추출
     try:
-        model = mujoco.MjModel.from_xml_string(_SCENE_XML, assets=assets)
+        model_tmp = mujoco.MjModel.from_xml_string(
+            _SCENE_XML.format(com_sites=""), assets=assets)
     except Exception as e:
         print(f"[ERROR] MJCF 생성 실패: {e}")
+        sys.exit(1)
+
+    body_id  = mujoco.mj_name2id(model_tmp, mujoco.mjtObj.mjOBJ_BODY, "tablet")
+    com_loc  = model_tmp.body_ipos[body_id].copy()   # body local frame COM
+    body_pos = model_tmp.body_pos[body_id].copy()     # world pos of body origin
+    com_world = body_pos + com_loc
+
+    print(f"  [질량 중심] body frame : ({com_loc[0]:+.4f}, {com_loc[1]:+.4f}, {com_loc[2]:+.4f}) m")
+    print(f"  [질량 중심] world      : ({com_world[0]:+.4f}, {com_world[1]:+.4f}, {com_world[2]:+.4f}) m")
+    total_mass = float(np.sum(model_tmp.body_mass))
+    print(f"  [질량]      {total_mass*1000:.2f} g  (density=1200 kg/m³, ×10 scale 포함)")
+
+    # ── COM 크로스헤어 site XML 생성 ────────────────────────────────
+    # 어느 각도에서도 반드시 하나의 축이 mesh 밖으로 보이도록
+    # 반길이 0.25 m → 최대 정제(R=8.5mm × 10 × AR=2.5 → 약 21 cm) 보다 충분히 큼
+    cx, cy, cz = com_loc
+    hl = 0.25   # 크로스헤어 반길이 [m]
+    sr = 0.018  # 중심 구 반지름 [m]
+    cr = 0.005  # 캡슐 반지름 [m]
+
+    com_sites = f"""\
+      <!-- ── COM 크로스헤어 (질량 중심 기즈모) ── -->
+      <!-- 중심 : 주황색 구 -->
+      <site name="com_sphere"
+            type="sphere" size="{sr}"
+            pos="{cx:.5f} {cy:.5f} {cz:.5f}"
+            rgba="1.0 0.45 0.0 1.0"/>
+      <!-- X축 : 빨강 캡슐 -->
+      <site name="com_x" type="capsule" size="{cr}"
+            fromto="{cx-hl:.5f} {cy:.5f} {cz:.5f}  {cx+hl:.5f} {cy:.5f} {cz:.5f}"
+            rgba="1.0 0.15 0.15 0.95"/>
+      <!-- Y축 : 초록 캡슐 -->
+      <site name="com_y" type="capsule" size="{cr}"
+            fromto="{cx:.5f} {cy-hl:.5f} {cz:.5f}  {cx:.5f} {cy+hl:.5f} {cz:.5f}"
+            rgba="0.15 1.0 0.15 0.95"/>
+      <!-- Z축 : 파랑 캡슐 -->
+      <site name="com_z" type="capsule" size="{cr}"
+            fromto="{cx:.5f} {cy:.5f} {cz-hl:.5f}  {cx:.5f} {cy:.5f} {cz+hl:.5f}"
+            rgba="0.15 0.4 1.0 0.95"/>
+"""
+
+    # ── Pass 2: COM site 포함하여 실제 모델 로드 ────────────────────
+    try:
+        model = mujoco.MjModel.from_xml_string(
+            _SCENE_XML.format(com_sites=com_sites), assets=assets)
+    except Exception as e:
+        print(f"[ERROR] MJCF(COM site 포함) 생성 실패: {e}")
         sys.exit(1)
 
     data = mujoco.MjData(model)
@@ -126,7 +177,19 @@ def launch(stl_path: str):
     print(f"  조작   : Space=일시정지  ESC=종료  Ctrl+R=리셋")
     print()
 
-    mujoco.viewer.launch(model, data)
+    # ── 뷰어 실행 ───────────────────────────────────────────────────
+    with mujoco.viewer.launch_passive(model, data) as viewer:
+
+        viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_JOINT]      = False  # 조인트 마커 숨김
+        viewer.opt.frame                                      = mujoco.mjtFrame.mjFRAME_NONE
+        viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONVEXHULL] = False  # collision hull 숨김
+        # site 표시: sitegroup[n] 으로 제어 (mjVIS_SITE 없음)
+        for _sg in range(5):
+            viewer.opt.sitegroup[_sg] = True
+
+        while viewer.is_running():
+            mujoco.mj_step(model, data)
+            viewer.sync()
 
 
 def _print_params(fname: str):
