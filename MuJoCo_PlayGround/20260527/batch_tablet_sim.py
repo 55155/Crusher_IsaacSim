@@ -1,5 +1,5 @@
 """
-batch_tablet_sim.py  [v1 — headless 1000-tablet batch]
+batch_tablet_sim.py  [v2 — 밀도 기반 접촉 경도 + headless 1000-tablet batch]
 1000개 정제 형상에 대한 일괄 Crusher 시뮬레이션 (뷰어 없음)
 
 ▶ 방법 A: 순차(sequential) — 기본 모드
@@ -9,6 +9,12 @@ batch_tablet_sim.py  [v1 — headless 1000-tablet batch]
 ▶ 방법 B: 병렬(parallel) — --parallel 플래그
     multiprocessing.Pool 으로 N_CPU 개 프로세스 동시 실행
     각 프로세스: 독립된 MjModel + MjData → 완전 안전
+
+▶ 밀도 기반 접촉 경도 (--density)
+    알약 밀도 [kg/m³] → solref 시정수 τ 자동 계산
+      τ(ρ) = τ_soft × (ρ_soft/ρ)^α   (α ≈ −3.32, Hertzian Contact Theory)
+    밀도 높음 → τ 작음 → 강성 높음 → 관통 감소 → 경질 알약 모사
+    기본값: DENSITY_DEFAULT = 1200 kg/m³
 
 ▶ mocap body 병렬 안전성 (검증 완료)
     data.contact, mocap_pos/quat, mj_contactForce 모두
@@ -29,17 +35,17 @@ batch_tablet_sim.py  [v1 — headless 1000-tablet batch]
 
 실행:
     conda activate isaac_sim
-    # 순차 실행 (1000개, 각 10s)
+    # 순차 (기본 밀도)
     python batch_tablet_sim.py
 
-    # 병렬 실행 (8 워커)
-    python batch_tablet_sim.py --parallel --workers 8
+    # 병렬, 경질 알약 (1400 kg/m³)
+    python batch_tablet_sim.py --parallel --workers 8 --density 1400
 
-    # 빠른 테스트 (10개만, plot 저장)
+    # 10개 테스트, plot 저장
     python batch_tablet_sim.py --limit 10 --save-plots
 
     # 전체 옵션
-    python batch_tablet_sim.py --duration 10 --parallel --save-plots --stl-dir <path>
+    python batch_tablet_sim.py --duration 10 --parallel --save-plots --density 1200 --stl-dir <path>
 """
 
 import os
@@ -47,6 +53,7 @@ import sys
 import re
 import csv
 import glob
+import math
 import time
 import argparse
 import traceback
@@ -57,7 +64,7 @@ from datetime import datetime
 
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")        # 헤드리스 백엔드: 화면 출력 없이 파일 저장만
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mujoco
 
@@ -76,17 +83,27 @@ PLOT_DIR    = os.path.join(_SIM_RESULT, "plot")
 PLACE_X_MM    = -47.879
 PLACE_Z_MM    =  50.108
 WALL_Y_MM     = 336.199   # impact plate 벽 표면 Y [mm]
-#   알약 중심 Y = WALL_Y_MM - half_th  (두께의 절반만큼 벽 앞에 → 표면이 벽에 정확히 접촉)
-#   half_th = th / 2  where th = R_mm * 0.20 + 2 * (CV * 2 * R_mm)
+#   알약 중심 Y = WALL_Y_MM - half_th  (두께 절반 → 표면이 벽에 정확히 접촉)
 PHASE1_STEPS  = 500
-MOTOR_CTRL    = -0.5      # [N·m]  음수 = CCW
+MOTOR_CTRL    = -0.5      # [N·m]
 MOTOR_DELAY   =  3.0      # [s]
-STALL_TIME_S  = 2.0    # stall 유지 판정 시간 [s]  ★ 조정 포인트
-#   STALL_WINDOW(스텝 수) = int(STALL_TIME_S / timestep) 으로 자동 계산
-#   예) 2.0s / 0.002s = 1000 스텝  → 지긋이 누르는 느낌
+STALL_TIME_S  = 2.0
 STALL_VEL_THR = 0.05      # [rad/s]
 _s = np.sqrt(2.0) / 2.0
-TAB_QUAT = np.array([_s, 0.0, _s, 0.0])    # X90 + Y90 + Z90 합성
+TAB_QUAT = np.array([_s, 0.0, _s, 0.0])
+
+# ── 밀도 기반 접촉 경도 파라미터 ─────────────────────────────────────
+#
+#   물리 근거 (Hertzian Contact Theory):
+#     E ∝ ρⁿ  (n ≈ 2~3)  →  K_contact ∝ 1/τ²  →  τ ∝ ρ^(-n/2)
+#     결과: 밀도 높을수록 τ 작게 = 접촉 강성 높게 = 관통 적게
+#
+DENSITY_REF_SOFT  = 900.0    # kg/m³
+DENSITY_REF_HARD  = 1800.0   # kg/m³
+SOLREF_TAU_SOFT   = 0.020    # s
+SOLREF_TAU_HARD   = 0.002    # s
+DENSITY_DEFAULT   = 1200.0   # kg/m³
+BICONVEX_VOL_FACTOR = 0.82
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -101,12 +118,51 @@ def _parse_params(fname: str):
     return float(m.group(1)), float(m.group(2)), float(m.group(3))
 
 
-def _build_model(stl_path: str, R_mm: float, half_th: float):
+def estimate_tablet_volume_mm3(R_mm: float, AR: float, CV: float) -> float:
+    """STL 파라미터 → biconvex 알약 부피 근사 [mm³]."""
+    cd = CV * 2 * R_mm
+    th = R_mm * 0.20 + 2 * cd
+    a, b, c = R_mm * AR, R_mm, th / 2.0
+    return (4.0 / 3.0) * math.pi * a * b * c * BICONVEX_VOL_FACTOR
+
+
+def mass_to_density(mass_mg: float, R_mm: float, AR: float, CV: float) -> float:
+    """실측 질량(mg) + 형상 파라미터 → 밀도 [kg/m³]."""
+    mass_kg = mass_mg * 1e-6
+    vol_m3  = estimate_tablet_volume_mm3(R_mm, AR, CV) * 1e-9
+    return mass_kg / vol_m3
+
+
+def density_to_solref_tau(density_kg_m3: float) -> float:
+    """
+    밀도 [kg/m³] → MuJoCo solref 시정수 τ [s].
+
+    τ(ρ) = τ_soft × (ρ_soft / ρ)^α
+    α = log(τ_hard/τ_soft) / log(ρ_hard/ρ_soft)  ≈ −3.32
+    """
+    rho   = float(np.clip(density_kg_m3, DENSITY_REF_SOFT, DENSITY_REF_HARD))
+    alpha = math.log(SOLREF_TAU_HARD / SOLREF_TAU_SOFT) / \
+            math.log(DENSITY_REF_HARD / DENSITY_REF_SOFT)
+    tau   = SOLREF_TAU_SOFT * (DENSITY_REF_SOFT / rho) ** alpha
+    return float(np.clip(tau, SOLREF_TAU_HARD, SOLREF_TAU_SOFT))
+
+
+def _build_model(stl_path: str, R_mm: float, half_th: float,
+                 density_kg_m3: float = DENSITY_DEFAULT):
+    """
+    Crusher XML + Tablet STL → MjModel.
+    density_kg_m3 → density_to_solref_tau() → geom solref/solimp 자동 설정.
+    """
     pos_x = PLACE_X_MM * 1e-3
     pos_z = PLACE_Z_MM * 1e-3
-    # 알약 중심 Y = 벽면 - 두께의 절반
-    # → 알약 표면이 벽면에 정확히 접촉 (관통/이격 없음)
     pos_y = (WALL_Y_MM - half_th) * 1e-3
+
+    tau      = density_to_solref_tau(density_kg_m3)
+    dimp_max = float(np.interp(density_kg_m3,
+                               [DENSITY_REF_SOFT, DENSITY_REF_HARD],
+                               [0.950, 0.999]))
+    solref_str = f"{tau:.6f} 1"
+    solimp_str = f"0.99 {dimp_max:.4f} 0.0001"
 
     tree = ET.parse(MJCF_PATH)
     root = tree.getroot()
@@ -138,8 +194,11 @@ def _build_model(stl_path: str, R_mm: float, half_th: float):
     })
     ET.SubElement(tab, "geom", {
         "name": "tablet_geom", "type": "mesh", "mesh": "tablet_mesh",
-        "material": "tablet_mat", "density": "1200",
+        "material": "tablet_mat",
+        "density":  f"{density_kg_m3:.1f}",
         "condim": "4", "friction": ".5 .02 .01",
+        "solref": solref_str,
+        "solimp": solimp_str,
     })
 
     xml_str   = ET.tostring(root, encoding="unicode")
@@ -167,16 +226,17 @@ def _sum_contact_force(model, data, body_id) -> np.ndarray:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# 핵심 worker: module-level이어야 multiprocessing.Pool에서 pickle 가능
+# 핵심 worker: module-level → multiprocessing.Pool에서 pickle 가능
 # ─────────────────────────────────────────────────────────────────────
 
 def run_headless(task: tuple) -> dict:
     """
     헤드리스 단일 태블릿 시뮬레이션.
-    task = (stl_path, sim_duration, save_plots, batch_csv_dir, batch_plot_dir)
-    반환: 결과 dict (에러 시 'error' 키 포함)
+    task = (stl_path, sim_duration, save_plots,
+            batch_csv_dir, batch_plot_dir, density_kg_m3)
     """
-    stl_path, sim_duration, save_plots, batch_csv_dir, batch_plot_dir = task
+    stl_path, sim_duration, save_plots, \
+        batch_csv_dir, batch_plot_dir, density_kg_m3 = task
     t_wall0 = time.time()
 
     fname = os.path.basename(stl_path)
@@ -187,13 +247,20 @@ def run_headless(task: tuple) -> dict:
         return _err(stem, stl_path, R_mm, AR, CV,
                     f"파일명 파싱 실패: {fname}", t_wall0)
 
-    # 두께 및 절반값 계산 (배치 Y 오프셋에 사용)
+    # 두께 및 절반값 계산
     cd      = CV * 2 * R_mm
     th      = R_mm * 0.20 + 2 * cd
     half_th = th / 2.0
 
+    # 밀도 → 접촉 경도
+    vol_mm3  = estimate_tablet_volume_mm3(R_mm, AR, CV)
+    tau      = density_to_solref_tau(density_kg_m3)
+    dimp_max = float(np.interp(density_kg_m3,
+                               [DENSITY_REF_SOFT, DENSITY_REF_HARD],
+                               [0.950, 0.999]))
+
     try:
-        model, (px, py, pz) = _build_model(stl_path, R_mm, half_th)
+        model, (px, py, pz) = _build_model(stl_path, R_mm, half_th, density_kg_m3)
     except Exception as e:
         return _err(stem, stl_path, R_mm, AR, CV,
                     f"모델 빌드 실패: {e}", t_wall0)
@@ -201,6 +268,7 @@ def run_headless(task: tuple) -> dict:
     try:
         result = _simulate(model, stl_path, fname, stem,
                            R_mm, AR, CV, px, py, pz,
+                           density_kg_m3, vol_mm3, tau, dimp_max,
                            sim_duration, save_plots,
                            batch_csv_dir, batch_plot_dir, t_wall0)
     except Exception as e:
@@ -225,12 +293,12 @@ def _err(stem, stl_path, R_mm, AR, CV, msg, t_wall0):
 
 def _simulate(model, stl_path, fname, stem,
               R_mm, AR, CV, px, py, pz,
+              density_kg_m3, vol_mm3, tau, dimp_max,
               sim_duration, save_plots,
               batch_csv_dir, batch_plot_dir, t_wall0):
 
     data = mujoco.MjData(model)
 
-    # ── ID 조회 ──────────────────────────────────────────────────────
     crank_jid  = mujoco.mj_name2id(
         model, mujoco.mjtObj.mjOBJ_JOINT,    "L3_Bevel_GearBox_1_L4_Shaft_1")
     act_crank  = mujoco.mj_name2id(
@@ -245,20 +313,18 @@ def _simulate(model, stl_path, fname, stem,
     crank_vadr = model.jnt_dofadr[crank_jid]
     mocap_id   = model.body_mocapid[b_tablet]
 
-    # ── 초기화 ───────────────────────────────────────────────────────
     data.qpos[crank_qadr]     = -np.pi / 2
     data.qvel[:]              = 0.0
     data.mocap_pos[mocap_id]  = [px, py, pz]
     data.mocap_quat[mocap_id] = TAB_QUAT
     mujoco.mj_forward(model, data)
 
-    # ── Phase 1: 안정화 (뷰어 없음) ──────────────────────────────────
+    # Phase 1
     for _ in range(PHASE1_STEPS):
         mujoco.mj_step(model, data)
     mujoco.mj_forward(model, data)
 
-    # ── Phase 2: 헤드리스 시뮬레이션 ─────────────────────────────────
-    # STALL_TIME_S → 스텝 수로 변환
+    # Phase 2
     _dt          = float(model.opt.timestep)
     stall_window = max(1, int(round(STALL_TIME_S / _dt)))
 
@@ -282,7 +348,6 @@ def _simulate(model, stl_path, fname, stem,
     first_contact_t = None
 
     while data.time < sim_duration:
-        # 모터 ON
         if not motor_on and (data.time - phase2_start_t) >= MOTOR_DELAY:
             data.eq_active[eq_lock_id] = 0
             motor_dir = 1
@@ -291,7 +356,6 @@ def _simulate(model, stl_path, fname, stem,
             motor_on_t = data.time
             stall_buf.clear()
 
-        # Moving-window stall 감지 → 방향 전환
         if motor_on:
             crank_vel = abs(data.qvel[crank_vadr])
             stall_buf.append(crank_vel < STALL_VEL_THR)
@@ -327,7 +391,6 @@ def _simulate(model, stl_path, fname, stem,
                     first_contact_t = data.time
                     break
 
-    # ── 결과 집계 ─────────────────────────────────────────────────────
     if not t_log:
         return _err(stem, stl_path, R_mm, AR, CV, "데이터 없음", t_wall0)
 
@@ -343,26 +406,30 @@ def _simulate(model, stl_path, fname, stem,
     F_mag_max = float(fc_mag.max())
     J_Y       = float(np.trapz(fc[:, 1], t))
 
-    # ── 개별 CSV 저장 ─────────────────────────────────────────────────
+    # 개별 CSV 저장
     _DIR_STR = {1: "CCW", -1: "CW", 0: "off"}
     os.makedirs(batch_csv_dir, exist_ok=True)
     csv_path = os.path.join(batch_csv_dir, f"{stem}.csv")
 
     with open(csv_path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        # 메타데이터
         w.writerow(["# Crusher Tablet Simulation — Force Profile (headless)"])
         w.writerow(["# Generated", datetime.now().isoformat(timespec="seconds")])
-        w.writerow(["# STL", fname,
-                    "R_mm", R_mm, "AR", AR, "CV", CV])
+        w.writerow(["# STL", fname, "R_mm", R_mm, "AR", AR, "CV", CV])
         w.writerow(["# timestep_s", float(model.opt.timestep),
                     "sim_duration_s", sim_duration,
                     "phase1_steps", PHASE1_STEPS])
-        w.writerow(["# MOTOR_CTRL_Nm", MOTOR_CTRL,
-                    "MOTOR_DELAY_s", MOTOR_DELAY])
+        w.writerow(["# MOTOR_CTRL_Nm", MOTOR_CTRL, "MOTOR_DELAY_s", MOTOR_DELAY])
         w.writerow(["# STALL_TIME_S", STALL_TIME_S,
                     "STALL_WINDOW_steps", stall_window,
                     "STALL_VEL_THR_rad_s", STALL_VEL_THR])
+        # ── 밀도 / 접촉 경도 메타데이터 ──────────────────────────────
+        w.writerow(["# density_kg_m3", density_kg_m3,
+                    "vol_estimate_mm3", f"{vol_mm3:.2f}",
+                    "biconvex_factor", BICONVEX_VOL_FACTOR])
+        w.writerow(["# solref_tau_s", f"{tau:.6f}",
+                    "solimp_dmax", f"{dimp_max:.4f}"])
+        # ─────────────────────────────────────────────────────────────
         w.writerow(["# F_Y_max_N", f"{F_Y_max:.5f}",
                     "F_Y_min_N", f"{F_Y_min:.5f}",
                     "F_mag_max_N", f"{F_mag_max:.5f}",
@@ -373,7 +440,6 @@ def _simulate(model, stl_path, fname, stem,
         if first_contact_t:
             w.writerow(["# first_contact_s", f"{first_contact_t:.5f}"])
         w.writerow([])
-        # 데이터 헤더
         w.writerow(["Time_s",
                     "F_X_N", "F_Y_N", "F_Z_N", "F_mag_N",
                     "Slider_Y_mm", "Tablet_Y_mm", "Gap_mm",
@@ -393,17 +459,18 @@ def _simulate(model, stl_path, fname, stem,
                 ncon_log[i],
             ])
 
-    # ── 개별 플롯 저장 (--save-plots 시) ─────────────────────────────
     if save_plots:
         os.makedirs(batch_plot_dir, exist_ok=True)
         _save_individual_plot(
             stem, t, fc, vel, gap, fc_mag,
             F_Y_max, J_Y, motor_on_t, rev_events,
-            R_mm, AR, CV, batch_plot_dir)
+            R_mm, AR, CV, density_kg_m3, tau, batch_plot_dir)
 
     return {
         "stem": stem, "stl": stl_path,
         "R_mm": R_mm, "AR": AR, "CV": CV,
+        "density_kg_m3":  density_kg_m3,
+        "solref_tau_s":   tau,
         "F_Y_max_N":      F_Y_max,
         "F_Y_min_N":      F_Y_min,
         "F_mag_max_N":    F_mag_max,
@@ -420,20 +487,18 @@ def _simulate(model, stl_path, fname, stem,
 
 def _save_individual_plot(stem, t, fc, vel, gap, fc_mag,
                           F_Y_max, J_Y, motor_on_t, rev_events,
-                          R_mm, AR, CV, batch_plot_dir):
-    """개별 태블릿 3-패널 플롯 (Agg 백엔드로 파일 저장)."""
-    title = f"R={R_mm:.1f}mm  AR={AR:.2f}  CV={CV:.2f}"
+                          R_mm, AR, CV, density_kg_m3, tau, batch_plot_dir):
+    title = (f"R={R_mm:.1f}mm  AR={AR:.2f}  CV={CV:.2f}  "
+             f"ρ={density_kg_m3:.0f} kg/m³  τ={tau:.4f}s")
     fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
-    fig.suptitle(f"Force Profile — {title}", fontsize=11, fontweight="bold")
+    fig.suptitle(f"Force Profile — {title}", fontsize=10, fontweight="bold")
 
     def _vl(ax_):
         if motor_on_t:
-            ax_.axvline(motor_on_t, color="tab:orange", ls="--", lw=1.0,
-                        label=f"Motor ON ({motor_on_t:.1f}s)")
-        for ev_t, ev_dir in rev_events:
+            ax_.axvline(motor_on_t, color="tab:orange", ls="--", lw=1.0)
+        for ev_t, _ in rev_events:
             ax_.axvline(ev_t, color="tab:red", ls=":", lw=0.8)
 
-    # F_Y
     axes[0].plot(t, fc[:, 1], color="tab:blue", lw=1.2, label="F_Y [N]")
     axes[0].fill_between(t, 0, fc[:, 1], where=(fc[:, 1] > 0),
                           alpha=0.12, color="tab:blue")
@@ -445,17 +510,15 @@ def _save_individual_plot(stem, t, fc, vel, gap, fc_mag,
     axes[0].set_title(f"max={F_Y_max:.3f} N    J_Y={J_Y:.4f} N·s", fontsize=9)
     axes[0].legend(fontsize=8); axes[0].grid(True, alpha=0.3)
 
-    # Gap
     axes[1].plot(t, gap, color="tab:purple", lw=1.2, label="Gap [mm]")
     axes[1].axhline(0, color="tab:red", ls="--", lw=0.8, label="Contact")
     _vl(axes[1])
     axes[1].set_ylabel("Gap [mm]"); axes[1].legend(fontsize=8)
     axes[1].grid(True, alpha=0.3)
 
-    # ω
     axes[2].plot(t, vel, color="tab:green", lw=1.2, label="ω [rad/s]")
     axes[2].axhline( STALL_VEL_THR, color="gray", ls="--", lw=0.7,
-                     label=f"stall ±{STALL_VEL_THR} rad/s")
+                     label=f"stall ±{STALL_VEL_THR}")
     axes[2].axhline(-STALL_VEL_THR, color="gray", ls="--", lw=0.7)
     axes[2].axhline(0, color="k", lw=0.5)
     _vl(axes[2])
@@ -469,8 +532,8 @@ def _save_individual_plot(stem, t, fc, vel, gap, fc_mag,
 
 
 # ─────────────────────────────────────────────────────────────────────
-def _save_summary_csv(results: list, summary_csv_path: str, sim_duration: float):
-    """요약 CSV 저장: 행 = 1개 정제, 열 = 핵심 지표."""
+def _save_summary_csv(results: list, summary_csv_path: str,
+                      sim_duration: float, density_kg_m3: float):
     os.makedirs(os.path.dirname(summary_csv_path), exist_ok=True)
     with open(summary_csv_path, "w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
@@ -479,8 +542,12 @@ def _save_summary_csv(results: list, summary_csv_path: str, sim_duration: float)
         w.writerow(["# sim_duration_s", sim_duration,
                     "MOTOR_CTRL_Nm", MOTOR_CTRL,
                     "STALL_TIME_S", STALL_TIME_S])
+        w.writerow(["# density_kg_m3", density_kg_m3,
+                    "solref_tau_s (at density)",
+                    f"{density_to_solref_tau(density_kg_m3):.6f}"])
         w.writerow([])
         w.writerow(["stem", "R_mm", "AR", "CV",
+                    "density_kg_m3", "solref_tau_s",
                     "F_Y_max_N", "F_Y_min_N", "F_mag_max_N",
                     "Impulse_J_Y_Ns", "first_contact_s",
                     "direction_changes", "n_steps", "sim_time_s",
@@ -491,6 +558,8 @@ def _save_summary_csv(results: list, summary_csv_path: str, sim_duration: float)
                 r.get("R_mm", ""),
                 r.get("AR", ""),
                 r.get("CV", ""),
+                r.get("density_kg_m3", density_kg_m3),
+                f"{r['solref_tau_s']:.6f}" if r.get("solref_tau_s") else "",
                 f"{r['F_Y_max_N']:.5f}"     if r.get("F_Y_max_N")   is not None else "",
                 f"{r['F_Y_min_N']:.5f}"     if r.get("F_Y_min_N")   is not None else "",
                 f"{r['F_mag_max_N']:.5f}"   if r.get("F_mag_max_N") is not None else "",
@@ -505,53 +574,45 @@ def _save_summary_csv(results: list, summary_csv_path: str, sim_duration: float)
     print(f"  ✔ 요약 CSV: {summary_csv_path}")
 
 
-def _save_summary_plot(results: list, summary_plot_path: str):
-    """요약 산포도: R×AR 격자별 F_Y_max 분포."""
+def _save_summary_plot(results: list, summary_plot_path: str,
+                       density_kg_m3: float):
     ok = [r for r in results if not r.get("error") and r.get("F_Y_max_N") is not None]
     if not ok:
         print("  [!] 유효한 결과 없음 — 요약 플롯 스킵")
         return
 
-    R_arr   = np.array([r["R_mm"] for r in ok])
-    AR_arr  = np.array([r["AR"]   for r in ok])
-    CV_arr  = np.array([r["CV"]   for r in ok])
-    Fy_arr  = np.array([r["F_Y_max_N"]   for r in ok])
-    Jy_arr  = np.array([r["Impulse_J_Y_Ns"] for r in ok])
-    rc_arr  = np.array([r.get("direction_changes") or 0 for r in ok])
+    R_arr  = np.array([r["R_mm"] for r in ok])
+    AR_arr = np.array([r["AR"]   for r in ok])
+    CV_arr = np.array([r["CV"]   for r in ok])
+    Fy_arr = np.array([r["F_Y_max_N"]      for r in ok])
+    Jy_arr = np.array([r["Impulse_J_Y_Ns"] for r in ok])
+    rc_arr = np.array([r.get("direction_changes") or 0 for r in ok])
 
+    tau = density_to_solref_tau(density_kg_m3)
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
     fig.suptitle(
         f"Batch Summary — {len(ok)}/{len(results)}개 성공\n"
-        f"Motor={MOTOR_CTRL} N·m  stall={STALL_VEL_THR} rad/s × {STALL_TIME_S}s",
-        fontsize=12, fontweight="bold")
+        f"Motor={MOTOR_CTRL} N·m  stall={STALL_VEL_THR} rad/s × {STALL_TIME_S}s  "
+        f"ρ={density_kg_m3:.0f} kg/m³  τ={tau:.4f}s",
+        fontsize=11, fontweight="bold")
 
-    # ① R vs F_Y_max (AR 색상)
-    sc1 = axes[0, 0].scatter(R_arr, Fy_arr, c=AR_arr, cmap="viridis",
-                              s=20, alpha=0.7)
+    sc1 = axes[0, 0].scatter(R_arr, Fy_arr, c=AR_arr, cmap="viridis", s=20, alpha=0.7)
     axes[0, 0].set_xlabel("R [mm]"); axes[0, 0].set_ylabel("F_Y_max [N]")
-    axes[0, 0].set_title("R vs 최대 법선 반력  (색=AR)")
-    axes[0, 0].grid(True, alpha=0.3)
+    axes[0, 0].set_title("R vs 최대 법선 반력  (색=AR)"); axes[0, 0].grid(True, alpha=0.3)
     plt.colorbar(sc1, ax=axes[0, 0], label="AR")
 
-    # ② CV vs F_Y_max (R 색상)
-    sc2 = axes[0, 1].scatter(CV_arr, Fy_arr, c=R_arr, cmap="plasma",
-                              s=20, alpha=0.7)
+    sc2 = axes[0, 1].scatter(CV_arr, Fy_arr, c=R_arr, cmap="plasma", s=20, alpha=0.7)
     axes[0, 1].set_xlabel("CV"); axes[0, 1].set_ylabel("F_Y_max [N]")
-    axes[0, 1].set_title("CV vs 최대 법선 반력  (색=R)")
-    axes[0, 1].grid(True, alpha=0.3)
+    axes[0, 1].set_title("CV vs 최대 법선 반력  (색=R)"); axes[0, 1].grid(True, alpha=0.3)
     plt.colorbar(sc2, ax=axes[0, 1], label="R [mm]")
 
-    # ③ F_Y_max 히스토그램
     axes[1, 0].hist(Fy_arr, bins=40, color="tab:blue", alpha=0.75, edgecolor="white")
-    axes[1, 0].set_xlabel("F_Y_max [N]")
-    axes[1, 0].set_ylabel("빈도")
+    axes[1, 0].set_xlabel("F_Y_max [N]"); axes[1, 0].set_ylabel("빈도")
     axes[1, 0].set_title(
         f"F_Y_max 분포   mean={Fy_arr.mean():.2f} N   std={Fy_arr.std():.2f} N")
     axes[1, 0].grid(True, alpha=0.3, axis="y")
 
-    # ④ 누적 임펄스 vs F_Y_max (방향 전환 횟수 색상)
-    sc4 = axes[1, 1].scatter(Jy_arr, Fy_arr, c=rc_arr, cmap="coolwarm",
-                              s=20, alpha=0.7)
+    sc4 = axes[1, 1].scatter(Jy_arr, Fy_arr, c=rc_arr, cmap="coolwarm", s=20, alpha=0.7)
     axes[1, 1].set_xlabel("Impulse J_Y [N·s]"); axes[1, 1].set_ylabel("F_Y_max [N]")
     axes[1, 1].set_title("임펄스 vs 최대 반력  (색=방향전환 횟수)")
     axes[1, 1].grid(True, alpha=0.3)
@@ -572,7 +633,7 @@ def main():
         epilog=__doc__,
     )
     parser.add_argument("--stl-dir",    default=STL_DIR,
-                        help="STL 파일 디렉토리 (기본: tablets_stl/stl)")
+                        help="STL 파일 디렉토리")
     parser.add_argument("--duration",   type=float, default=10.0,
                         help="정제 1개당 시뮬레이션 시간 [s] (기본: 10)")
     parser.add_argument("--parallel",   action="store_true",
@@ -583,9 +644,12 @@ def main():
                         help="정제별 개별 플롯 PNG 저장 (느림)")
     parser.add_argument("--limit",      type=int, default=None,
                         help="처리할 STL 수 제한 (테스트용)")
+    parser.add_argument("--density",    type=float, default=DENSITY_DEFAULT,
+                        metavar="KG_M3",
+                        help=f"알약 밀도 [kg/m³] (기본: {DENSITY_DEFAULT:.0f})  "
+                             f"→ solref τ 자동 계산")
     args = parser.parse_args()
 
-    # ── STL 목록 ─────────────────────────────────────────────────────
     pattern = os.path.join(args.stl_dir, "*.stl")
     stl_files = sorted(glob.glob(pattern))
     if not stl_files:
@@ -595,8 +659,8 @@ def main():
         stl_files = stl_files[:args.limit]
 
     n = len(stl_files)
+    tau = density_to_solref_tau(args.density)
 
-    # ── 배치 타임스탬프 → 결과 폴더 ─────────────────────────────────
     batch_ts       = datetime.now().strftime("%Y%m%d_%H%M%S")
     batch_csv_dir  = os.path.join(CSV_DIR,  batch_ts)
     batch_plot_dir = os.path.join(PLOT_DIR, batch_ts)
@@ -610,32 +674,29 @@ def main():
     print(f"  시뮬 시간    : {args.duration} s / tablet")
     print(f"  모드         : {'병렬 (' + str(args.workers or os.cpu_count()) + ' workers)' if args.parallel else '순차'}")
     print(f"  개별 플롯    : {'저장' if args.save_plots else '생략 (요약만)'}")
+    print(f"  밀도         : {args.density:.0f} kg/m³  →  τ={tau:.5f}s")
     print(f"  배치 ID      : {batch_ts}")
     print(f"  CSV 저장     : {batch_csv_dir}")
-    if args.save_plots:
-        print(f"  Plot 저장    : {batch_plot_dir}")
     print()
 
     tasks = [
-        (stl, args.duration, args.save_plots, batch_csv_dir, batch_plot_dir)
+        (stl, args.duration, args.save_plots,
+         batch_csv_dir, batch_plot_dir, args.density)
         for stl in stl_files
     ]
 
     t_batch_start = time.time()
 
-    # ── 실행 ─────────────────────────────────────────────────────────
     if args.parallel:
         n_workers = args.workers or os.cpu_count()
         print(f"  [{batch_ts}] 병렬 실행 시작 ({n_workers} 워커) ...")
         with multiprocessing.Pool(processes=n_workers) as pool:
             results = pool.map(run_headless, tasks)
-        # 병렬 진행 상황 사후 출력
         for i, r in enumerate(results, 1):
             status = "✔" if not r.get("error") else "✗"
             Fy = f"{r['F_Y_max_N']:.3f}N" if r.get("F_Y_max_N") is not None else "---"
             print(f"  [{i:4d}/{n}] {status} {os.path.basename(r['stl'])}"
-                  f"  F_Y_max={Fy}"
-                  f"  {r.get('wall_time_s', 0):.1f}s")
+                  f"  F_Y_max={Fy}  {r.get('wall_time_s', 0):.1f}s")
     else:
         print(f"  [{batch_ts}] 순차 실행 시작 ...")
         results = []
@@ -654,7 +715,6 @@ def main():
 
     t_batch_total = time.time() - t_batch_start
 
-    # ── 배치 통계 ─────────────────────────────────────────────────────
     ok_results  = [r for r in results if not r.get("error")]
     err_results = [r for r in results if r.get("error")]
     print()
@@ -668,21 +728,17 @@ def main():
         print(f"  F_Y_max 범위: {min(Fy_all):.3f} ~ {max(Fy_all):.3f} N"
               f"  (평균 {np.mean(Fy_all):.3f} N)")
         print(f"  J_Y 범위    : {min(Jy_all):.4f} ~ {max(Jy_all):.4f} N·s")
-        print(f"  tablet당 시간: {np.mean(wt_all):.2f}s (평균)"
-              f"  {np.max(wt_all):.2f}s (최대)")
+        print(f"  tablet당 시간: {np.mean(wt_all):.2f}s (평균)")
     if err_results:
         print(f"\n  [!] 오류 목록:")
         for r in err_results[:10]:
             print(f"      {os.path.basename(r['stl'])}: {r['error'][:80]}")
     print(f"  {'='*62}\n")
 
-    # ── 요약 CSV ─────────────────────────────────────────────────────
-    summary_csv_path = os.path.join(CSV_DIR, f"summary__{batch_ts}.csv")
-    _save_summary_csv(results, summary_csv_path, args.duration)
-
-    # ── 요약 플롯 ─────────────────────────────────────────────────────
+    summary_csv_path  = os.path.join(CSV_DIR,  f"summary__{batch_ts}.csv")
     summary_plot_path = os.path.join(PLOT_DIR, f"summary__{batch_ts}.png")
-    _save_summary_plot(results, summary_plot_path)
+    _save_summary_csv(results, summary_csv_path, args.duration, args.density)
+    _save_summary_plot(results, summary_plot_path, args.density)
 
     print(f"\n  결과 디렉토리: {_SIM_RESULT}")
     print("  Done.")
@@ -690,6 +746,5 @@ def main():
 
 # ─────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    # Windows multiprocessing은 spawn 방식 → 이 guard 필수
     multiprocessing.freeze_support()
     main()

@@ -9,12 +9,13 @@
 1. [프로젝트 개요](#프로젝트-개요)
 2. [디렉토리 구조](#디렉토리-구조)
 3. [빠른 시작](#빠른-시작)
-4. [변경 이력](#변경-이력)
-5. [의존성 설치](#의존성-설치)
-6. [주의 사항](#주의-사항)
+4. [밀도 기반 접촉 경도 모델](#밀도-기반-접촉-경도-모델)
+5. [변경 이력](#변경-이력)
+6. [의존성 설치](#의존성-설치)
+7. [주의 사항](#주의-사항)
 
-> **✅ 2026-05-29 업데이트** — **Moving-window stall 감지** 기반 양방향 크랭크 역전 (CCW ↔ CW 반복), **실시간 법선 반력 플롯** (`plt.ion()`), 크랭크 각속도 플롯 추가.  
-> → [Crusher + Tablet 시뮬레이션 바로가기](#5-crusher--tablet-통합-시뮬레이션-실행)
+> **✅ 2026-05-29 업데이트 (최신)** — **밀도 기반 접촉 경도 모델** 추가 (`--density` / `--mass`): Hertzian Contact Theory를 기반으로 알약 밀도 → solref 시정수 τ 자동 계산. 경질 알약은 강성 높게, 연질 알약은 강성 낮게 시뮬레이션.  
+> → [밀도 기반 접촉 경도 상세 설명](#밀도-기반-접촉-경도-모델) | [시뮬레이션 실행 바로가기](#5-crusher--tablet-통합-시뮬레이션-실행)
 
 ---
 
@@ -128,10 +129,31 @@ python tablets_stl/Codes/collision_viewer.py
 
 ```bash
 conda activate isaac_sim
+
+# 기본 실행 (밀도 1200 kg/m³ 기본값)
 python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py <tablet.stl>
+
+# 밀도 직접 지정 (경질 알약)
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py <tablet.stl> --density 1500
+
+# 실측 질량으로 밀도 자동 계산
+python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py <tablet.stl> --mass 320
 
 # 파일 선택 다이얼로그로 실행
 python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
+```
+
+#### 배치 시뮬레이션 실행
+
+```bash
+# 순차 실행 (기본 밀도)
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py
+
+# 병렬 실행 + 경질 알약 설정
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py --parallel --workers 8 --density 1500
+
+# 빠른 테스트 (10개, plot 저장)
+python MuJoCo_PlayGround/20260527/batch_tablet_sim.py --limit 10 --save-plots --density 1200
 ```
 
 #### 동작 방식
@@ -141,7 +163,7 @@ python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
 | **Phase 1** (뷰어 없음, 500 스텝) | `lock_crank` equality 활성 (−90° 고정) → Crusher 메커니즘 안정화 |
 | **Phase 2 — 대기** (0 ~ 3 s) | 뷰어 오픈, 모터 OFF. 알약은 mocap body로 충돌판 벽면에 고정 |
 | **Phase 2 — 압축** (3 s ~) | `lock_crank` 해제 → Motor CCW −0.5 N·m 구동 → 슬라이더 전진, 법선 반력 측정 |
-| **Phase 2 — 역전** (stall 감지) | 크랭크 각속도 \|ω\| < 0.05 rad/s 가 30 step 연속 → 방향 전환 (CCW↔CW 반복) |
+| **Phase 2 — 역전** (stall 감지) | 크랭크 각속도 \|ω\| < 0.05 rad/s 가 STALL_TIME_S(2.0s) 연속 → 방향 전환 (CCW↔CW 반복) |
 
 #### 핵심 구조
 
@@ -163,6 +185,100 @@ python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
 
 ---
 
+---
+
+## 밀도 기반 접촉 경도 모델
+
+### 개요
+
+같은 형상(Shape)의 알약이라도 **밀도(density)**가 높을수록 파쇄가 어렵습니다.  
+밀도는 실측 무게와 형상(부피)으로 추정할 수 있으며, 이를 MuJoCo 접촉 파라미터(`solref`)에 반영합니다.
+
+### 이론적 근거 (Hertzian Contact Theory)
+
+```
+제약공학 사실:
+  압착 압력↑  →  밀도(ρ)↑  →  Young's modulus(E)↑  →  경도↑
+
+Hertzian Contact:
+  접촉 강성  K_contact  ∝  E*  (등가 탄성계수)
+  경험적 관계: E  ∝  ρⁿ   (n ≈ 2~3)
+
+MuJoCo solref 연결:
+  K_mujoco  ∝  1/τ²   (τ = solref 시정수)
+  K ∝ ρⁿ, K ∝ 1/τ²   →   τ  ∝  ρ^(-n/2)
+
+결론: 밀도 높음 → τ 작음 → 접촉 강성 높음 → 관통 감소
+```
+
+### 매핑 함수
+
+두 기준점을 지정하면 **power-law**로 보간합니다:
+
+```
+τ(ρ) = τ_soft × (ρ_soft / ρ)^α
+
+        log(τ_hard / τ_soft)
+α  = ─────────────────────────  ≈ −3.32
+        log(ρ_hard / ρ_soft)
+```
+
+| 밀도 (kg/m³) | τ (s) | 상대 강성 (1/τ²) | 대표 알약 |
+|---|---|---|---|
+| 900 | 0.0200 | 1× | 연질 (저압착 포도당) |
+| 1100 | 0.0096 | 4.3× | 표준 하한 |
+| **1200** | **0.0080** | **6.3×** | ← 기본값 |
+| 1400 | 0.0053 | 14× | 표준 경질 |
+| 1600 | 0.0033 | 37× | 고압착 |
+| 1800 | 0.0020 | 100× | 초경질 (탄산칼슘) |
+
+### 부피 추정 및 밀도 계산
+
+알약 실측 질량(mg)만 알면 형상 파라미터로 밀도를 자동 계산합니다:
+
+```
+V_ellipsoid = (4/3)π × (R×AR) × R × (th/2)
+V_biconvex  = V_ellipsoid × 0.82   (biconvex 보정계수)
+
+ρ = mass / V_biconvex
+```
+
+```bash
+# 실측 질량 320mg → 밀도 자동 계산 → τ 자동 설정
+python crusher_tablet_sim.py tablet_R6.0_AR1.50_CV0.20.stl --mass 320
+```
+
+### 구현 위치
+
+| 함수 | 설명 |
+|---|---|
+| `estimate_tablet_volume_mm3(R_mm, AR, CV)` | 형상 파라미터 → 부피 [mm³] 추정 |
+| `mass_to_density(mass_mg, R_mm, AR, CV)` | 질량 + 형상 → 밀도 [kg/m³] |
+| `density_to_solref_tau(density_kg_m3)` | 밀도 → solref τ [s] (power-law) |
+| `_build_model(..., density_kg_m3)` | geom에 `density`, `solref`, `solimp` 적용 |
+
+### 조정 가능한 기준점 (코드 상단 상수)
+
+```python
+DENSITY_REF_SOFT  = 900.0    # kg/m³  연질 기준점
+DENSITY_REF_HARD  = 1800.0   # kg/m³  경질 기준점
+SOLREF_TAU_SOFT   = 0.020    # s      연질 τ (MuJoCo 기본값)
+SOLREF_TAU_HARD   = 0.002    # s      경질 τ (실용적 최솟값)
+DENSITY_DEFAULT   = 1200.0   # kg/m³  미지정 시 기본값
+BICONVEX_VOL_FACTOR = 0.82   # biconvex 부피 보정계수
+```
+
+### CSV 출력 컬럼 (신규 추가)
+
+결과 CSV 메타데이터에 밀도 관련 정보가 자동 기록됩니다:
+
+```
+# density_kg_m3, vol_estimate_mm3, biconvex_factor
+# solref_tau_s, solimp_dmax, DENSITY_REF_SOFT, DENSITY_REF_HARD
+```
+
+---
+
 ### 4. 정제 STL 생성 (Fusion 360 전용)
 
 `tablets_stl/Codes/tablet_generator.py` 참조.  
@@ -172,7 +288,45 @@ python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py
 
 ## 변경 이력
 
-### 2026-05-29 — Moving-window 역전 알고리즘 + 실시간 반력 플롯
+### 2026-05-29 (2) — 밀도 기반 접촉 경도 모델 (solref 자동 계산)
+
+#### 핵심 변경
+
+| 항목 | 변경 전 | 변경 후 |
+|------|---------|---------|
+| **tablet geom solref** | 미지정 (MuJoCo 기본값 τ=0.02s) | **밀도 → τ 자동 계산** (power-law 보간) |
+| **tablet geom density** | 1200 kg/m³ 하드코딩 | `--density` 또는 `--mass` 인자로 동적 설정 |
+| **_build_model 시그니처** | `(stl_path, R_mm, half_th)` | `(stl_path, R_mm, half_th, density_kg_m3)` |
+| **CLI 인자** | 없음 | `--density KG_M3` / `--mass MG` (상호 배타) |
+| **CSV 메타데이터** | 없음 | `density_kg_m3`, `solref_tau_s`, `solimp_dmax`, `vol_estimate_mm3` 추가 |
+| **batch_tablet_sim.py** | 동일 | `--density` 인자 + task tuple에 밀도 포함 |
+
+#### 신규 함수
+
+| 함수 | 위치 | 설명 |
+|------|------|------|
+| `estimate_tablet_volume_mm3(R, AR, CV)` | 두 파일 공통 | 형상 파라미터 → biconvex 부피 [mm³] |
+| `mass_to_density(mass_mg, R, AR, CV)` | 두 파일 공통 | 질량(mg) + 형상 → 밀도 [kg/m³] |
+| `density_to_solref_tau(density_kg_m3)` | 두 파일 공통 | 밀도 → solref τ [s] (power-law) |
+
+#### 이론
+
+```
+Hertzian Contact: E ∝ ρⁿ  →  K ∝ 1/τ²  →  τ ∝ ρ^(-n/2)
+α = log(τ_hard/τ_soft) / log(ρ_hard/ρ_soft) ≈ −3.32
+```
+
+#### 수정 파일
+
+| 파일 | 변경 내용 |
+|------|-----------|
+| `MuJoCo_PlayGround/20260527/crusher_tablet_sim.py` | v7 — 밀도 기반 solref, --density/--mass CLI |
+| `MuJoCo_PlayGround/20260527/batch_tablet_sim.py` | v2 — 동일 로직, --density CLI, task tuple 확장 |
+| `README.md` | 밀도 기반 접촉 경도 모델 섹션 신규 추가 |
+
+---
+
+### 2026-05-29 (1) — Moving-window 역전 알고리즘 + 실시간 반력 플롯
 
 #### 핵심 변경
 
