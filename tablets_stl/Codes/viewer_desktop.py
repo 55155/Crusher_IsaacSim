@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout, QGridLayout,
     QSlider, QLabel, QFrame, QSizePolicy,
+    QLineEdit,
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont, QColor, QPalette
@@ -37,6 +38,38 @@ AR_DESCS = ['원형', '원에 가까운 타원', '타원', '타원형', '완만�
             '타원 캡렛', '캡렛', '긴 캡렛', '매우 긴 캡렛', '장방형']
 CV_DESCS = ['매우 편평', '편평', '표준 편평', '표준 볼록', '표준',
             '일반 볼록', '볼록', '강한 볼록', '매우 볼록', '구면형']
+
+# ── 밀도 기반 접촉 경도 상수 (crusher_tablet_sim.py 와 동기화) ──
+DENSITY_REF_SOFT    = 900.0    # kg/m³  연질 기준
+DENSITY_REF_HARD    = 1800.0   # kg/m³  경질 기준
+SOLREF_TAU_SOFT     = 0.020    # s
+SOLREF_TAU_HARD     = 0.002    # s
+BICONVEX_VOL_FACTOR = 0.82
+
+
+def _estimate_volume_mm3(R_mm, AR, CV):
+    """biconvex 알약 부피 추정 [mm³]."""
+    import math
+    cd = CV * 2.0 * R_mm
+    th = R_mm * 0.20 + 2.0 * cd
+    return (4.0 / 3.0) * math.pi * (R_mm * AR) * R_mm * (th / 2.0) * BICONVEX_VOL_FACTOR
+
+
+def _mass_to_density(mass_mg, R_mm, AR, CV):
+    """무게(mg) + 형상 → 밀도 [kg/m³]."""
+    vol_m3 = _estimate_volume_mm3(R_mm, AR, CV) * 1e-9
+    return (mass_mg * 1e-6) / vol_m3
+
+
+def _density_to_tau(rho):
+    """밀도 → MuJoCo solref 시정수 τ [s]  (Power-law, Hertzian)."""
+    import math
+    rho   = max(DENSITY_REF_SOFT, min(DENSITY_REF_HARD, rho))
+    alpha = math.log(SOLREF_TAU_HARD / SOLREF_TAU_SOFT) / \
+            math.log(DENSITY_REF_HARD / DENSITY_REF_SOFT)
+    tau   = SOLREF_TAU_SOFT * (DENSITY_REF_SOFT / rho) ** alpha
+    return max(SOLREF_TAU_HARD, min(SOLREF_TAU_SOFT, tau))
+
 
 # ── 색상 상수 ──────────────────────────────────────────────────
 C_BG     = "#0d1117"
@@ -127,7 +160,8 @@ class TabletViewer(QMainWindow):
         super().__init__()
         self.setWindowTitle("Tablet Shape Viewer")
         self.resize(1280, 760)
-        self._first_load = True   # 최초 1회만 카메라 리셋
+        self._first_load    = True   # 최초 1회만 카메라 리셋
+        self._last_density  = None   # 무게 입력으로 계산된 밀도 (Crusher 전달용)
         self._setup_palette()
         self._build_ui()
         self._update()
@@ -251,6 +285,72 @@ class TabletViewer(QMainWindow):
             self.dim_labels[key] = val
 
         pl.addWidget(grid_w)
+        pl.addSpacing(18)
+        pl.addWidget(divider())
+        pl.addSpacing(14)
+
+        # ── 경도 (무게 입력) ──────────────────────────────────────
+        pl.addWidget(label("HARDNESS  경도", 9, C_MUTED, True))
+        pl.addSpacing(10)
+
+        # 무게 입력 행
+        mass_row = QWidget(); mass_row.setStyleSheet("background:transparent;")
+        mass_rl  = QHBoxLayout(mass_row); mass_rl.setContentsMargins(0,0,0,0); mass_rl.setSpacing(6)
+        mass_rl.addWidget(label("무게", 11, C_TEXT))
+        self.edit_mass = QLineEdit()
+        self.edit_mass.setPlaceholderText("mg")
+        self.edit_mass.setMaximumWidth(80)
+        self.edit_mass.setStyleSheet(f"""
+            QLineEdit {{
+                background: {C_BG};
+                color: {C_TEXT};
+                border: 1px solid {C_BORDER};
+                border-radius: 5px;
+                padding: 4px 8px;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {C_BLUE};
+            }}
+        """)
+        self.edit_mass.textChanged.connect(self._recalc_hardness)
+        mass_rl.addWidget(self.edit_mass)
+        mass_rl.addWidget(label("mg", 11, C_MUTED))
+        mass_rl.addStretch()
+        pl.addWidget(mass_row)
+        pl.addSpacing(6)
+
+        # 밀도 / τ 표시 행
+        self.lbl_density = label("밀도  —", 11, C_MUTED)
+        self.lbl_tau     = label("τ  —",    11, C_MUTED)
+        pl.addWidget(self.lbl_density)
+        pl.addWidget(self.lbl_tau)
+        pl.addSpacing(8)
+
+        # 경도 게이지 (QFrame 배경 + 내부 채움 위젯)
+        gauge_outer = QFrame()
+        gauge_outer.setFixedHeight(12)
+        gauge_outer.setStyleSheet(
+            f"background:{C_BG}; border:1px solid {C_BORDER}; border-radius:5px;"
+        )
+        gauge_inner_layout = QHBoxLayout(gauge_outer)
+        gauge_inner_layout.setContentsMargins(1,1,1,1)
+        gauge_inner_layout.setSpacing(0)
+        self._gauge_bar = QWidget()
+        self._gauge_bar.setFixedHeight(8)
+        self._gauge_bar.setStyleSheet(f"background:{C_MUTED}; border-radius:3px;")
+        self._gauge_spacer = QWidget()
+        self._gauge_spacer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        gauge_inner_layout.addWidget(self._gauge_bar)
+        gauge_inner_layout.addWidget(self._gauge_spacer)
+        pl.addWidget(gauge_outer)
+        self._gauge_outer = gauge_outer
+
+        self.lbl_hardness = label("", 10, C_MUTED)
+        self.lbl_hardness.setAlignment(Qt.AlignCenter)
+        pl.addWidget(self.lbl_hardness)
+
         pl.addSpacing(18)
         pl.addWidget(divider())
         pl.addSpacing(14)
@@ -483,6 +583,72 @@ class TabletViewer(QMainWindow):
         root_layout.addWidget(panel)
         root_layout.addWidget(self.plotter, stretch=1)
 
+    # ── 경도 계산 (무게 입력 → 밀도 → τ) ───────────────────────
+    def _recalc_hardness(self):
+        """무게(mg) + 현재 슬라이더(R, AR, CV) → 밀도·τ 계산 후 UI 갱신."""
+        ri = self.sliders["R"].value()
+        ai = self.sliders["AR"].value()
+        ci = self.sliders["CV"].value()
+        R  = RADII[ri]; AR = ASPECTS[ai]; CV = CURVS[ci]
+
+        try:
+            mass_mg = float(self.edit_mass.text().strip())
+            if mass_mg <= 0:
+                raise ValueError
+            rho = _mass_to_density(mass_mg, R, AR, CV)
+            tau = _density_to_tau(rho)
+            self._last_density = rho   # Crusher 실행 시 사용
+
+            # 텍스트 갱신
+            self.lbl_density.setText(
+                f"밀도  <span style='color:{C_BLUE};font-weight:700'>"
+                f"{rho:.0f} kg/m³</span>"
+            )
+            self.lbl_density.setTextFormat(Qt.RichText)
+            self.lbl_tau.setText(
+                f"τ  <span style='color:{C_GREEN};font-weight:700'>"
+                f"{tau:.4f} s</span>"
+            )
+            self.lbl_tau.setTextFormat(Qt.RichText)
+
+            # 게이지 갱신
+            ratio = (rho - DENSITY_REF_SOFT) / (DENSITY_REF_HARD - DENSITY_REF_SOFT)
+            ratio = max(0.0, min(1.0, ratio))
+            pct   = int(ratio * 100)
+
+            if pct < 25:
+                color, txt = C_GREEN,  f"Soft  ({pct}%)"
+            elif pct < 50:
+                color, txt = "#f1c40f", f"Medium  ({pct}%)"
+            elif pct < 75:
+                color, txt = C_ORANGE, f"Hard  ({pct}%)"
+            else:
+                color, txt = "#e74c3c", f"Very Hard  ({pct}%)"
+
+            total_w = self._gauge_outer.width() - 4   # 패딩 제외
+            bar_w   = max(4, int(total_w * ratio))
+            self._gauge_bar.setFixedWidth(bar_w)
+            self._gauge_bar.setStyleSheet(
+                f"background:{color}; border-radius:3px;"
+            )
+            self.lbl_hardness.setText(txt)
+            self.lbl_hardness.setStyleSheet(
+                f"color:{color}; font-size:10px; background:transparent;"
+            )
+
+        except (ValueError, ZeroDivisionError):
+            self._last_density = None
+            self.lbl_density.setText("밀도  —")
+            self.lbl_density.setStyleSheet(f"color:{C_MUTED}; font-size:11px; background:transparent;")
+            self.lbl_tau.setText("τ  —")
+            self.lbl_tau.setStyleSheet(f"color:{C_MUTED}; font-size:11px; background:transparent;")
+            self._gauge_bar.setFixedWidth(4)
+            self._gauge_bar.setStyleSheet(f"background:{C_MUTED}; border-radius:3px;")
+            self.lbl_hardness.setText("무게를 입력하세요")
+            self.lbl_hardness.setStyleSheet(
+                f"color:{C_MUTED}; font-size:10px; background:transparent;"
+            )
+
     # ── 모델 업데이트 ─────────────────────────────────────────
     def _update(self):
         ri = self.sliders["R"].value()
@@ -519,6 +685,9 @@ class TabletViewer(QMainWindow):
         fpath = os.path.join(STL_DIR, fname)
         self.lbl_fname.setText(fname)
         self._load_mesh(fpath)
+
+        # 슬라이더 변경 시 무게가 입력돼 있으면 밀도 재계산
+        self._recalc_hardness()
 
     def _load_mesh(self, fpath):
         self.plotter.clear()
@@ -749,8 +918,20 @@ class TabletViewer(QMainWindow):
         kwargs = {}
         if platform.system() == "Windows":
             kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
-        subprocess.Popen([sys.executable, sim_script, fpath], **kwargs)
-        self.lbl_mujoco.setText("✓ Crusher 시뮬레이션 실행 중…")
+
+        cmd = [sys.executable, sim_script, fpath]
+        if self._last_density is not None:
+            cmd += ["--density", f"{self._last_density:.2f}"]
+
+        subprocess.Popen(cmd, **kwargs)
+
+        if self._last_density is not None:
+            tau = _density_to_tau(self._last_density)
+            self.lbl_mujoco.setText(
+                f"✓ 실행 중  ρ={self._last_density:.0f} kg/m³  τ={tau:.4f}s"
+            )
+        else:
+            self.lbl_mujoco.setText("✓ Crusher 시뮬레이션 실행 중…")
         self.lbl_mujoco.setStyleSheet(
             "color:#a371f7; font-size:10px; background:transparent;"
         )
