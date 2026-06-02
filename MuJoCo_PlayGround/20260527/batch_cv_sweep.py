@@ -100,6 +100,9 @@ class CVResult:
     delta_max_um: float = 0.0   # 최대 관통깊이 [μm]
     T_contact_s:  float = 0.0   # 접촉 지속 시간 [s]
     ok:           bool  = False
+    # 시간 기준점 (정규화용)
+    t0:          float = 0.0    # Phase 2 시작 절대 시간 [s]
+    t_motor_on:  float = 0.0    # 모터 ON 절대 시간 [s]
 
 
 # ─── 기하 헬퍼 ────────────────────────────────────────────────────────────────
@@ -274,6 +277,10 @@ def run_one_cv(cv: float, tau: float, mode: str, verbose: bool = True) -> CVResu
     motor_on  = False
     motor_dir = 0
     t0        = data.time
+    t_motor_on_abs = t0 + MOTOR_DELAY   # 예상 모터 ON 시각 (기록용)
+
+    res.t0         = t0
+    res.t_motor_on = t_motor_on_abs
 
     t_log     = []
     Fy_log    = []
@@ -343,6 +350,137 @@ def run_one_cv(cv: float, tau: float, mode: str, verbose: bool = True) -> CVResu
               f"A={res.A_max_mm2:.4f} mm²  "
               f"δ={res.delta_max_um:.2f} μm")
     return res
+
+
+# ─── 개별 CV PNG 저장 ────────────────────────────────────────────────────────
+def plot_individual_cvs(results_A: list[CVResult],
+                        results_B: list[CVResult],
+                        save_dir: str,
+                        ts: str) -> None:
+    """
+    CV 하나당 PNG 1개 생성 → 총 10개 저장.
+
+    각 PNG 구성 (3단 subplot):
+        ① 접촉력  F_Y [N]      — 모드A(파랑) + 모드B(빨강)
+        ② 접촉 압력 P [MPa]    — 모드A + 모드B
+        ③ 접촉 면적 A [mm²]    — 모드A + 모드B
+
+    X축 정규화:
+        t_rel = t - t_motor_on   (모터 ON 기준 0초)
+        모든 10개 플롯이 동일한 X범위 → 직접 비교 가능
+
+    Y축 고정:
+        전체 CV 기준 global min/max → 10개 플롯 동일 스케일
+    """
+    # ── Global Y 범위 계산 (공정 비교를 위해 10개 동일) ─────────────────
+    def _safe_max(results, attr):
+        vals = [getattr(r, attr) for r in results if r.ok]
+        return max(vals) if vals else 1.0
+
+    Fy_global_max  = max(_safe_max(results_A, 'Fy_max'),
+                         _safe_max(results_B, 'Fy_max')) * 1.15
+    Fy_global_min  = min(
+        min((r.Fy.min() for r in results_A if r.ok and len(r.Fy) > 0), default=0),
+        min((r.Fy.min() for r in results_B if r.ok and len(r.Fy) > 0), default=0),
+    ) * 1.1
+
+    P_global_max   = max(_safe_max(results_A, 'P_max_MPa'),
+                         _safe_max(results_B, 'P_max_MPa')) * 1.15
+    A_global_max   = max(_safe_max(results_A, 'A_max_mm2'),
+                         _safe_max(results_B, 'A_max_mm2')) * 1.15
+
+    # X범위: 0 ~ SIM_DURATION (모터 ON 기준)
+    x_max = SIM_DURATION
+
+    saved = []
+    for rA, rB in zip(results_A, results_B):
+        if not rA.ok and not rB.ok:
+            continue
+
+        cv    = rA.cv
+        Rs_mm = rA.Rs_mm
+
+        fig, axes = plt.subplots(3, 1, figsize=(11, 8), sharex=True)
+        fig.subplots_adjust(hspace=0.08, top=0.88, bottom=0.09,
+                            left=0.10, right=0.97)
+
+        # 접촉 유형 레이블
+        if cv <= 0.12:
+            contact_type = "면접촉 (flat-like)"
+            type_color   = "#1a7abf"
+        elif cv >= 0.30:
+            contact_type = "점접촉 (point-like)"
+            type_color   = "#c0392b"
+        else:
+            contact_type = "중간 (semi-Hertz)"
+            type_color   = "#8e44ad"
+
+        fig.suptitle(
+            f"CV = {cv:.2f}  |  Rs = {Rs_mm:.1f} mm  |  {contact_type}",
+            fontsize=13, fontweight='bold', color=type_color,
+        )
+
+        plot_data = [
+            (rA.Fy,        rB.Fy,        "F_Y [N]",     Fy_global_min, Fy_global_max),
+            (rA.press_MPa, rB.press_MPa, "P_max [MPa]", 0,             P_global_max),
+            (rA.area_mm2,  rB.area_mm2,  "Area [mm²]",  0,             A_global_max),
+        ]
+
+        for i, (yA, yB, ylabel, ymin, ymax) in enumerate(plot_data):
+            ax = axes[i]
+
+            # 모터 ON 기준 정규화 시간
+            if rA.ok and len(rA.t) > 0:
+                tA_rel = rA.t - rA.t_motor_on
+                ax.plot(tA_rel, yA, color='#1f77b4', lw=1.4,
+                        label=f"A: 고정τ={rA.tau*1e3:.2f}ms", zorder=3)
+
+            if rB.ok and len(rB.t) > 0:
+                tB_rel = rB.t - rB.t_motor_on
+                ax.plot(tB_rel, yB, color='#d62728', lw=1.4,
+                        ls='--', label=f"B: Hertzτ={rB.tau*1e3:.2f}ms", zorder=3)
+
+            ax.axhline(0, color='k', lw=0.5, ls=':')
+            ax.axvline(0, color='gray', lw=0.8, ls='--', alpha=0.6,
+                       label='모터 ON')
+            ax.set_ylabel(ylabel, fontsize=10)
+            ax.set_xlim(-MOTOR_DELAY * 0.05, x_max - MOTOR_DELAY)
+            ax.set_ylim(ymin - abs(ymin) * 0.02, ymax)
+            ax.grid(True, alpha=0.25)
+            if i == 0:
+                ax.legend(fontsize=8, loc='upper right', ncol=3)
+
+        axes[2].set_xlabel("Time since motor ON [s]", fontsize=10)
+
+        # ── 우측 정보 박스 ─────────────────────────────────────────────
+        info = (
+            f"Rs = {Rs_mm:.1f} mm\n"
+            f"──── 모드 A (고정τ) ────\n"
+            f"  J    = {rA.J:.4f} N·s\n"
+            f"  F_max= {rA.Fy_max:.2f} N\n"
+            f"  P_max= {rA.P_max_MPa:.3f} MPa\n"
+            f"  A_max= {rA.A_max_mm2:.4f} mm²\n"
+            f"──── 모드 B (Hertz) ────\n"
+            f"  J    = {rB.J:.4f} N·s\n"
+            f"  F_max= {rB.Fy_max:.2f} N\n"
+            f"  P_max= {rB.P_max_MPa:.3f} MPa\n"
+            f"  A_max= {rB.A_max_mm2:.4f} mm²\n"
+        )
+        fig.text(0.975, 0.5, info,
+                 transform=fig.transFigure,
+                 fontsize=7.5, family='monospace',
+                 va='center', ha='right',
+                 bbox=dict(boxstyle='round,pad=0.4',
+                           facecolor='#f0f0f0', alpha=0.85, lw=0.5))
+
+        fname = f"cv_sweep_{ts}_CV{cv:.2f}.png"
+        fpath = os.path.join(save_dir, fname)
+        fig.savefig(fpath, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        saved.append(fname)
+        print(f"  ✔ {fname}")
+
+    print(f"\n  총 {len(saved)}개 PNG 저장 → {save_dir}")
 
 
 # ─── 시각화 ──────────────────────────────────────────────────────────────────
@@ -588,7 +726,12 @@ def main():
     save_csv(results_A, results_B, csv_path)
     print(f"\n  ✔ CSV: {csv_path}")
 
-    # ─── 플롯 저장 ──────────────────────────────────────────────────
+    # ─── 개별 CV PNG 10개 ───────────────────────────────────────────
+    print("\n[개별 CV 플롯] CV별 PNG 10개 저장 중...\n")
+    plot_individual_cvs(results_A, results_B, _RESULT_DIR, ts)
+
+    # ─── 종합 요약 플롯 4종 ─────────────────────────────────────────
+    print("\n[종합 플롯] 요약 4종 저장 중...\n")
     figs = plot_sweep(results_A, results_B)
     tags = ["F_timeseries", "P_A_timeseries", "summary_metrics", "contact_type"]
     for fig, tag in zip(figs, tags):
