@@ -53,8 +53,11 @@ from collections import deque
 from datetime import datetime
 
 import numpy as np
-# ★ NumPy 2.0 호환: trapz → trapezoid 로 이름 변경됨
-_np_trapz = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
+# NumPy 2.0 호환: trapz → trapezoid (try/except — getattr default는 먼저 평가됨)
+try:
+    _np_trapz = np.trapezoid
+except AttributeError:
+    _np_trapz = np.trapz
 import matplotlib
 import matplotlib.pyplot as plt
 import mujoco

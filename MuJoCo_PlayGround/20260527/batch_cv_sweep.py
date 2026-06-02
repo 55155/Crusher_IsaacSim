@@ -52,8 +52,11 @@ from crusher_tablet_sim import (                            # noqa: E402
     density_to_solref_tau,
 )
 
-# NumPy 2.0 compat
-_np_trapz = getattr(np, 'trapezoid', np.trapz)
+# NumPy 2.0 compat: trapz → trapezoid (getattr default는 먼저 평가되므로 try/except 사용)
+try:
+    _np_trapz = np.trapezoid
+except AttributeError:
+    _np_trapz = np.trapz
 
 # ─── 실험 파라미터 ────────────────────────────────────────────────────────────
 R_MM      = 6.0
