@@ -53,6 +53,8 @@ from collections import deque
 from datetime import datetime
 
 import numpy as np
+# ★ NumPy 2.0 호환: trapz → trapezoid 로 이름 변경됨
+_np_trapz = getattr(np, 'trapezoid', getattr(np, 'trapz', None))
 import matplotlib
 import matplotlib.pyplot as plt
 import mujoco
@@ -530,7 +532,7 @@ def run(stl_path: str, density_kg_m3: float = DENSITY_DEFAULT):
     gap = np.array(gap_log)
     fc_mag  = np.linalg.norm(fc, axis=1)
 
-    J_Y     = float(np.trapz(fc[:, 1], t))
+    J_Y     = float(_np_trapz(fc[:, 1], t))
     F_Y_max = float(fc[:, 1].max())
     F_Y_min = float(fc[:, 1].min())
 

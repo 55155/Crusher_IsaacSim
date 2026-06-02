@@ -830,9 +830,11 @@ class TabletViewer(QMainWindow):
                            "#ff9a3c","#74b9ff"]
             for i, hull in enumerate(hulls):
                 pv_hull = pv.PolyData(
-                    np.array(hull.vertices),
-                    np.hstack([np.full((len(hull.faces), 1), 3),
-                               np.array(hull.faces)])
+                    np.array(hull.vertices, dtype=np.float64),
+                    np.hstack([
+                        np.full((len(hull.faces), 1), 3, dtype=np.int32),
+                        np.array(hull.faces, dtype=np.int32),
+                    ]).ravel()
                 )
                 pv_hull.translate((-cx, -cy, -cz), inplace=True)
                 self.plotter.add_mesh(
