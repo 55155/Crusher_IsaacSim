@@ -901,7 +901,7 @@ class TabletViewer(QMainWindow):
             "color:#3fb950; font-size:10px; background:transparent;"
         )
 
-    # ── Crusher 시뮬레이션 실행 ───────────────────────────────────────
+    # ── Crusher 시뮬레이션 실행 (velocity control) ────────────────────
     def _launch_crusher_sim(self):
         fpath = os.path.join(STL_DIR, self.lbl_fname.text())
         if not os.path.exists(fpath):
@@ -910,10 +910,10 @@ class TabletViewer(QMainWindow):
 
         sim_script = os.path.normpath(
             os.path.join(_HERE, "..", "..",
-                         "MuJoCo_PlayGround", "20260527", "crusher_tablet_sim.py")
+                         "MuJoCo_PlayGround", "20260603", "crusher_velocity_ctrl.py")
         )
         if not os.path.exists(sim_script):
-            self.lbl_mujoco.setText("✗ crusher_tablet_sim.py 없음")
+            self.lbl_mujoco.setText("✗ crusher_velocity_ctrl.py 없음")
             return
 
         import platform
@@ -930,10 +930,10 @@ class TabletViewer(QMainWindow):
         if self._last_density is not None:
             tau = _density_to_tau(self._last_density)
             self.lbl_mujoco.setText(
-                f"✓ 실행 중  ρ={self._last_density:.0f} kg/m³  τ={tau:.4f}s"
+                f"✓ 8 RPM 속도제어  ρ={self._last_density:.0f} kg/m³  τ={tau:.4f}s"
             )
         else:
-            self.lbl_mujoco.setText("✓ Crusher 시뮬레이션 실행 중…")
+            self.lbl_mujoco.setText("✓ Crusher 시뮬레이션 실행 중… (8 RPM)")
         self.lbl_mujoco.setStyleSheet(
             "color:#a371f7; font-size:10px; background:transparent;"
         )
