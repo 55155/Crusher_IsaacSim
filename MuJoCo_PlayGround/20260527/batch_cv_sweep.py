@@ -36,6 +36,8 @@ from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+plt.rcParams['font.family'] = 'Malgun Gothic'
+plt.rcParams['axes.unicode_minus'] = False
 import mujoco
 import xml.etree.ElementTree as ET
 

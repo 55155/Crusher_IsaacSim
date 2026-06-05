@@ -50,6 +50,8 @@ except AttributeError:
 
 import matplotlib
 import matplotlib.pyplot as plt
+plt.rcParams['font.family'] = 'Malgun Gothic'
+plt.rcParams['axes.unicode_minus'] = False
 import mujoco
 import mujoco.viewer
 
@@ -77,9 +79,14 @@ SIM_DURATION = 30.0
 MOTOR_CTRL   = -0.5
 MOTOR_DELAY  =  3.0
 
-# ── Moving-window stall 감지 ─────────────────────────────────────────
+# ── Moving-window stall 감지 (mirrors Keyborad_control_v2.py) ────────
+# Real: rpm_buffer = deque(maxlen=5); stall when sum==0
+# Sim : stall_buf  = deque(maxlen=stall_window); stall when all(vel < thr)
 STALL_TIME_S  = 2.0
 STALL_VEL_THR = 0.05
+# Real: set_enable(0) → time.sleep(0.5) → set_enable(1)
+# Sim : ctrl=0 for SETTLE_TIME_S steps, then ctrl=motor_dir*MOTOR_CTRL
+SETTLE_TIME_S = 0.5    # [s] coast period after stall-triggered direction flip
 
 # ── 실시간 플롯 갱신 주기 ─────────────────────────────────────────────
 RT_PLOT_INTERVAL = 20
@@ -313,21 +320,24 @@ def run(stl_path: str,
 
     # ── ❸ Phase 2 준비 ───────────────────────────────────────────────
     _dt          = float(model.opt.timestep)
-    stall_window = max(1, int(round(STALL_TIME_S / _dt)))
+    stall_window  = max(1, int(round(STALL_TIME_S  / _dt)))
+    settle_steps  = max(1, int(round(SETTLE_TIME_S / _dt)))
 
     print(f"\n◆ Phase 2: 뷰어 오픈")
     print(f"  {MOTOR_DELAY:.1f}s 후 lock_crank 해제 → {MOTOR_CTRL} N·m CCW")
     print(f"  stall window: {stall_window} 스텝 ({STALL_TIME_S:.1f}s)")
+    print(f"  settle steps: {settle_steps} ({SETTLE_TIME_S:.1f}s)  [real: time.sleep(0.5)]")
     print(f"  측정 시간 = {SIM_DURATION} s\n")
 
     data.ctrl[act_crank] = 0.0
     phase2_start_t = data.time
 
-    motor_on   = False
-    motor_on_t = None
-    motor_dir  = 0
-    stall_buf  = deque(maxlen=stall_window)
-    rev_events = []
+    motor_on         = False
+    motor_on_t       = None
+    motor_dir        = 0
+    stall_buf        = deque(maxlen=stall_window)
+    settle_countdown = 0   # >0 while coasting after direction flip
+    rev_events       = []
 
     t_log        = []
     f_log        = []
@@ -384,17 +394,31 @@ def run(stl_path: str,
                 print(f"  *** lock 해제 + 모터 ON: t={data.time:.3f}s  "
                       f"ctrl={motor_dir * MOTOR_CTRL:.2f} N·m ***")
 
-            # Moving-window stall 감지
+            # Moving-window stall 감지 + settle (mirrors Keyborad_control_v2.py)
             if motor_on:
-                crank_vel = abs(data.qvel[crank_vadr])
-                stall_buf.append(crank_vel < STALL_VEL_THR)
-                if len(stall_buf) == stall_window and all(stall_buf):
-                    motor_dir = -motor_dir
-                    data.ctrl[act_crank] = motor_dir * MOTOR_CTRL
-                    stall_buf.clear()
-                    dir_str = "CCW" if motor_dir > 0 else "CW"
-                    rev_events.append((data.time, dir_str))
-                    print(f"  *** 방향 전환 → {dir_str}  t={data.time:.3f}s ***")
+                if settle_countdown > 0:
+                    # enable(0) 상태: ctrl=0 유지 (real: set_enable(0) + time.sleep(0.5))
+                    data.ctrl[act_crank] = 0.0
+                    settle_countdown -= 1
+                    if settle_countdown == 0:
+                        # enable(1) 상태로 전환: 새 방향으로 구동 시작
+                        data.ctrl[act_crank] = motor_dir * MOTOR_CTRL
+                        stall_buf.clear()
+                        dir_str = "CCW" if motor_dir > 0 else "CW"
+                        print(f"  *** Settle 완료 → {dir_str} ON  t={data.time:.3f}s ***")
+                else:
+                    crank_vel = abs(data.qvel[crank_vadr])
+                    stall_buf.append(crank_vel < STALL_VEL_THR)
+                    if len(stall_buf) == stall_window and all(stall_buf):
+                        # Stall 감지: enable(0) → 방향 반전 → settle → enable(1)
+                        motor_dir = -motor_dir
+                        data.ctrl[act_crank] = 0.0   # enable OFF
+                        settle_countdown = settle_steps
+                        stall_buf.clear()
+                        dir_str = "CCW" if motor_dir > 0 else "CW"
+                        rev_events.append((data.time, dir_str))
+                        print(f"  *** Stall → {dir_str} (settle {SETTLE_TIME_S:.1f}s)"
+                              f"  t={data.time:.3f}s ***")
 
             mujoco.mj_step(model, data)
 

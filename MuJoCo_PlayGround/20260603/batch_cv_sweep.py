@@ -19,6 +19,7 @@ Output:
 """
 
 import os, sys, re, csv, math, glob, argparse
+from collections import deque
 from datetime import datetime
 
 import numpy as np
@@ -43,6 +44,9 @@ MOTOR_FORCELIM = 120.0
 VEL_KV_DEFAULT =  60.0
 CCW_REVS       =  1.0
 CW_REVS        =  1.0
+STALL_RPM_THR  =  1.0    # [RPM] below this = stalled (mirrors real motor rpm_buffer==0)
+STALL_TIME_S   =  0.5    # [s]  sustained stall window
+SETTLE_TIME_S  =  0.5    # [s]  ctrl=0 coast after flip (mirrors time.sleep(0.5))
 
 DENSITY_REF_SOFT = 900.0;   DENSITY_REF_HARD = 1800.0
 SOLREF_TAU_SOFT  = 0.020;   SOLREF_TAU_HARD  = 0.002
@@ -188,6 +192,13 @@ def run_headless(stl_path, density_kg_m3, kv, target_rpm):
     acc_ccw = acc_cw = 0.0
     rev_events  = []
 
+    # Stall / settle (mirrors Keyborad_control_v2.py)
+    stall_window     = max(1, int(round(STALL_TIME_S  / _dt)))
+    settle_steps     = max(1, int(round(SETTLE_TIME_S / _dt)))
+    rpm_buf          = deque(maxlen=stall_window)
+    settle_countdown = 0
+    prev_rpm         = 0.0
+
     t_log = []; f_log = []; rpm_log = []; torq_log = []
 
     total_steps = int(SIM_DURATION / _dt)
@@ -199,31 +210,55 @@ def run_headless(stl_path, density_kg_m3, kv, target_rpm):
             motor_on = True; motor_on_t = data.time
             prev_ang = float(data.qpos[qadr])
             acc_ccw = acc_cw = 0.0
+            rpm_buf.clear(); settle_countdown = 0
 
         if motor_on:
-            cur_ang = float(data.qpos[qadr])
-            delta   = ((cur_ang - prev_ang) + math.pi) % (2*math.pi) - math.pi
-            prev_ang = cur_ang
-            if direction == 1:
-                acc_ccw += max(delta, 0.0)
-                if acc_ccw >= CCW_REVS * rev_angle:
-                    direction = -1
+            # Settle period: ctrl=0 (mirrors set_enable(0)→sleep(0.5)→set_enable(1))
+            if settle_countdown > 0:
+                data.ctrl[aid_crank] = 0.0
+                settle_countdown -= 1
+                if settle_countdown == 0:
                     data.ctrl[aid_crank] = direction * target_vel
-                    rev_events.append((data.time, "CW"))
-                    acc_ccw = acc_cw = 0.0
+                    rpm_buf.clear()
             else:
-                acc_cw += max(-delta, 0.0)
-                if acc_cw >= CW_REVS * rev_angle:
-                    direction = 1
-                    data.ctrl[aid_crank] = direction * target_vel
-                    rev_events.append((data.time, "CCW"))
+                # Stall detection (mirrors sum(rpm_buffer)==0)
+                rpm_buf.append(abs(prev_rpm) < STALL_RPM_THR)
+                if len(rpm_buf) == stall_window and all(rpm_buf):
+                    direction = -direction
+                    data.ctrl[aid_crank] = 0.0
+                    settle_countdown = settle_steps
                     acc_ccw = acc_cw = 0.0
+                    rpm_buf.clear()
+                    dir_s = "CCW" if direction == 1 else "CW"
+                    rev_events.append((data.time, dir_s))
+                else:
+                    # Angle-based fallback
+                    cur_ang = float(data.qpos[qadr])
+                    delta   = ((cur_ang - prev_ang) + math.pi) % (2*math.pi) - math.pi
+                    prev_ang = cur_ang
+                    if direction == 1:
+                        acc_ccw += max(delta, 0.0)
+                        if acc_ccw >= CCW_REVS * rev_angle:
+                            direction = -1
+                            data.ctrl[aid_crank] = 0.0
+                            settle_countdown = settle_steps
+                            rev_events.append((data.time, "CW"))
+                            acc_ccw = acc_cw = 0.0; rpm_buf.clear()
+                    else:
+                        acc_cw += max(-delta, 0.0)
+                        if acc_cw >= CW_REVS * rev_angle:
+                            direction = 1
+                            data.ctrl[aid_crank] = 0.0
+                            settle_countdown = settle_steps
+                            rev_events.append((data.time, "CCW"))
+                            acc_ccw = acc_cw = 0.0; rpm_buf.clear()
 
         mujoco.mj_step(model, data)
 
         rpm_now  = float(data.qvel[vadr]) * 60.0 / (2.0 * math.pi)
         torq_now = float(data.actuator_force[aid_crank])
         fc_now   = _contact_force(model, data, bid_tablet)
+        prev_rpm = rpm_now   # for stall detection on next step
 
         t_log.append(data.time)
         rpm_log.append(rpm_now)

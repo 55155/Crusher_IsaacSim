@@ -14,6 +14,7 @@ Usage:
 """
 
 import os, sys, re, csv, math, argparse, xml.etree.ElementTree as ET
+from collections import deque
 from datetime import datetime
 
 import numpy as np
@@ -50,6 +51,15 @@ MOTOR_FORCELIM = 120.0
 VEL_KV_DEFAULT =  60.0
 CCW_REVS       =  1.0
 CW_REVS        =  1.0
+
+# ── Real-motor stall detection (mirrors Keyborad_control_v2.py) ───────
+# Real motor: rpm_buffer = deque(maxlen=5); stall when sum==0
+# Simulation: rpm_buf    = deque(maxlen=stall_window); stall when all < THR
+STALL_RPM_THR  =  1.0    # [RPM] below this = stalled
+STALL_TIME_S   =  0.5    # [s] sustained stall window (≈ 5 readings at real 10 Hz)
+# Real motor: time.sleep(0.5) between enable(0) and enable(1)
+# Simulation: run SETTLE_TIME_S with ctrl=0 before re-applying velocity cmd
+SETTLE_TIME_S  =  0.5    # [s] coast period after direction flip
 
 # ── Tablet ────────────────────────────────────────────────────────────
 DENSITY_DEFAULT  = 1200.0
@@ -209,6 +219,13 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
     acc_ccw = acc_cw = 0.0
     rev_events = []
 
+    # Stall / settle (mirrors Keyborad_control_v2.py deque logic)
+    stall_window     = max(1, int(round(STALL_TIME_S  / _dt)))
+    settle_steps     = max(1, int(round(SETTLE_TIME_S / _dt)))
+    rpm_buf          = deque(maxlen=stall_window)  # True = below threshold
+    settle_countdown = 0   # >0 while coasting (ctrl=0 between enable OFF/ON)
+    prev_rpm         = 0.0
+
     t_log = []; f_log = []; rpm_log = []; torq_log = []
 
     print(f"[Phase 2] Viewer open — motor starts at t+{MOTOR_DELAY}s")
@@ -257,35 +274,68 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
                 motor_on = True; motor_on_t = data.time
                 prev_ang = float(data.qpos[qadr])
                 acc_ccw = acc_cw = 0.0
+                rpm_buf.clear(); settle_countdown = 0
                 print(f"  *** Motor ON t={data.time:.2f}s  -> CCW {target_vel:.4f} rad/s ***")
 
-            # Angle-based reversal
             if motor_on:
-                cur_ang = float(data.qpos[qadr])
-                delta   = ((cur_ang - prev_ang) + math.pi) % (2*math.pi) - math.pi
-                prev_ang = cur_ang
-                if direction == 1:
-                    acc_ccw += max(delta, 0.0)
-                    if acc_ccw >= CCW_REVS * rev_angle:
-                        direction = -1
+                # ── Settle period: ctrl=0 (mirrors set_enable(0)→sleep→set_enable(1)) ──
+                if settle_countdown > 0:
+                    data.ctrl[aid_crank] = 0.0
+                    settle_countdown -= 1
+                    if settle_countdown == 0:
+                        # enable(1) equivalent — apply new direction velocity
                         data.ctrl[aid_crank] = direction * target_vel
-                        rev_events.append((data.time, "CW"))
-                        acc_ccw = acc_cw = 0.0
-                        print(f"  *** -> CW  t={data.time:.2f}s ***")
+                        rpm_buf.clear()
+                        dir_s = "CCW" if direction == 1 else "CW"
+                        print(f"  *** Settle done → {dir_s} ON  t={data.time:.2f}s ***")
                 else:
-                    acc_cw += max(-delta, 0.0)
-                    if acc_cw >= CW_REVS * rev_angle:
-                        direction = 1
-                        data.ctrl[aid_crank] = direction * target_vel
-                        rev_events.append((data.time, "CCW"))
+                    # ── Stall detection (mirrors: sum(rpm_buffer)==0 in real motor) ──
+                    rpm_buf.append(abs(prev_rpm) < STALL_RPM_THR)
+                    if len(rpm_buf) == stall_window and all(rpm_buf):
+                        # Stall → enable(0) → flip → settle → enable(1)
+                        direction = -direction
+                        data.ctrl[aid_crank] = 0.0          # enable OFF
+                        settle_countdown = settle_steps
                         acc_ccw = acc_cw = 0.0
-                        print(f"  *** -> CCW  t={data.time:.2f}s ***")
+                        rpm_buf.clear()
+                        dir_s = "CCW" if direction == 1 else "CW"
+                        rev_events.append((data.time, dir_s))
+                        print(f"  *** Stall → {dir_s} (settle {SETTLE_TIME_S:.1f}s)"
+                              f"  t={data.time:.2f}s ***")
+                    else:
+                        # ── Angle-based reversal (fallback: free-run without tablet) ──
+                        cur_ang = float(data.qpos[qadr])
+                        delta   = ((cur_ang - prev_ang) + math.pi) % (2*math.pi) - math.pi
+                        prev_ang = cur_ang
+                        if direction == 1:
+                            acc_ccw += max(delta, 0.0)
+                            if acc_ccw >= CCW_REVS * rev_angle:
+                                direction = -1
+                                data.ctrl[aid_crank] = 0.0   # enable OFF
+                                settle_countdown = settle_steps
+                                acc_ccw = acc_cw = 0.0
+                                rpm_buf.clear()
+                                rev_events.append((data.time, "CW"))
+                                print(f"  *** Angle→ CW (settle {SETTLE_TIME_S:.1f}s)"
+                                      f"  t={data.time:.2f}s ***")
+                        else:
+                            acc_cw += max(-delta, 0.0)
+                            if acc_cw >= CW_REVS * rev_angle:
+                                direction = 1
+                                data.ctrl[aid_crank] = 0.0   # enable OFF
+                                settle_countdown = settle_steps
+                                acc_ccw = acc_cw = 0.0
+                                rpm_buf.clear()
+                                rev_events.append((data.time, "CCW"))
+                                print(f"  *** Angle→ CCW (settle {SETTLE_TIME_S:.1f}s)"
+                                      f"  t={data.time:.2f}s ***")
 
             mujoco.mj_step(model, data)
 
             rpm_now  = float(data.qvel[vadr]) * 60.0 / (2.0 * math.pi)
             torq_now = float(data.actuator_force[aid_crank])
             fc_now   = _contact_force(model, data, bid_tablet)
+            prev_rpm = rpm_now   # used by stall detection on next step
 
             t_log.append(data.time)
             rpm_log.append(rpm_now)

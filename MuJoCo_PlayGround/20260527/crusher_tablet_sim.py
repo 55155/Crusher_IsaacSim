@@ -60,6 +60,8 @@ except AttributeError:
     _np_trapz = np.trapz
 import matplotlib
 import matplotlib.pyplot as plt
+plt.rcParams['font.family'] = 'Malgun Gothic'
+plt.rcParams['axes.unicode_minus'] = False
 import mujoco
 import mujoco.viewer
 
