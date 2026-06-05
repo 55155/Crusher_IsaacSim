@@ -47,8 +47,8 @@ PHASE1_STEPS   = 500
 SIM_DURATION   = 40.0
 MOTOR_DELAY    =  2.0
 TARGET_RPM     =  8.0
-MOTOR_FORCELIM = 120.0
-VEL_KV_DEFAULT =  60.0
+MOTOR_FORCELIM =  3.0   # [N·m] 실제 소형 모터 stall 토크 수준 (이전 120→ 진동 원인)
+VEL_KV_DEFAULT =  3.0   # [N·m·s/rad] kv×target_vel = stall 토크 ≈ 2.5 N·m (이전 60→ 과도한 게인)
 CCW_REVS       =  1.0
 CW_REVS        =  1.0
 
