@@ -3,14 +3,14 @@ crusher_velocity_ctrl.py  [velocity control — 8 RPM]
 Crusher + Tablet simulation
 
 Control:
-    motor -> velocity actuator  (8 RPM constant, torque auto-adjusts up to 3 N*m)
+    motor -> velocity actuator  (8 RPM constant, quasi-static, forcelim=12.5 N*m)
 
 Output (2 subplots):
     1. Crank speed [RPM] + Motor torque [N*m]
     2. Tablet reaction force F_Y [N]
 
 Usage:
-    python crusher_velocity_ctrl.py [tablet.stl] [--rpm 8] [--kv 3] [--density 1200]
+    python crusher_velocity_ctrl.py [tablet.stl] [--rpm 8] [--kv 14.9] [--density 1200]
 """
 
 import os, sys, re, csv, math, argparse, xml.etree.ElementTree as ET
@@ -47,10 +47,30 @@ PHASE1_STEPS   = 500
 SIM_DURATION   = 40.0
 MOTOR_DELAY    =  2.0
 TARGET_RPM     =  8.0
-MOTOR_FORCELIM =  3.0   # [N·m] 실제 소형 모터 stall 토크 수준 (이전 120→ 진동 원인)
-VEL_KV_DEFAULT =  3.0   # [N·m·s/rad] kv×target_vel = stall 토크 ≈ 2.5 N·m (이전 60→ 과도한 게인)
 CCW_REVS       =  1.0
 CW_REVS        =  1.0
+
+# ── Real motor: BL4281 + 감속기 1:212 (준정적 조건) ───────────────────
+GEAR_RATIO       = 212.0
+MOTOR_STALL_TORQ = 0.185           # [N·m]   BL4281 stall 토크
+MOTOR_NOLOAD_RPM = 5800.0          # [RPM]   무부하 속도
+MOTOR_INERTIA_KG = 72e-7           # [kg·m²] 로터 관성 (= 72 g·cm²)
+CRANK_R_M        = 0.020           # [m]     크랭크 반경 (2 cm)
+ROD_L_M          = 0.080           # [m]     커넥팅 로드 길이 (8 cm)
+
+# 크랭크 축 환산 관성: J_motor × n² → 준정적 수치 안정 조건 핵심
+# 안정 조건: kv·dt/J_eff = 14.9×0.002/0.3236 = 0.092 << 2  ✓
+_J_REFL = MOTOR_INERTIA_KG * GEAR_RATIO ** 2   # 7.2e-6 × 212² = 0.3236 kg·m²
+
+# 크랭크 출력 stall 토크 (실측 역산):
+#   실측 F ≈ 625 N,  r = 0.02 m
+#   τ = F·r = 625×0.02 = 12.5 N·m  (θ=90° 기준 — 최소 증폭 시 하한)
+#   암시 감속기 효율 = 12.5 / (0.185×212) ≈ 32%  (고감속비 특성)
+_TAU_STALL_CRANK = 12.5                                                # [N·m]
+
+MOTOR_FORCELIM  = _TAU_STALL_CRANK                                     # 12.5 N·m
+VEL_KV_DEFAULT  = _TAU_STALL_CRANK / (TARGET_RPM / 60.0 * 2 * math.pi)  # ≈ 14.9
+# 의미: kv × ω_target = stall 토크  ← 속도=0(stall)에서 정격 토크 공급
 
 # ── Real-motor stall detection (mirrors Keyborad_control_v2.py) ───────
 # Real motor: rpm_buffer = deque(maxlen=5); stall when sum==0
@@ -102,6 +122,18 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
     compiler.set("meshdir", MJCF_DIR)
     for kf in root.findall("keyframe"):
         root.remove(kf)
+
+    # ── 준정적 조건: 크랭크 body에 환산 관성(J_motor × n²) 주입 ──────────
+    # 환산 관성을 크랭크 body 에 더해 kv·dt/J_eff << 2 를 보장함
+    # (없으면 kv=14.9, J_crank≈4e-5 → ratio=745 >> 2 → 수치 발산)
+    for _body in root.iter("body"):
+        if _body.get("name") == "L4_Shaft_1":
+            _inert = _body.find("inertial")
+            if _inert is not None:
+                _di = [float(v) for v in _inert.get("diaginertia").split()]
+                _di = [v + _J_REFL for v in _di]
+                _inert.set("diaginertia", " ".join(f"{v:.6e}" for v in _di))
+            break
 
     # Replace motor -> velocity actuator
     act_sec = root.find("actuator")
@@ -490,7 +522,7 @@ if __name__ == "__main__":
             pass
 
     if not stl_path:
-        print("Usage: python crusher_velocity_ctrl.py <path>.stl [--rpm 8] [--kv 60]")
+        print("Usage: python crusher_velocity_ctrl.py <path>.stl [--rpm 8] [--kv 14.9]")
         sys.exit(0)
 
     stl_path = os.path.abspath(stl_path)
