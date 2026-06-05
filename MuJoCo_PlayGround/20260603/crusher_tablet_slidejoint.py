@@ -225,7 +225,8 @@ def _build_model(stl_path: str, R_mm: float, half_th: float,
 
 # ─────────────────────────────────────────────────────────────────────
 def _sum_contact_force(model, data, body_id) -> np.ndarray:
-    """body_id에 작용하는 접촉력 합 (world frame XYZ) [N]."""
+    """body_id에 작용하는 접촉력 합 (world frame XYZ) [N].
+    슬라이더 힘 + 벽 반력을 모두 더하므로 준정적 시 net ≈ 0."""
     f_total = np.zeros(3)
     force6  = np.zeros(6)
     for i in range(data.ncon):
@@ -241,6 +242,30 @@ def _sum_contact_force(model, data, body_id) -> np.ndarray:
             f_world = -f_world
         f_total += f_world
     return f_total
+
+
+def _wall_tablet_force_N(model, data, gid_wall: int, bid_tablet: int) -> float:
+    """
+    벽(L1_Wall1_1) ↔ 알약 접촉쌍만 분리한 법선 압축력 합 [N].
+
+    - 슬라이더·기타 접촉은 모두 제외
+    - force6[0] = 법선력 크기 (항상 ≥ 0, 압축 전용)
+    - 이 값 = 경도 시험기(Schleuniger 등)가 측정하는 파괴 하중과 동일한 물리량
+    - J = ∫F_wall dt > 0  (단일 접촉쌍 → 슬라이더 반력과 상쇄 없음)
+    """
+    total_N = 0.0
+    force6  = np.zeros(6)
+    for i in range(data.ncon):
+        c = data.contact[i]
+        is_wall_tab = (
+            (c.geom1 == gid_wall and model.geom_bodyid[c.geom2] == bid_tablet) or
+            (c.geom2 == gid_wall and model.geom_bodyid[c.geom1] == bid_tablet)
+        )
+        if not is_wall_tab:
+            continue
+        mujoco.mj_contactForce(model, data, i, force6)
+        total_N += force6[0]   # 법선 압축력 크기
+    return total_N
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -294,6 +319,8 @@ def run(stl_path: str,
         model, mujoco.mjtObj.mjOBJ_BODY,     "L8_Link3_Shaft_1")
     eq_lock_id  = mujoco.mj_name2id(
         model, mujoco.mjtObj.mjOBJ_EQUALITY, "lock_crank")
+    gid_wall    = mujoco.mj_name2id(
+        model, mujoco.mjtObj.mjOBJ_GEOM,     "L1_Wall1_1")   # 충돌판 벽 geom
 
     crank_qadr  = model.jnt_qposadr[crank_jid]
     crank_vadr  = model.jnt_dofadr[crank_jid]
@@ -340,10 +367,11 @@ def run(stl_path: str,
     rev_events       = []
 
     t_log        = []
-    f_log        = []
-    slide_disp   = []   # 알약 Y 변위 [m]
-    slide_vel_log= []   # 알약 Y 속도 [m/s]
-    vel_log      = []   # 크랭크 각속도
+    f_log        = []          # 알약 net 접촉력 (준정적 ≈ 0)
+    f_wall_log   = []          # 벽-알약 법선 압축력 (경도 시험기 측정값에 해당)
+    slide_disp   = []          # 알약 Y 변위 [m]
+    slide_vel_log= []          # 알약 Y 속도 [m/s]
+    vel_log      = []          # 크랭크 각속도
     dir_log      = []
     ncon_log     = []
     slider_y_log = []
@@ -361,12 +389,12 @@ def run(stl_path: str,
     fig_rt.suptitle(
         f"실시간 반력 / 알약 변위  [slide joint]  ρ={density_kg_m3:.0f} kg/m³",
         fontsize=10)
-    line_fy,   = axes_rt[0].plot([], [], color="tab:blue",   lw=1.5, label="F_Y [N]")
+    line_fy,   = axes_rt[0].plot([], [], color="tab:red",    lw=1.5, label="F_wall [N]  (벽-알약 압축력)")
     line_disp, = axes_rt[1].plot([], [], color="tab:orange", lw=1.5, label="Tablet 변위 [mm]")
     axes_rt[0].axhline(0, color="k", lw=0.5, ls="--")
     axes_rt[1].axhline(0, color="k", lw=0.5, ls="--")
-    axes_rt[0].set_ylabel("F_Y [N]");     axes_rt[0].legend(fontsize=9); axes_rt[0].grid(True, alpha=0.3)
-    axes_rt[1].set_ylabel("변위 [mm]");   axes_rt[1].legend(fontsize=9); axes_rt[1].grid(True, alpha=0.3)
+    axes_rt[0].set_ylabel("F_wall [N]"); axes_rt[0].legend(fontsize=9); axes_rt[0].grid(True, alpha=0.3)
+    axes_rt[1].set_ylabel("변위 [mm]");  axes_rt[1].legend(fontsize=9); axes_rt[1].grid(True, alpha=0.3)
     axes_rt[1].set_xlabel("Time [s]")
     fig_rt.tight_layout()
     fig_rt.canvas.draw()
@@ -428,10 +456,12 @@ def run(stl_path: str,
             omega   = float(data.qvel[crank_vadr])
             s_disp  = float(data.qpos[slide_qadr])   # 슬라이드 변위 [m]
             s_vel   = float(data.qvel[slide_vadr])
-            fc_now  = _sum_contact_force(model, data, b_tablet)
+            fc_now     = _sum_contact_force(model, data, b_tablet)
+            fw_now     = _wall_tablet_force_N(model, data, gid_wall, b_tablet)
 
             t_log.append(data.time)
             f_log.append(fc_now.copy())
+            f_wall_log.append(fw_now)
             slide_disp.append(s_disp)
             slide_vel_log.append(s_vel)
             vel_log.append(omega)
@@ -441,29 +471,22 @@ def run(stl_path: str,
             tablet_y_log.append(ty_now)
             gap_log.append(gap_mm)
 
-            if first_contact_t is None and data.ncon > 0:
-                for ci in range(data.ncon):
-                    c = data.contact[ci]
-                    if b_tablet in (model.geom_bodyid[c.geom1],
-                                    model.geom_bodyid[c.geom2]):
-                        first_contact_t = data.time
-                        print(f"  *** 첫 접촉: t={data.time:.3f}s  "
-                              f"F_Y={fc_now[1]:.2f}N  gap={gap_mm:.2f}mm  "
-                              f"disp={s_disp*1e3:.3f}mm ***")
-                        break
+            if first_contact_t is None and fw_now > 0.1:
+                first_contact_t = data.time
+                print(f"  *** 첫 벽-알약 접촉: t={data.time:.3f}s  "
+                      f"F_wall={fw_now:.2f}N  disp={s_disp*1e3:.3f}mm ***")
 
             if len(t_log) % 500 == 0:
                 dir_lbl = {1: "CCW", -1: "CW", 0: "---"}.get(motor_dir, "?")
                 print(f"  {data.time:6.2f}s | {sy*1e3:8.2f}   | "
                       f"{ty_now*1e3:8.2f}   | {gap_mm:6.2f}   | "
-                      f"{fc_now[1]:8.3f} | {s_disp*1e3:7.3f}   | {data.ncon:4d}"
+                      f"{fw_now:8.2f} | {s_disp*1e3:7.3f}   | {data.ncon:4d}"
                       f"  [{dir_lbl}]")
 
-            # 실시간 플롯 갱신
+            # 실시간 플롯 갱신 — F_wall (벽-알약 압축력) 표시
             if len(t_log) % RT_PLOT_INTERVAL == 0 and len(t_log) > 1:
-                fy_data   = [f[1] for f in f_log]
                 disp_data = [d * 1e3 for d in slide_disp]
-                line_fy.set_data(t_log, fy_data)
+                line_fy.set_data(t_log, f_wall_log)   # F_wall 로 교체
                 line_disp.set_data(t_log, disp_data)
                 for ax_ in axes_rt:
                     ax_.relim(); ax_.autoscale_view()
@@ -492,19 +515,25 @@ def run(stl_path: str,
         return
 
     t    = np.array(t_log)
-    fc   = np.array(f_log)
-    disp = np.array(slide_disp) * 1e3   # mm
-    svel = np.array(slide_vel_log)
-    vel  = np.array(vel_log)
-    sy   = np.array(slider_y_log) * 1e3
-    ty   = np.array(tablet_y_log) * 1e3
-    gap  = np.array(gap_log)
-    fc_mag = np.linalg.norm(fc, axis=1)
+    fc      = np.array(f_log)
+    f_wall  = np.array(f_wall_log)   # 벽-알약 압축력 [N], 항상 ≥ 0
+    disp    = np.array(slide_disp) * 1e3   # mm
+    svel    = np.array(slide_vel_log)
+    vel     = np.array(vel_log)
+    sy      = np.array(slider_y_log) * 1e3
+    ty      = np.array(tablet_y_log) * 1e3
+    gap     = np.array(gap_log)
+    fc_mag  = np.linalg.norm(fc, axis=1)
 
-    J_Y     = float(_np_trapz(fc[:, 1], t))
-    F_Y_max = float(fc[:, 1].max())
-    F_Y_min = float(fc[:, 1].min())
-    disp_max= float(disp.max())
+    # ── 핵심 지표 ──────────────────────────────────────────────────────
+    # F_wall: 벽-알약 접촉 법선력 (단일 contact pair → 상쇄 없음 → J > 0)
+    J_wall      = float(_np_trapz(f_wall, t))       # 실질 충격량 [N·s]
+    F_wall_max  = float(f_wall.max())               # 최대 압축력 (= 경도 지표)
+    # fc: 알약 net 접촉력 (슬라이더+벽 합산 → 준정적 ≈ 0, 참고용)
+    J_Y         = float(_np_trapz(fc[:, 1], t))
+    F_Y_max     = float(fc[:, 1].max())
+    F_Y_min     = float(fc[:, 1].min())
+    disp_max    = float(disp.max())
 
     print(f"\n  {'='*66}")
     print(f"  수집      : {len(t)} steps  ({t[-1]:.2f} s)")
@@ -512,9 +541,12 @@ def run(stl_path: str,
     print(f"  Tablet Y  : {ty.min():.1f} ~ {ty.max():.1f} mm")
     print(f"  Slide 변위: {disp.min():.3f} ~ {disp.max():.3f} mm  (+ = 벽 방향)")
     print(f"  Min gap   : {gap.min():.2f} mm  (<0 = 관통)")
+    print(f"  ── 벽-알약 접촉 (단일 contact pair) ──")
+    print(f"  F_wall max: {F_wall_max:.3f} N  ← 경도 지표 (파괴 하중 대응)")
+    print(f"  J_wall    : {J_wall:.5f} N·s  ← 실질 충격량 (> 0 보장)")
+    print(f"  ── net 접촉력 (참고, 준정적 ≈ 0) ──")
     print(f"  F_Y range : {F_Y_min:.3f} ~ {F_Y_max:.3f} N")
-    print(f"  |F| max   : {fc_mag.max():.3f} N")
-    print(f"  Impulse   : {J_Y:.5f} N·s")
+    print(f"  J_Y (net) : {J_Y:.5f} N·s")
     print(f"  방향 전환 : {len(rev_events)} 회")
     if first_contact_t:
         print(f"  첫 접촉   : t = {first_contact_t:.3f} s")
@@ -551,19 +583,36 @@ def run(stl_path: str,
     axes1[2].legend(fontsize=8); axes1[2].grid(True, alpha=0.3)
     fig1.tight_layout()
 
-    # 그림 2: 반력 + 임펄스
-    fig2, axes2 = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
-    fig2.suptitle(f"Contact Force F_Y — {title_base}", fontsize=9, fontweight="bold")
-    axes2[0].plot(t, fc[:, 1], color="tab:blue", lw=1.5, label="F_Y [N]")
-    axes2[0].fill_between(t, 0, fc[:, 1], where=(fc[:, 1] > 0), alpha=0.12, color="tab:blue", label="압축")
-    axes2[0].fill_between(t, 0, fc[:, 1], where=(fc[:, 1] < 0), alpha=0.12, color="tab:red",  label="인장")
-    _vlines(axes2[0]); axes2[0].set_ylabel("F_Y [N]")
-    axes2[0].set_title(f"max={F_Y_max:.3f} N  min={F_Y_min:.3f} N")
+    # 그림 2: 벽-알약 압축력 + 누적 충격량
+    fig2, axes2 = plt.subplots(3, 1, figsize=(11, 9), sharex=True)
+    fig2.suptitle(f"Wall-Tablet Contact Force — {title_base}", fontsize=9, fontweight="bold")
+
+    # 2-0: 벽-알약 압축력 (단일 contact pair, 항상 ≥ 0)
+    axes2[0].plot(t, f_wall, color="tab:red", lw=1.5,
+                  label=f"F_wall [N]  (max={F_wall_max:.2f} N)")
+    axes2[0].fill_between(t, 0, f_wall, alpha=0.15, color="tab:red")
+    _vlines(axes2[0]); axes2[0].set_ylabel("F_wall [N]")
+    axes2[0].set_title(f"벽-알약 압축력  (경도 시험기 측정값)  max = {F_wall_max:.2f} N",
+                       fontsize=9)
     axes2[0].legend(fontsize=8); axes2[0].grid(True, alpha=0.3)
-    J_cumul = np.cumsum(fc[:, 1]) * float(model.opt.timestep)
-    axes2[1].plot(t, J_cumul, color="tab:green", lw=1.5,
-                  label=f"J_Y = {J_Y:.4f} N·s")
-    _vlines(axes2[1]); axes2[1].set_ylabel("J_Y [N·s]"); axes2[1].set_xlabel("Time [s]")
+
+    # 2-1: net F_Y (참고용, ≈ 0)
+    axes2[1].plot(t, fc[:, 1], color="tab:blue", lw=1.0, alpha=0.7, label="net F_Y [N]  (참고)")
+    axes2[1].fill_between(t, 0, fc[:, 1], where=(fc[:, 1] > 0), alpha=0.10, color="tab:blue", label="압축")
+    axes2[1].fill_between(t, 0, fc[:, 1], where=(fc[:, 1] < 0), alpha=0.10, color="tab:red",  label="인장")
+    _vlines(axes2[1]); axes2[1].set_ylabel("net F_Y [N]")
+    axes2[1].set_title(f"알약 합력 (슬라이더+벽 합산, 준정적 ≈ 0)  net_J={J_Y:.4f} N·s",
+                       fontsize=9)
+    axes2[1].legend(fontsize=8); axes2[1].grid(True, alpha=0.3)
+
+    # 2-2: 누적 충격량
+    dt_sim = float(model.opt.timestep)
+    J_wall_cumul = np.cumsum(f_wall) * dt_sim
+    axes2[2].plot(t, J_wall_cumul, color="tab:red",   lw=1.5,
+                  label=f"J_wall = {J_wall:.4f} N·s")
+    axes2[2].plot(t, np.cumsum(fc[:, 1]) * dt_sim, color="tab:blue", lw=1.0,
+                  ls="--", alpha=0.6, label=f"J_net  = {J_Y:.4f} N·s  (참고)")
+    _vlines(axes2[2]); axes2[2].set_ylabel("Impulse [N·s]"); axes2[2].set_xlabel("Time [s]")
     axes2[1].legend(fontsize=8); axes2[1].grid(True, alpha=0.3)
     fig2.tight_layout()
 
