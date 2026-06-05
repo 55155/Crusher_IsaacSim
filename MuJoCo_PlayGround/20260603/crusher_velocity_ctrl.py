@@ -3,14 +3,14 @@ crusher_velocity_ctrl.py  [velocity control — 8 RPM]
 Crusher + Tablet simulation
 
 Control:
-    motor -> velocity actuator  (8 RPM constant, torque auto-adjusts up to 120 N*m)
+    motor -> velocity actuator  (8 RPM constant, torque auto-adjusts up to 3 N*m)
 
 Output (2 subplots):
     1. Crank speed [RPM] + Motor torque [N*m]
     2. Tablet reaction force F_Y [N]
 
 Usage:
-    python crusher_velocity_ctrl.py [tablet.stl] [--rpm 8] [--kv 60] [--density 1200]
+    python crusher_velocity_ctrl.py [tablet.stl] [--rpm 8] [--kv 3] [--density 1200]
 """
 
 import os, sys, re, csv, math, argparse, xml.etree.ElementTree as ET
