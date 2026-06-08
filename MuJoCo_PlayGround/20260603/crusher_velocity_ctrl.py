@@ -123,17 +123,16 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
     for kf in root.findall("keyframe"):
         root.remove(kf)
 
-    # ── 준정적 조건: 크랭크 body에 환산 관성(J_motor × n²) 주입 ──────────
-    # 환산 관성을 크랭크 body 에 더해 kv·dt/J_eff << 2 를 보장함
-    # (없으면 kv=14.9, J_crank≈4e-5 → ratio=745 >> 2 → 수치 발산)
-    for _body in root.iter("body"):
-        if _body.get("name") == "L4_Shaft_1":
-            _inert = _body.find("inertial")
-            if _inert is not None:
-                _di = [float(v) for v in _inert.get("diaginertia").split()]
-                _di = [v + _J_REFL for v in _di]
-                _inert.set("diaginertia", " ".join(f"{v:.6e}" for v in _di))
-            break
+    # ── 준정적 조건: implicitfast 적분기 적용 ─────────────────────────────
+    # velocity actuator 는 explicit Euler 에서 kv·dt/J_eff < 2 를 요구하나,
+    # 기구학 유효 관성이 너무 작아 kv=14.9 로 이 조건을 만족할 수 없음.
+    # (kv·dt/J_mech ≈ 193 >> 2)
+    # implicitfast: velocity/position actuator 힘을 암묵적으로 선형화
+    # → kv 크기 제약 없이 안정 보장, J_REFL body 주입 불필요.
+    opt = root.find("option")
+    if opt is None:
+        opt = ET.Element("option"); root.insert(0, opt)
+    opt.set("integrator", "implicitfast")
 
     # Replace motor -> velocity actuator
     act_sec = root.find("actuator")
