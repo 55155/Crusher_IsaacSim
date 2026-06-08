@@ -1,30 +1,14 @@
-# ── STL 바이너리 파일 (대용량, 재생성 가능) ──────────────────────────
-tablets_stl/stl/*.stl
-tablets_stl/collision/*.stl
+﻿# Claude Code local settings
+.claude/
 
-# ── Python 캐시 ──────────────────────────────────────────────────────
+# TabletCrusher is a separate git repository
+TabletCrusher/
+
+# Python cache
 __pycache__/
 *.py[cod]
 *.pyo
 
-# ── 가상환경 ─────────────────────────────────────────────────────────
-.venv/
-venv/
-env/
-
-# ── IDE / OS ─────────────────────────────────────────────────────────
-.vscode/
-.idea/
-*.DS_Store
+# OS
+.DS_Store
 Thumbs.db
-
-# ── MuJoCo 임시 파일 ─────────────────────────────────────────────────
-MUJOCO_LOG.TXT
-MuJoCo_PlayGround/render_*.png
-MuJoCo_PlayGround/visual_*.png
-
-# ── Claude 워크트리 ───────────────────────────────────────────────────
-.claude/worktrees/
-
-# ── 자동생성 코드 그래프 ──────────────────────────────────────────────
-.codegraph/
