@@ -66,7 +66,7 @@ DENSITY          = 1200.0
 DENSITY_REF_SOFT = 900.0
 DENSITY_REF_HARD = 1800.0
 SOLREF_TAU_SOFT  = 0.020
-SOLREF_TAU_HARD  = 0.002
+SOLREF_TAU_HARD  = 0.001
 
 _s       = math.sqrt(2.0) / 2.0
 _TAB_QUAT = [_s, 0.0, _s, 0.0]
@@ -141,7 +141,7 @@ def _build_model(stl_path, half_th, y_offset_mm, density=DENSITY):
         "condim":   "4",
         "friction": ".5 .02 .01",
         "solref":   f"{tau:.6f} 1",
-        "solimp":   f"0.99 {dimp_max:.4f} 0.0001",
+        "solimp":   f"0.90 {dimp_max:.4f} 0.001",
     })
 
     xml_str   = ET.tostring(root, encoding="unicode")

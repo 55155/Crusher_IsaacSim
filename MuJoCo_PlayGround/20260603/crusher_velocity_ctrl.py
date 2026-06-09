@@ -74,9 +74,12 @@ VEL_KV_DEFAULT  = _TAU_STALL_CRANK / (TARGET_RPM / 60.0 * 2 * math.pi)  # ≈ 14
 
 # ── Real-motor stall detection (mirrors Keyborad_control_v2.py) ───────
 # Real motor: rpm_buffer = deque(maxlen=5); stall when sum==0
-# Simulation: rpm_buf    = deque(maxlen=stall_window); stall when all < THR
-STALL_RPM_THR  =  1.0    # [RPM] below this = stalled
-STALL_TIME_S   =  0.5    # [s] sustained stall window (≈ 5 readings at real 10 Hz)
+# Simulation: angle-progress based — velocity actuator oscillates ±37 RPM when
+#             blocked (RPM never drops to 0), so RPM threshold is unreliable.
+#             Instead: if net crank progress in commanded direction < STALL_ANG_DEG
+#             over STALL_TIME_S, treat as stall.
+STALL_ANG_DEG  =  5.0    # [deg] min forward progress in STALL_TIME_S to avoid stall
+STALL_TIME_S   =  0.5    # [s] observation window
 # Real motor: time.sleep(0.5) between enable(0) and enable(1)
 # Simulation: run SETTLE_TIME_S with ctrl=0 before re-applying velocity cmd
 SETTLE_TIME_S  =  0.5    # [s] coast period after direction flip
@@ -84,7 +87,7 @@ SETTLE_TIME_S  =  0.5    # [s] coast period after direction flip
 # ── Tablet ────────────────────────────────────────────────────────────
 DENSITY_DEFAULT  = 1200.0
 DENSITY_REF_SOFT = 900.0;  DENSITY_REF_HARD = 1800.0
-SOLREF_TAU_SOFT  = 0.020;  SOLREF_TAU_HARD  = 0.002
+SOLREF_TAU_SOFT  = 0.020;  SOLREF_TAU_HARD  = 0.001
 _s = math.sqrt(2.0) / 2.0
 TAB_QUAT = np.array([_s, 0.0, _s, 0.0])
 
@@ -164,7 +167,7 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
         "material": "tablet_mat", "density": f"{density_kg_m3:.1f}",
         "condim": "4", "friction": ".5 .02 .01",
         "solref": f"{tau:.6f} 1",
-        "solimp": f"0.99 {dimp_max:.4f} 0.0001",
+        "solimp": f"0.90 {dimp_max:.4f} 0.001",
     })
 
     xml_str   = ET.tostring(root, encoding="unicode")
@@ -250,10 +253,10 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
     acc_ccw = acc_cw = 0.0
     rev_events = []
 
-    # Stall / settle (mirrors Keyborad_control_v2.py deque logic)
+    # Stall / settle
     stall_window     = max(1, int(round(STALL_TIME_S  / _dt)))
     settle_steps     = max(1, int(round(SETTLE_TIME_S / _dt)))
-    rpm_buf          = deque(maxlen=stall_window)  # True = below threshold
+    angle_buf        = deque(maxlen=stall_window)  # crank angle history [rad]
     settle_countdown = 0   # >0 while coasting (ctrl=0 between enable OFF/ON)
     prev_rpm         = 0.0
 
@@ -305,7 +308,7 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
                 motor_on = True; motor_on_t = data.time
                 prev_ang = float(data.qpos[qadr])
                 acc_ccw = acc_cw = 0.0
-                rpm_buf.clear(); settle_countdown = 0
+                angle_buf.clear(); settle_countdown = 0
                 print(f"  *** Motor ON t={data.time:.2f}s  -> CCW {target_vel:.4f} rad/s ***")
 
             if motor_on:
@@ -316,19 +319,30 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
                     if settle_countdown == 0:
                         # enable(1) equivalent — apply new direction velocity
                         data.ctrl[aid_crank] = direction * target_vel
-                        rpm_buf.clear()
+                        angle_buf.clear()
                         dir_s = "CCW" if direction == 1 else "CW"
                         print(f"  *** Settle done → {dir_s} ON  t={data.time:.2f}s ***")
                 else:
-                    # ── Stall detection (mirrors: sum(rpm_buffer)==0 in real motor) ──
-                    rpm_buf.append(abs(prev_rpm) < STALL_RPM_THR)
-                    if len(rpm_buf) == stall_window and all(rpm_buf):
+                    # ── Stall detection: angle-progress based ──────────────────
+                    # velocity actuator oscillates ±RPM when blocked → |RPM| never
+                    # drops near 0. Use net crank progress in commanded direction.
+                    angle_buf.append(float(data.qpos[qadr]))
+                    stall_detected = False
+                    if len(angle_buf) == stall_window:
+                        raw_delta = angle_buf[-1] - angle_buf[0]
+                        # wrap to [-π, π]
+                        raw_delta = (raw_delta + math.pi) % (2 * math.pi) - math.pi
+                        net_progress = direction * raw_delta   # positive = forward
+                        if net_progress < math.radians(STALL_ANG_DEG):
+                            stall_detected = True
+
+                    if stall_detected:
                         # Stall → enable(0) → flip → settle → enable(1)
                         direction = -direction
                         data.ctrl[aid_crank] = 0.0          # enable OFF
                         settle_countdown = settle_steps
                         acc_ccw = acc_cw = 0.0
-                        rpm_buf.clear()
+                        angle_buf.clear()
                         dir_s = "CCW" if direction == 1 else "CW"
                         rev_events.append((data.time, dir_s))
                         print(f"  *** Stall → {dir_s} (settle {SETTLE_TIME_S:.1f}s)"
@@ -345,7 +359,7 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
                                 data.ctrl[aid_crank] = 0.0   # enable OFF
                                 settle_countdown = settle_steps
                                 acc_ccw = acc_cw = 0.0
-                                rpm_buf.clear()
+                                angle_buf.clear()
                                 rev_events.append((data.time, "CW"))
                                 print(f"  *** Angle→ CW (settle {SETTLE_TIME_S:.1f}s)"
                                       f"  t={data.time:.2f}s ***")
@@ -356,7 +370,7 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
                                 data.ctrl[aid_crank] = 0.0   # enable OFF
                                 settle_countdown = settle_steps
                                 acc_ccw = acc_cw = 0.0
-                                rpm_buf.clear()
+                                angle_buf.clear()
                                 rev_events.append((data.time, "CCW"))
                                 print(f"  *** Angle→ CCW (settle {SETTLE_TIME_S:.1f}s)"
                                       f"  t={data.time:.2f}s ***")

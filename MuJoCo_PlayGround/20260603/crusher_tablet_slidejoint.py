@@ -99,7 +99,7 @@ TAB_QUAT_STR = f"{_s:.7f} 0.0000000 {_s:.7f} 0.0000000"
 DENSITY_REF_SOFT  = 900.0
 DENSITY_REF_HARD  = 1800.0
 SOLREF_TAU_SOFT   = 0.020
-SOLREF_TAU_HARD   = 0.002
+SOLREF_TAU_HARD   = 0.001
 DENSITY_DEFAULT   = 1200.0
 BICONVEX_VOL_FACTOR = 0.82
 
@@ -155,7 +155,7 @@ def _build_model(stl_path: str, R_mm: float, half_th: float,
                                [DENSITY_REF_SOFT, DENSITY_REF_HARD],
                                [0.950, 0.999]))
     solref_str = f"{tau:.6f} 1"
-    solimp_str = f"0.99 {dimp_max:.4f} 0.0001"
+    solimp_str = f"0.90 {dimp_max:.4f} 0.001"
 
     center_y_mm = WALL_Y_MM - half_th
     print(f"  배치 [mm] : X={PLACE_X_MM:.3f}  Y_center={center_y_mm:.3f}  Z={PLACE_Z_MM:.3f}")

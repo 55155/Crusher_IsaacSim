@@ -49,7 +49,7 @@ STALL_TIME_S   =  0.5    # [s]  sustained stall window
 SETTLE_TIME_S  =  0.5    # [s]  ctrl=0 coast after flip (mirrors time.sleep(0.5))
 
 DENSITY_REF_SOFT = 900.0;   DENSITY_REF_HARD = 1800.0
-SOLREF_TAU_SOFT  = 0.020;   SOLREF_TAU_HARD  = 0.002
+SOLREF_TAU_SOFT  = 0.020;   SOLREF_TAU_HARD  = 0.001
 
 PLACE_X_MM = -47.879
 PLACE_Z_MM =  50.108
@@ -127,7 +127,7 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
         "material": "tablet_mat", "density": f"{density_kg_m3:.1f}",
         "condim": "4", "friction": ".5 .02 .01",
         "solref": f"{tau:.6f} 1",
-        "solimp": f"0.99 {dimp_max:.4f} 0.0001",
+        "solimp": f"0.90 {dimp_max:.4f} 0.001",
     })
 
     xml_str   = ET.tostring(root, encoding="unicode")

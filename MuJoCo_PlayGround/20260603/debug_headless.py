@@ -47,7 +47,7 @@ VEL_KV_DEFAULT   = _TAU_STALL_CRANK / (TARGET_RPM / 60.0 * 2 * math.pi)
 
 DENSITY_DEFAULT  = 1200.0
 DENSITY_REF_SOFT = 900.0;  DENSITY_REF_HARD = 1800.0
-SOLREF_TAU_SOFT  = 0.020;  SOLREF_TAU_HARD  = 0.002
+SOLREF_TAU_SOFT  = 0.020;  SOLREF_TAU_HARD  = 0.001
 _s = math.sqrt(2.0) / 2.0
 TAB_QUAT = np.array([_s, 0.0, _s, 0.0])
 
@@ -121,7 +121,7 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
         "material": "tablet_mat", "density": f"{density_kg_m3:.1f}",
         "condim": "4", "friction": ".5 .02 .01",
         "solref": f"{tau:.6f} 1",
-        "solimp": f"0.99 {dimp_max:.4f} 0.0001",
+        "solimp": f"0.90 {dimp_max:.4f} 0.001",
     })
 
     xml_str   = ET.tostring(root, encoding="unicode")
@@ -206,9 +206,9 @@ def run_diag(stl_path, kv=VEL_KV_DEFAULT, target_rpm=TARGET_RPM,
     motor_on   = False
     direction  = 1
     step_count = 0
-    STALL_THR  = 1.0   # RPM
-    stall_buf  = []
+    STALL_ANG_DEG = 5.0   # [deg] min forward progress in window to avoid stall
     STALL_WIN  = max(1, int(round(0.5 / dt)))
+    angle_buf  = []       # crank angle history for progress-based stall detection
     settle_cd  = 0
 
     total_steps = int(duration / dt)
@@ -234,28 +234,33 @@ def run_diag(stl_path, kv=VEL_KV_DEFAULT, target_rpm=TARGET_RPM,
             direction = 1
             data.ctrl[aid_crank] = direction * target_vel
             motor_on = True
-            stall_buf.clear(); settle_cd = 0
+            angle_buf.clear(); settle_cd = 0
             print(f"\n  *** Motor ON  t={t:.2f}s → {direction*target_vel:+.4f} rad/s ***\n")
 
         if motor_on:
-            curr_rpm = abs(data.qvel[vadr]) * 60.0 / (2 * math.pi)
             if settle_cd > 0:
                 data.ctrl[aid_crank] = 0.0
                 settle_cd -= 1
                 if settle_cd == 0:
                     data.ctrl[aid_crank] = direction * target_vel
-                    stall_buf.clear()
+                    angle_buf.clear()
                     print(f"  *** Settle 완료 → direction={direction} t={t:.2f}s ***")
             else:
-                stall_buf.append(curr_rpm < STALL_THR)
-                if len(stall_buf) > STALL_WIN:
-                    stall_buf.pop(0)
-                if len(stall_buf) == STALL_WIN and all(stall_buf):
-                    direction = -direction
-                    data.ctrl[aid_crank] = 0.0
-                    settle_cd = max(1, int(round(0.5 / dt)))
-                    stall_buf.clear()
-                    print(f"  *** STALL 감지 → direction={direction}  t={t:.2f}s ***")
+                # angle-progress stall detection: velocity actuator oscillates ±RPM
+                # when blocked so |RPM| never drops near 0 — use net crank progress instead
+                angle_buf.append(float(data.qpos[qadr]))
+                if len(angle_buf) > STALL_WIN:
+                    angle_buf.pop(0)
+                if len(angle_buf) == STALL_WIN:
+                    raw_delta = angle_buf[-1] - angle_buf[0]
+                    raw_delta = (raw_delta + math.pi) % (2 * math.pi) - math.pi
+                    net_progress = direction * raw_delta
+                    if net_progress < math.radians(STALL_ANG_DEG):
+                        direction = -direction
+                        data.ctrl[aid_crank] = 0.0
+                        settle_cd = max(1, int(round(0.5 / dt)))
+                        angle_buf.clear()
+                        print(f"  *** STALL 감지 → direction={direction}  t={t:.2f}s ***")
 
         # ── 변수 수집 ─────────────────────────────────────────────────
         crank_deg  = math.degrees(data.qpos[qadr])
