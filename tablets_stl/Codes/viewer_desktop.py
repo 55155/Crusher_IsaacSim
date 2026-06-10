@@ -162,6 +162,7 @@ class TabletViewer(QMainWindow):
         self.resize(1280, 760)
         self._first_load    = True   # 최초 1회만 카메라 리셋
         self._last_density  = None   # 무게 입력으로 계산된 밀도 (Crusher 전달용)
+        self._sim_proc      = None   # 실행 중인 시뮬레이션 프로세스
         self._setup_palette()
         self._build_ui()
         self._update()
@@ -396,10 +397,16 @@ class TabletViewer(QMainWindow):
         self.btn_mujoco.clicked.connect(self._launch_mujoco)
         pl.addWidget(self.btn_mujoco)
 
-        # ── Crusher 시뮬레이션 버튼 ──────────────────────────────
-        self.btn_crusher = QPushButton("⚙  Crusher 시뮬레이션")
-        self.btn_crusher.setEnabled(False)
-        self.btn_crusher.setStyleSheet(f"""
+        # ── Crusher 시뮬레이션 버튼 (헤드리스 + 뷰어) ───────────
+        crusher_row = QWidget()
+        crusher_row.setStyleSheet("background:transparent;")
+        crusher_rl = QHBoxLayout(crusher_row)
+        crusher_rl.setContentsMargins(0, 0, 0, 0)
+        crusher_rl.setSpacing(6)
+
+        self.btn_crusher_hl = QPushButton("▶  Headless")
+        self.btn_crusher_hl.setEnabled(False)
+        self.btn_crusher_hl.setStyleSheet(f"""
             QPushButton {{
                 background: #6e40c9;
                 color: white;
@@ -413,8 +420,48 @@ class TabletViewer(QMainWindow):
             QPushButton:pressed  {{ background: #553098; }}
             QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
         """)
-        self.btn_crusher.clicked.connect(self._launch_crusher_sim)
-        pl.addWidget(self.btn_crusher)
+        self.btn_crusher_hl.clicked.connect(lambda: self._launch_crusher_sim("headless"))
+
+        self.btn_crusher_vw = QPushButton("▶  Viewer")
+        self.btn_crusher_vw.setEnabled(False)
+        self.btn_crusher_vw.setStyleSheet(f"""
+            QPushButton {{
+                background: #1a7f37;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 9px;
+                font-size: 12px;
+                font-weight: 700;
+            }}
+            QPushButton:hover    {{ background: #2ea043; }}
+            QPushButton:pressed  {{ background: #116329; }}
+            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+        """)
+        self.btn_crusher_vw.clicked.connect(lambda: self._launch_crusher_sim("viewer"))
+
+        crusher_rl.addWidget(self.btn_crusher_hl)
+        crusher_rl.addWidget(self.btn_crusher_vw)
+        pl.addWidget(crusher_row)
+
+        self.btn_stop = QPushButton("■  시뮬레이션 중지")
+        self.btn_stop.setEnabled(False)
+        self.btn_stop.setStyleSheet(f"""
+            QPushButton {{
+                background: #b91c1c;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 12px;
+                font-weight: 700;
+            }}
+            QPushButton:hover    {{ background: #dc2626; }}
+            QPushButton:pressed  {{ background: #991b1b; }}
+            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+        """)
+        self.btn_stop.clicked.connect(self._stop_crusher_sim)
+        pl.addWidget(self.btn_stop)
 
         self.lbl_mujoco = QLabel("")
         self.lbl_mujoco.setStyleSheet(f"color:{C_MUTED}; font-size:10px; background:transparent;")
@@ -697,7 +744,8 @@ class TabletViewer(QMainWindow):
             self.lbl_status.setText("✗ 파일 없음 — STL을 먼저 생성하세요")
             self.lbl_status.setStyleSheet("color:#f85149; font-size:11px; background:transparent;")
             self.btn_mujoco.setEnabled(False)
-            self.btn_crusher.setEnabled(False)
+            self.btn_crusher_hl.setEnabled(False)
+            self.btn_crusher_vw.setEnabled(False)
             self.plotter.render()
             return
 
@@ -746,7 +794,8 @@ class TabletViewer(QMainWindow):
                 "color:#3fb950; font-size:11px; background:transparent;"
             )
             self.btn_mujoco.setEnabled(True)
-            self.btn_crusher.setEnabled(True)
+            self.btn_crusher_hl.setEnabled(True)
+            self.btn_crusher_vw.setEnabled(True)
             self.lbl_mujoco.setText("")
         except Exception as e:
             self.lbl_status.setText(f"✗ 오류: {e}")
@@ -754,7 +803,8 @@ class TabletViewer(QMainWindow):
                 "color:#f85149; font-size:11px; background:transparent;"
             )
             self.btn_mujoco.setEnabled(False)
-            self.btn_crusher.setEnabled(False)
+            self.btn_crusher_hl.setEnabled(False)
+            self.btn_crusher_vw.setEnabled(False)
 
     # ── 볼록 분해 ─────────────────────────────────────────────────
     def _run_decomposition(self):
@@ -902,19 +952,27 @@ class TabletViewer(QMainWindow):
         )
 
     # ── Crusher 시뮬레이션 실행 (velocity control) ────────────────────
-    def _launch_crusher_sim(self):
+    def _launch_crusher_sim(self, mode="headless"):
         fpath = os.path.join(STL_DIR, self.lbl_fname.text())
         if not os.path.exists(fpath):
             self.lbl_mujoco.setText("✗ STL 파일 없음")
             return
 
+        script_name = (
+            "crusher_velocity_ctrl.py"
+            if mode == "headless"
+            else "crusher_velocity_ctrl_viewer.py"
+        )
         sim_script = os.path.normpath(
             os.path.join(_HERE, "..", "..",
-                         "MuJoCo_PlayGround", "20260603", "crusher_velocity_ctrl.py")
+                         "MuJoCo_PlayGround", "20260603", script_name)
         )
         if not os.path.exists(sim_script):
-            self.lbl_mujoco.setText("✗ crusher_velocity_ctrl.py 없음")
+            self.lbl_mujoco.setText(f"✗ {script_name} 없음")
             return
+
+        # 이미 실행 중인 프로세스가 있으면 먼저 종료
+        self._stop_crusher_sim(silent=True)
 
         import platform
         kwargs = {}
@@ -925,20 +983,48 @@ class TabletViewer(QMainWindow):
         if self._last_density is not None:
             cmd += ["--density", f"{self._last_density:.2f}"]
 
-        subprocess.Popen(cmd, **kwargs)
+        self._sim_proc = subprocess.Popen(cmd, **kwargs)
 
+        # 실행 중 버튼 상태 갱신
+        self.btn_crusher_hl.setEnabled(False)
+        self.btn_crusher_vw.setEnabled(False)
+        self.btn_stop.setEnabled(True)
+
+        label_mode = "Headless" if mode == "headless" else "Viewer"
         if self._last_density is not None:
             tau = _density_to_tau(self._last_density)
             self.lbl_mujoco.setText(
-                f"✓ 8 RPM 속도제어  ρ={self._last_density:.0f} kg/m³  τ={tau:.4f}s"
+                f"✓ [{label_mode}]  ρ={self._last_density:.0f} kg/m³  τ={tau:.4f}s"
             )
         else:
-            self.lbl_mujoco.setText("✓ Crusher 시뮬레이션 실행 중… (8 RPM)")
+            self.lbl_mujoco.setText(f"✓ [{label_mode}] Crusher 시뮬레이션 실행 중…")
         self.lbl_mujoco.setStyleSheet(
             "color:#a371f7; font-size:10px; background:transparent;"
         )
 
+    # ── Crusher 시뮬레이션 중지 ───────────────────────────────────────
+    def _stop_crusher_sim(self, silent=False):
+        if self._sim_proc is not None:
+            try:
+                self._sim_proc.terminate()
+            except Exception:
+                pass
+            self._sim_proc = None
+
+        # STL 로드 여부에 따라 실행 버튼 복원
+        stl_ok = os.path.exists(os.path.join(STL_DIR, self.lbl_fname.text()))
+        self.btn_crusher_hl.setEnabled(stl_ok)
+        self.btn_crusher_vw.setEnabled(stl_ok)
+        self.btn_stop.setEnabled(False)
+
+        if not silent:
+            self.lbl_mujoco.setText("■ 시뮬레이션 중지됨")
+            self.lbl_mujoco.setStyleSheet(
+                "color:#f78166; font-size:10px; background:transparent;"
+            )
+
     def closeEvent(self, event):
+        self._stop_crusher_sim(silent=True)
         self.plotter.close()
         super().closeEvent(event)
 

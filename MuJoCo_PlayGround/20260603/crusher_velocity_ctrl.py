@@ -119,10 +119,6 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
     ET.SubElement(tab, "geom", {
         "name": "tablet_geom", "type": "mesh", "mesh": "tablet_mesh",
         "material": "tablet_mat", "density": f"{density_kg_m3:.1f}",
-        "condim": "3", "friction": ".5 .02 .01",
-        "solref": "0.001 2",
-        "solimp": "0.99 0.999 0.001",
-        "margin": "0.001",
     })
 
     xml_str   = ET.tostring(root, encoding="unicode")
