@@ -6,7 +6,7 @@ Control:
     motor -> velocity actuator  (8 RPM constant, quasi-static, forcelim=12.5 N*m)
 
 Output (2 subplots):
-    1. Crank speed [RPM] + Motor torque [N*m]
+    1. Crank speed [RPM]
     2. Tablet reaction force F_Y [N]
 
 Usage:
@@ -83,11 +83,11 @@ STALL_TIME_S   =  0.5    # [s] observation window
 # Real motor: time.sleep(0.5) between enable(0) and enable(1)
 # Simulation: run SETTLE_TIME_S with ctrl=0 before re-applying velocity cmd
 SETTLE_TIME_S  =  0.5    # [s] coast period after direction flip
+STALL_DWELL_S  =  3.0    # [s] hold at stall before reversing
+COOLDOWN_S     =  2.0    # [s] stall-detection cooldown after new direction applied
 
 # ── Tablet ────────────────────────────────────────────────────────────
 DENSITY_DEFAULT  = 1200.0
-DENSITY_REF_SOFT = 900.0;  DENSITY_REF_HARD = 1800.0
-SOLREF_TAU_SOFT  = 0.020;  SOLREF_TAU_HARD  = 0.001
 _s = math.sqrt(2.0) / 2.0
 TAB_QUAT = np.array([_s, 0.0, _s, 0.0])
 
@@ -99,22 +99,10 @@ def _parse_params(fname):
     return (float(m.group(1)), float(m.group(2)), float(m.group(3))) if m else (None, None, None)
 
 
-def _density_tau(rho):
-    rho   = float(np.clip(rho, DENSITY_REF_SOFT, DENSITY_REF_HARD))
-    alpha = math.log(SOLREF_TAU_HARD / SOLREF_TAU_SOFT) / \
-            math.log(DENSITY_REF_HARD / DENSITY_REF_SOFT)
-    return float(np.clip(SOLREF_TAU_SOFT * (DENSITY_REF_SOFT / rho) ** alpha,
-                         SOLREF_TAU_HARD, SOLREF_TAU_SOFT))
-
-
 def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
     pos_x = PLACE_X_MM * 1e-3
     pos_z = PLACE_Z_MM * 1e-3
     pos_y = (WALL_Y_MM - half_th) * 1e-3
-
-    tau      = _density_tau(density_kg_m3)
-    dimp_max = float(np.interp(density_kg_m3,
-                               [DENSITY_REF_SOFT, DENSITY_REF_HARD], [0.950, 0.999]))
 
     tree = ET.parse(MJCF_PATH)
     root = tree.getroot()
@@ -136,6 +124,7 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
     if opt is None:
         opt = ET.Element("option"); root.insert(0, opt)
     opt.set("integrator", "implicitfast")
+    opt.set("timestep",   "0.001")
 
     # Replace motor -> velocity actuator
     act_sec = root.find("actuator")
@@ -165,9 +154,10 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
     ET.SubElement(tab, "geom", {
         "name": "tablet_geom", "type": "mesh", "mesh": "tablet_mesh",
         "material": "tablet_mat", "density": f"{density_kg_m3:.1f}",
-        "condim": "4", "friction": ".5 .02 .01",
-        "solref": f"{tau:.6f} 1",
-        "solimp": f"0.90 {dimp_max:.4f} 0.001",
+        "condim": "3", "friction": ".5 .02 .01",
+        "solref": "0.001 2",
+        "solimp": "0.99 0.999 0.001",
+        "margin": "0.001",
     })
 
     xml_str   = ET.tostring(root, encoding="unicode")
@@ -254,13 +244,17 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
     rev_events = []
 
     # Stall / settle
-    stall_window     = max(1, int(round(STALL_TIME_S  / _dt)))
-    settle_steps     = max(1, int(round(SETTLE_TIME_S / _dt)))
-    angle_buf        = deque(maxlen=stall_window)  # crank angle history [rad]
-    settle_countdown = 0   # >0 while coasting (ctrl=0 between enable OFF/ON)
-    prev_rpm         = 0.0
+    stall_window          = max(1, int(round(STALL_TIME_S  / _dt)))
+    settle_steps          = max(1, int(round(SETTLE_TIME_S / _dt)))
+    dwell_steps           = max(1, int(round(STALL_DWELL_S / _dt)))
+    cooldown_steps        = max(1, int(round(COOLDOWN_S    / _dt)))
+    angle_buf             = deque(maxlen=stall_window)
+    settle_countdown      = 0
+    stall_dwell_countdown = 0
+    cooldown_countdown    = 0
+    prev_rpm              = 0.0
 
-    t_log = []; f_log = []; rpm_log = []; torq_log = []
+    t_log = []; f_log = []; rpm_log = []; torq_log = []; ang_log = []
 
     print(f"[Phase 2] Viewer open — motor starts at t+{MOTOR_DELAY}s")
     print(f"  {'Time':>6s} | {'RPM':>7s} | {'Torque':>8s} N*m | {'F_Y':>8s} N | {'ncon':>4s}")
@@ -273,16 +267,20 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
                  fontsize=11, fontweight="bold")
 
     line_rpm,   = ax1.plot([], [], color="tab:purple", lw=1.5, label="Crank speed [RPM]")
-    line_torq,  = ax1.plot([], [], color="tab:orange", lw=1.2, ls="--", alpha=0.8,
-                            label="Motor torque [N*m]")
     ax1.axhline( target_rpm, color="tab:purple", ls=":", lw=1.0, alpha=0.5,
                  label=f"Target {target_rpm} RPM")
     ax1.axhline(-target_rpm, color="tab:purple", ls=":", lw=1.0, alpha=0.5)
-    ax1.axhline( MOTOR_FORCELIM, color="tab:orange", ls=":", lw=0.8, alpha=0.5)
-    ax1.axhline(-MOTOR_FORCELIM, color="tab:orange", ls=":", lw=0.8, alpha=0.5)
     ax1.axhline(0, color="gray", lw=0.5)
-    ax1.set_ylabel("RPM  /  N*m")
-    ax1.legend(fontsize=9); ax1.grid(True, alpha=0.3)
+    ax1.set_ylabel("RPM")
+    ax1b = ax1.twinx()
+    line_ang, = ax1b.plot([], [], color="tab:green", lw=1.0, ls="-.", alpha=0.75,
+                           label="Crank angle [°]")
+    ax1b.set_ylabel("Crank angle [°]", color="tab:green")
+    ax1b.tick_params(axis='y', labelcolor='tab:green')
+    _l1, _lb1 = ax1.get_legend_handles_labels()
+    _l2, _lb2 = ax1b.get_legend_handles_labels()
+    ax1.legend(_l1 + _l2, _lb1 + _lb2, fontsize=9)
+    ax1.grid(True, alpha=0.3)
 
     line_fy,  = ax2.plot([], [], color="tab:blue", lw=1.5, label="Tablet F_Y [N]")
     ax2.axhline(0, color="k", lw=0.5)
@@ -312,80 +310,83 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
                 print(f"  *** Motor ON t={data.time:.2f}s  -> CCW {target_vel:.4f} rad/s ***")
 
             if motor_on:
-                # ── Settle period: ctrl=0 (mirrors set_enable(0)→sleep→set_enable(1)) ──
                 if settle_countdown > 0:
                     data.ctrl[aid_crank] = 0.0
                     settle_countdown -= 1
                     if settle_countdown == 0:
-                        # enable(1) equivalent — apply new direction velocity
                         data.ctrl[aid_crank] = direction * target_vel
+                        cooldown_countdown = cooldown_steps
                         angle_buf.clear()
+                        prev_ang = float(data.qpos[qadr])
                         dir_s = "CCW" if direction == 1 else "CW"
                         print(f"  *** Settle done → {dir_s} ON  t={data.time:.2f}s ***")
-                else:
-                    # ── Stall detection: angle-progress based ──────────────────
-                    # velocity actuator oscillates ±RPM when blocked → |RPM| never
-                    # drops near 0. Use net crank progress in commanded direction.
-                    angle_buf.append(float(data.qpos[qadr]))
-                    stall_detected = False
-                    if len(angle_buf) == stall_window:
-                        raw_delta = angle_buf[-1] - angle_buf[0]
-                        # wrap to [-π, π]
-                        raw_delta = (raw_delta + math.pi) % (2 * math.pi) - math.pi
-                        net_progress = direction * raw_delta   # positive = forward
-                        if net_progress < math.radians(STALL_ANG_DEG):
-                            stall_detected = True
-
-                    if stall_detected:
-                        # Stall → enable(0) → flip → settle → enable(1)
+                elif stall_dwell_countdown > 0:
+                    # Keep pushing; wait for dwell window before reversing
+                    stall_dwell_countdown -= 1
+                    if stall_dwell_countdown == 0:
                         direction = -direction
-                        data.ctrl[aid_crank] = 0.0          # enable OFF
+                        data.ctrl[aid_crank] = 0.0
                         settle_countdown = settle_steps
                         acc_ccw = acc_cw = 0.0
                         angle_buf.clear()
                         dir_s = "CCW" if direction == 1 else "CW"
                         rev_events.append((data.time, dir_s))
-                        print(f"  *** Stall → {dir_s} (settle {SETTLE_TIME_S:.1f}s)"
+                        print(f"  *** Dwell done → {dir_s} (settle {SETTLE_TIME_S:.1f}s)"
                               f"  t={data.time:.2f}s ***")
+                else:
+                    if cooldown_countdown > 0:
+                        cooldown_countdown -= 1
                     else:
-                        # ── Angle-based reversal (fallback: free-run without tablet) ──
-                        cur_ang = float(data.qpos[qadr])
-                        delta   = ((cur_ang - prev_ang) + math.pi) % (2*math.pi) - math.pi
-                        prev_ang = cur_ang
-                        if direction == 1:
-                            acc_ccw += max(delta, 0.0)
-                            if acc_ccw >= CCW_REVS * rev_angle:
-                                direction = -1
-                                data.ctrl[aid_crank] = 0.0   # enable OFF
-                                settle_countdown = settle_steps
-                                acc_ccw = acc_cw = 0.0
-                                angle_buf.clear()
-                                rev_events.append((data.time, "CW"))
-                                print(f"  *** Angle→ CW (settle {SETTLE_TIME_S:.1f}s)"
+                        angle_buf.append(float(data.qpos[qadr]))
+                        if len(angle_buf) == stall_window:
+                            raw_delta = angle_buf[-1] - angle_buf[0]
+                            raw_delta = (raw_delta + math.pi) % (2 * math.pi) - math.pi
+                            net_progress = direction * raw_delta
+                            if net_progress < math.radians(STALL_ANG_DEG):
+                                stall_dwell_countdown = dwell_steps
+                                print(f"  *** Stall detected → dwell {STALL_DWELL_S:.1f}s"
                                       f"  t={data.time:.2f}s ***")
-                        else:
-                            acc_cw += max(-delta, 0.0)
-                            if acc_cw >= CW_REVS * rev_angle:
-                                direction = 1
-                                data.ctrl[aid_crank] = 0.0   # enable OFF
-                                settle_countdown = settle_steps
-                                acc_ccw = acc_cw = 0.0
-                                angle_buf.clear()
-                                rev_events.append((data.time, "CCW"))
-                                print(f"  *** Angle→ CCW (settle {SETTLE_TIME_S:.1f}s)"
-                                      f"  t={data.time:.2f}s ***")
+
+                    # Angle-based reversal (fallback: free-run without tablet)
+                    cur_ang = float(data.qpos[qadr])
+                    delta   = ((cur_ang - prev_ang) + math.pi) % (2*math.pi) - math.pi
+                    prev_ang = cur_ang
+                    if direction == 1:
+                        acc_ccw += max(delta, 0.0)
+                        if acc_ccw >= CCW_REVS * rev_angle:
+                            direction = -1
+                            data.ctrl[aid_crank] = 0.0
+                            settle_countdown = settle_steps
+                            acc_ccw = acc_cw = 0.0
+                            angle_buf.clear()
+                            rev_events.append((data.time, "CW"))
+                            print(f"  *** Angle→ CW (settle {SETTLE_TIME_S:.1f}s)"
+                                  f"  t={data.time:.2f}s ***")
+                    else:
+                        acc_cw += max(-delta, 0.0)
+                        if acc_cw >= CW_REVS * rev_angle:
+                            direction = 1
+                            data.ctrl[aid_crank] = 0.0
+                            settle_countdown = settle_steps
+                            acc_ccw = acc_cw = 0.0
+                            angle_buf.clear()
+                            rev_events.append((data.time, "CCW"))
+                            print(f"  *** Angle→ CCW (settle {SETTLE_TIME_S:.1f}s)"
+                                  f"  t={data.time:.2f}s ***")
 
             mujoco.mj_step(model, data)
 
             rpm_now  = float(data.qvel[vadr]) * 60.0 / (2.0 * math.pi)
             torq_now = float(data.actuator_force[aid_crank])
             fc_now   = _contact_force(model, data, bid_tablet)
+            ang_now  = math.degrees(data.qpos[qadr])
             prev_rpm = rpm_now   # used by stall detection on next step
 
             t_log.append(data.time)
             rpm_log.append(rpm_now)
             torq_log.append(torq_now)
             f_log.append(fc_now.copy())
+            ang_log.append(ang_now)
 
             if len(t_log) % 500 == 0:
                 dir_s = "CCW" if direction == 1 else "CW"
@@ -394,10 +395,10 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
 
             # Realtime plot update
             if len(t_log) % 20 == 0 and len(t_log) > 1:
-                line_rpm.set_data(t_log,  rpm_log)
-                line_torq.set_data(t_log, torq_log)
-                line_fy.set_data(t_log,   [f[1] for f in f_log])
-                for ax in (ax1, ax2):
+                line_rpm.set_data(t_log, rpm_log)
+                line_ang.set_data(t_log, ang_log)
+                line_fy.set_data(t_log,  [f[1] for f in f_log])
+                for ax in (ax1, ax1b, ax2):
                     ax.relim(); ax.autoscale_view()
                 for vl in _vlines:
                     try: vl.remove()
@@ -451,20 +452,24 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
         for ev_t, ev_dir in rev_events:
             ax_.axvline(ev_t, color="tab:red", ls=":", lw=1.0, label=f"-> {ev_dir}")
 
-    # Subplot 1: RPM + Torque
-    ax_a.plot(t, rpm,  color="tab:purple", lw=1.8, label="Crank speed [RPM]")
-    ax_a.plot(t, torq, color="tab:orange", lw=1.2, ls="--", alpha=0.85,
-              label="Motor torque [N*m]")
-    ax_a.axhline( target_rpm,      color="tab:purple", ls=":",  lw=1.0, alpha=0.5,
+    # Subplot 1: RPM + Crank angle
+    ang = np.array(ang_log)
+    ax_a.plot(t, rpm, color="tab:purple", lw=1.8, label="Crank speed [RPM]")
+    ax_a.axhline( target_rpm, color="tab:purple", ls=":", lw=1.0, alpha=0.5,
                   label=f"Target {target_rpm} RPM")
-    ax_a.axhline(-target_rpm,      color="tab:purple", ls=":",  lw=1.0, alpha=0.5)
-    ax_a.axhline( MOTOR_FORCELIM,  color="tab:orange", ls=":",  lw=0.8, alpha=0.4)
-    ax_a.axhline(-MOTOR_FORCELIM,  color="tab:orange", ls=":",  lw=0.8, alpha=0.4)
+    ax_a.axhline(-target_rpm, color="tab:purple", ls=":", lw=1.0, alpha=0.5)
     ax_a.axhline(0, color="gray", lw=0.5)
     _add_vlines(ax_a)
-    ax_a.set_ylabel("RPM  /  N*m", fontsize=11)
-    ax_a.set_title("Crank Speed & Motor Torque", fontsize=10)
-    ax_a.legend(fontsize=9, loc="upper right"); ax_a.grid(True, alpha=0.3)
+    ax_a.set_ylabel("RPM", fontsize=11)
+    ax_aa = ax_a.twinx()
+    ax_aa.plot(t, ang, color="tab:green", lw=1.0, ls="-.", alpha=0.7, label="Crank angle [°]")
+    ax_aa.set_ylabel("Crank angle [°]", color="tab:green", fontsize=11)
+    ax_aa.tick_params(axis='y', labelcolor='tab:green')
+    _la, _lba = ax_a.get_legend_handles_labels()
+    _laa, _lbaa = ax_aa.get_legend_handles_labels()
+    ax_a.legend(_la + _laa, _lba + _lbaa, fontsize=9, loc="upper right")
+    ax_a.set_title("Crank Speed & Angle", fontsize=10)
+    ax_a.grid(True, alpha=0.3)
 
     # Subplot 2: Tablet F_Y
     ax_b.plot(t, fc[:, 1], color="tab:blue", lw=1.8, label="Tablet F_Y [N]")
