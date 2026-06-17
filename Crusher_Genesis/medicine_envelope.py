@@ -1,35 +1,41 @@
 """
 Fusion 360 Python API Script
-약봉투 (Korean Medicine Envelope) Solid Model
+약봉투 (Medicine Envelope) — Surface Model for Genesis PBD
 
-형태:
-  - 직사각형 납작 파우치 바디
-  - 상단: 삼각형 접힘 플랩 (fold-over flap) — 약봉투 특유의 뾰족한 상단
-  - 좌/우: 사이드 실링 (약간 두꺼운 띠)
-  - 하단: 바텀 실링
+구조 (5개 Surface Body):
 
-사용법: Fusion 360 > Tools > Add-Ins > Scripts > 이 파일 실행
+      상단 개방 (open top)
+   ┌──────────────────┐
+   │   Front_Panel    │  ← Z = 0      (앞면)
+   │                  │
+   └──────────────────┘
+        ↕ BAG_DEPTH
+   ┌──────────────────┐
+   │   Back_Panel     │  ← Z = BAG_DEPTH  (뒷면)
+   │                  │
+   └──────────────────┘
+
+   + Left_Seal   : X = 0         (좌측 면)
+   + Right_Seal  : X = BAG_WIDTH (우측 면)
+   + Bottom_Seal : Y = 0         (하단 면)
+
+Genesis PBD 용도:
+  각 Surface Body → Triangle Mesh → Particle + Distance Constraint
+  실링 엣지 = 인접 패널 공유 엣지 → 시뮬레이션 내 Weld Constraint
+
+사용법: Fusion 360 > Tools > Add-Ins > Scripts > medicine_envelope > Run
 """
 
 import adsk.core
 import adsk.fusion
-import math
 import traceback
 
 # ─────────────────────────────────────────────
 #  파라미터 (단위: cm)
 # ─────────────────────────────────────────────
-BAG_WIDTH    = 8.0    # 봉투 폭
-BAG_HEIGHT   = 12.0   # 봉투 높이 (플랩 포함)
-BAG_THICK    = 0.15   # 봉투 바디 두께 (비닐/종이 2겹)
-
-SEAL_SIDE_W  = 0.5    # 좌우 실링 폭
-SEAL_BTM_H   = 0.5    # 하단 실링 높이
-SEAL_EXTRA   = 0.04   # 실링부 추가 두께
-
-FLAP_HEIGHT  = 2.5    # 상단 플랩 높이 (접히는 부분 세로 길이)
-# 플랩은 상단 중앙이 뾰족한 삼각형 형태로 접힘
-# 플랩 피크(꼭짓점)의 X 오프셋 = 중앙(BAG_WIDTH/2)
+BAG_WIDTH  = 8.0   # 봉투 폭   (X 방향)
+BAG_HEIGHT = 12.0  # 봉투 높이 (Y 방향)
+BAG_DEPTH  = 1.0   # 내부 깊이 (Z 방향, 내용물 공간)
 # ─────────────────────────────────────────────
 
 
@@ -37,13 +43,30 @@ def pt(x, y, z=0.0):
     return adsk.core.Point3D.create(x, y, z)
 
 
-def extrude_profile(comp, profile, depth,
-                    operation=adsk.fusion.FeatureOperations.NewBodyFeatureOperation):
-    feat_input = comp.features.extrudeFeatures.createInput(profile, operation)
-    feat_input.setDistanceExtent(
-        False, adsk.core.ValueInput.createByReal(depth)
+def make_rect_patch(root, plane, corners, name):
+    """
+    corners: [p0, p1, p2, p3] — 사각형 꼭짓점 (3D 좌표, 순서대로)
+    지정 평면에 사각형 서피스 패치를 생성하고 name 을 부여한다.
+    """
+    sk = root.sketches.add(plane)
+    ls = sk.sketchCurves.sketchLines
+    for i in range(4):
+        ls.addByTwoPoints(corners[i], corners[(i + 1) % 4])
+
+    patch_in = root.features.patchFeatures.createInput(
+        sk.profiles.item(0),
+        adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
     )
-    return comp.features.extrudeFeatures.add(feat_input)
+    feat = root.features.patchFeatures.add(patch_in)
+    feat.bodies.item(0).name = name
+    return feat
+
+
+def offset_plane(root, base_plane, offset_cm):
+    """base_plane 에서 offset_cm 만큼 이동한 construction plane 반환."""
+    pi = root.constructionPlanes.createInput()
+    pi.setByOffset(base_plane, adsk.core.ValueInput.createByReal(offset_cm))
+    return root.constructionPlanes.add(pi)
 
 
 def run(context):
@@ -53,109 +76,56 @@ def run(context):
         ui     = app.userInterface
         design = adsk.fusion.Design.cast(app.activeProduct)
         root   = design.rootComponent
-        xy     = root.xYConstructionPlane
 
-        NewBody = adsk.fusion.FeatureOperations.NewBodyFeatureOperation
-        Join    = adsk.fusion.FeatureOperations.JoinFeatureOperation
+        W = BAG_WIDTH
+        H = BAG_HEIGHT
+        D = BAG_DEPTH
 
-        # ──────────────────────────────────────────────────
-        #  1. 바디 하단부: 직사각형 메인 파우치
-        #     Y = 0 (바닥 실링 하단) ~ BAG_HEIGHT - FLAP_HEIGHT (플랩 시작)
-        # ──────────────────────────────────────────────────
-        body_top = BAG_HEIGHT - FLAP_HEIGHT
+        xy = root.xYConstructionPlane   # Z = 0  (앞면 기준)
+        xz = root.xZConstructionPlane   # Y = 0  (하단 실링 기준)
+        yz = root.yZConstructionPlane   # X = 0  (좌측 실링 기준)
 
-        sk_body = root.sketches.add(xy)
-        lines_b = sk_body.sketchCurves.sketchLines
-        lines_b.addByTwoPoints(pt(0,         0       ), pt(BAG_WIDTH, 0       ))
-        lines_b.addByTwoPoints(pt(BAG_WIDTH, 0       ), pt(BAG_WIDTH, body_top))
-        lines_b.addByTwoPoints(pt(BAG_WIDTH, body_top), pt(0,         body_top))
-        lines_b.addByTwoPoints(pt(0,         body_top), pt(0,         0       ))
+        # ── 1. 앞면 패널  Front_Panel  (XY, Z=0) ────────────────
+        make_rect_patch(root, xy,
+            [pt(0,0,0), pt(W,0,0), pt(W,H,0), pt(0,H,0)],
+            "Front_Panel")
 
-        feat_body = extrude_profile(root, sk_body.profiles.item(0), BAG_THICK, NewBody)
-        feat_body.bodies.item(0).name = "Bag_Body"
+        # ── 2. 뒷면 패널  Back_Panel   (XY 오프셋, Z=D) ─────────
+        back_plane = offset_plane(root, xy, D)
+        back_plane.name = "Back_Plane"
+        make_rect_patch(root, back_plane,
+            [pt(0,0,D), pt(W,0,D), pt(W,H,D), pt(0,H,D)],
+            "Back_Panel")
 
-        # ──────────────────────────────────────────────────
-        #  2. 상단 플랩: 사다리꼴 + 삼각형 조합
-        #
-        #  플랩 형태 (약봉투 특유의 접힘):
-        #
-        #         (cx, BAG_HEIGHT)  ← 꼭짓점 (중앙 최상단)
-        #               /\
-        #              /  \
-        #  (0, body_top)──(BAG_WIDTH, body_top)
-        #
-        #  삼각형 프로파일로 플랩을 표현
-        # ──────────────────────────────────────────────────
-        cx = BAG_WIDTH / 2.0
+        # ── 3. 하단 실링  Bottom_Seal  (XZ, Y=0) ────────────────
+        make_rect_patch(root, xz,
+            [pt(0,0,0), pt(W,0,0), pt(W,0,D), pt(0,0,D)],
+            "Bottom_Seal")
 
-        sk_flap = root.sketches.add(xy)
-        lines_f = sk_flap.sketchCurves.sketchLines
-        lines_f.addByTwoPoints(pt(0,         body_top    ), pt(BAG_WIDTH, body_top    ))
-        lines_f.addByTwoPoints(pt(BAG_WIDTH, body_top    ), pt(cx,        BAG_HEIGHT  ))
-        lines_f.addByTwoPoints(pt(cx,        BAG_HEIGHT  ), pt(0,         body_top    ))
+        # ── 4. 좌측 실링  Left_Seal    (YZ, X=0) ────────────────
+        make_rect_patch(root, yz,
+            [pt(0,0,0), pt(0,H,0), pt(0,H,D), pt(0,0,D)],
+            "Left_Seal")
 
-        feat_flap = extrude_profile(root, sk_flap.profiles.item(0), BAG_THICK, Join)
-
-        # ──────────────────────────────────────────────────
-        #  3. 좌측 실링 (바디 부분만, 플랩 제외)
-        # ──────────────────────────────────────────────────
-        sk_sl = root.sketches.add(xy)
-        lines_sl = sk_sl.sketchCurves.sketchLines
-        lines_sl.addByTwoPoints(pt(0,            0       ), pt(SEAL_SIDE_W, 0       ))
-        lines_sl.addByTwoPoints(pt(SEAL_SIDE_W,  0       ), pt(SEAL_SIDE_W, body_top))
-        lines_sl.addByTwoPoints(pt(SEAL_SIDE_W,  body_top), pt(0,           body_top))
-        lines_sl.addByTwoPoints(pt(0,            body_top), pt(0,           0       ))
-
-        extrude_profile(root, sk_sl.profiles.item(0), BAG_THICK + SEAL_EXTRA, Join)
-
-        # ──────────────────────────────────────────────────
-        #  4. 우측 실링
-        # ──────────────────────────────────────────────────
-        rx = BAG_WIDTH - SEAL_SIDE_W
-        sk_sr = root.sketches.add(xy)
-        lines_sr = sk_sr.sketchCurves.sketchLines
-        lines_sr.addByTwoPoints(pt(rx,        0       ), pt(BAG_WIDTH, 0       ))
-        lines_sr.addByTwoPoints(pt(BAG_WIDTH, 0       ), pt(BAG_WIDTH, body_top))
-        lines_sr.addByTwoPoints(pt(BAG_WIDTH, body_top), pt(rx,        body_top))
-        lines_sr.addByTwoPoints(pt(rx,        body_top), pt(rx,        0       ))
-
-        extrude_profile(root, sk_sr.profiles.item(0), BAG_THICK + SEAL_EXTRA, Join)
-
-        # ──────────────────────────────────────────────────
-        #  5. 하단 실링
-        # ──────────────────────────────────────────────────
-        sk_sb = root.sketches.add(xy)
-        lines_sb = sk_sb.sketchCurves.sketchLines
-        lines_sb.addByTwoPoints(pt(0,         0          ), pt(BAG_WIDTH, 0          ))
-        lines_sb.addByTwoPoints(pt(BAG_WIDTH, 0          ), pt(BAG_WIDTH, SEAL_BTM_H ))
-        lines_sb.addByTwoPoints(pt(BAG_WIDTH, SEAL_BTM_H ), pt(0,         SEAL_BTM_H ))
-        lines_sb.addByTwoPoints(pt(0,         SEAL_BTM_H ), pt(0,         0          ))
-
-        extrude_profile(root, sk_sb.profiles.item(0), BAG_THICK + SEAL_EXTRA, Join)
-
-        # ──────────────────────────────────────────────────
-        #  6. 참조 스케치 — 실링 경계선
-        # ──────────────────────────────────────────────────
-        sk_ref = root.sketches.add(xy)
-        ref = sk_ref.sketchCurves.sketchLines
-        # 좌측 실링 경계
-        ref.addByTwoPoints(pt(SEAL_SIDE_W, 0       ), pt(SEAL_SIDE_W, body_top))
-        # 우측 실링 경계
-        ref.addByTwoPoints(pt(rx,          0       ), pt(rx,          body_top))
-        # 하단 실링 경계
-        ref.addByTwoPoints(pt(0,           SEAL_BTM_H), pt(BAG_WIDTH, SEAL_BTM_H))
-        # 플랩 시작선
-        ref.addByTwoPoints(pt(0,           body_top), pt(BAG_WIDTH, body_top))
-        sk_ref.name = "Seal_Reference_Lines"
+        # ── 5. 우측 실링  Right_Seal   (YZ 오프셋, X=W) ─────────
+        right_plane = offset_plane(root, yz, W)
+        right_plane.name = "Right_Plane"
+        make_rect_patch(root, right_plane,
+            [pt(W,0,0), pt(W,H,0), pt(W,H,D), pt(W,0,D)],
+            "Right_Seal")
 
         ui.messageBox(
-            "약봉투 모델링 완료!\n\n"
-            f"폭      : {BAG_WIDTH} cm\n"
-            f"전체높이 : {BAG_HEIGHT} cm\n"
-            f"바디높이 : {body_top:.2f} cm\n"
-            f"플랩높이 : {FLAP_HEIGHT} cm\n"
-            f"봉투두께 : {BAG_THICK} cm\n"
-            f"실링폭   : 좌우 {SEAL_SIDE_W} cm / 하단 {SEAL_BTM_H} cm"
+            "약봉투 Surface 모델링 완료!\n\n"
+            f"폭      : {W} cm  (X)\n"
+            f"높이    : {H} cm  (Y)\n"
+            f"내부깊이: {D} cm  (Z)\n"
+            f"상단    : 개방 (open)\n\n"
+            "Surface Bodies:\n"
+            "  · Front_Panel   Z = 0\n"
+            "  · Back_Panel    Z = D\n"
+            "  · Left_Seal     X = 0\n"
+            "  · Right_Seal    X = W\n"
+            "  · Bottom_Seal   Y = 0"
         )
 
     except Exception:
