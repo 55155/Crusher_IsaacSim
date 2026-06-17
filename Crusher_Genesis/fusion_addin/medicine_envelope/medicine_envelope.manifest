@@ -1,0 +1,11 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "engine": "Python",
+  "author": "simuser",
+  "description": "약봉투 Surface Model 생성 Add-In. 파라미터 입력 후 앞/뒤/좌/우/하단 5개 Surface Patch를 자동 생성합니다.",
+  "helpUrl": "",
+  "id": "medicine_envelope_addin",
+  "supportedOS": "windows|mac",
+  "version": "1.0"
+}
