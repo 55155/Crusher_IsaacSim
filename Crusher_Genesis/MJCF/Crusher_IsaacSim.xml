@@ -1,0 +1,119 @@
+<mujoco model="Crusher_IsaacSim">
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="base_link" content_type="model/stl" file="base_link.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L1_Slider_jig_1" content_type="model/stl" file="L1_Slider_jig_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L1_Braket1_1" content_type="model/stl" file="L1_Braket1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L1_Wall1_1" content_type="model/stl" file="L1_Wall1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L1_Guide2_1" content_type="model/stl" file="L1_Guide2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L1_Guide1_1" content_type="model/stl" file="L1_Guide1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L2_Braket2_1" content_type="model/stl" file="L2_Braket2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L3_Bevel_GearBox_1" content_type="model/stl" file="L3_Bevel_GearBox_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L4_Bevel_GearBox2_1" content_type="model/stl" file="L4_Bevel_GearBox2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L4_Motor1_RearBearing_1" content_type="model/stl" file="L4_Motor1_RearBearing_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L5_Motor1_RearSnapring_1" content_type="model/stl" file="L5_Motor1_RearSnapring_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L4_Motor1_FrontBearing_1" content_type="model/stl" file="L4_Motor1_FrontBearing_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L5_Motor1_FrontSnapring_1" content_type="model/stl" file="L5_Motor1_FrontSnapring_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L4_Shaft_1" content_type="model/stl" file="L4_Shaft_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L5_Key_1" content_type="model/stl" file="L5_Key_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L5_Link1_1" content_type="model/stl" file="L5_Link1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L6_Link2_1" content_type="model/stl" file="L6_Link2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L7_Link3_1" content_type="model/stl" file="L7_Link3_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L8_Link3_Shaft_1" content_type="model/stl" file="L8_Link3_Shaft_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L9_PLATE_v3_1" content_type="model/stl" file="L9_PLATE_v3_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L2_Linear_bush_1" content_type="model/stl" file="L2_Linear_bush_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L2_Wall3_1" content_type="model/stl" file="L2_Wall3_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L2_GearCase2_1" content_type="model/stl" file="L2_GearCase2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L2_GearCase3_1" content_type="model/stl" file="L2_GearCase3_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L2__Motor2_Braket_1" content_type="model/stl" file="L2__Motor2_Braket_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L3_Motor2_1" content_type="model/stl" file="L3_Motor2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L4_Motor2_Shaft_1" content_type="model/stl" file="L4_Motor2_Shaft_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L5_Coupler_1" content_type="model/stl" file="L5_Coupler_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L6_DcutShaft_1" content_type="model/stl" file="L6_DcutShaft_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L7_Holder_Bearing2_1" content_type="model/stl" file="L7_Holder_Bearing2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L7_Holder_Bearing1_1" content_type="model/stl" file="L7_Holder_Bearing1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L2_Left_Wall1_1" content_type="model/stl" file="L2_Left_Wall1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L4_Reducer1_1" content_type="model/stl" file="L4_Reducer1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L5_Reducer2_1" content_type="model/stl" file="L5_Reducer2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L6_Motor1_Bolt_1" content_type="model/stl" file="L6_Motor1_Bolt_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L6_Motor1_Braket_1" content_type="model/stl" file="L6_Motor1_Braket_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L7_Motor1_Body_1" content_type="model/stl" file="L7_Motor1_Body_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L1_Wall2_1" content_type="model/stl" file="L1_Wall2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L3_GearCase1_1" content_type="model/stl" file="L3_GearCase1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L7_SpurGear_1" content_type="model/stl" file="L7_SpurGear_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L3_RackGear_1" content_type="model/stl" file="L3_RackGear_1.stl" scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="base_link"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L1_Slider_jig_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L2_Linear_bush_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L1_Braket1_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L2_Braket2_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L3_Bevel_GearBox_1"/>
+    <geom quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L4_Bevel_GearBox2_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L4_Motor1_RearBearing_1"/>
+    <geom quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L5_Motor1_RearSnapring_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L4_Motor1_FrontBearing_1"/>
+    <geom quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L5_Motor1_FrontSnapring_1"/>
+    <geom quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L4_Reducer1_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L5_Reducer2_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L6_Motor1_Bolt_1"/>
+    <geom quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L6_Motor1_Braket_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L7_Motor1_Body_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L1_Wall1_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L2_GearCase3_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L2__Motor2_Braket_1"/>
+    <geom quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L3_Motor2_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L1_Guide2_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L1_Guide1_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L1_Wall2_1"/>
+    <geom quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L2_Wall3_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L2_GearCase2_1"/>
+    <geom pos="0 0 0" quat="0.5 0.5 0.5 0.5" type="mesh" mesh="L3_GearCase1_1"/>
+    <body name="L4_Shaft_1" pos="-0.062002 0.085278 0.049431" quat="0.5 0.5 0.5 0.5">
+      <inertial pos="0.0147839 2.14782e-07 -0.0135426" quat="0.672419 0.218752 0.218752 0.672419" mass="0.0662121" diaginertia="4.16635e-05 3.15958e-05 1.40677e-05"/>
+      <joint name="L3_Bevel_GearBox_1_L4_Shaft_1" pos="0 0 0" axis="0 0 1"/>
+      <geom pos="-0.085278 -0.049431 0.062002" type="mesh" mesh="L4_Shaft_1"/>
+      <geom pos="-0.085278 -0.049431 0.062002" type="mesh" mesh="L5_Key_1"/>
+      <geom pos="-0.085278 -0.049431 0.062002" quat="1 0 0 0" type="mesh" mesh="L5_Link1_1"/>
+      <body name="L6_Link2_1" pos="0.02 0 0.0187">
+        <inertial pos="0.0469998 -3.76503e-06 0.00492295" quat="0 0.707107 0 0.707107" mass="0.163194" diaginertia="0.000161 0.000157 7e-06"/>
+        <joint name="L5_Link1_1_L6_Link2_1" pos="0 0 0" axis="0 0 -1"/>
+        <geom pos="-0.105278 -0.049431 0.043302" quat="1 0 0 0" type="mesh" mesh="L6_Link2_1"/>
+        <body name="L7_Link3_1" pos="0.094 0 0">
+          <inertial pos="0.0958464 0.00976448 -0.00113427" quat="-0.0108928 0.696338 -0.0436585 0.716302" mass="0.287024" diaginertia="0.000924522 0.000888847 0.000127107"/>
+          <joint name="L6_Link2_1_L7_Link3_1" pos="0 0 0" axis="0 0 -1"/>
+          <geom pos="-0.199278 -0.049431 0.043302" quat="1 0 0 0" type="mesh" mesh="L7_Link3_1"/>
+          <geom pos="-0.189778 -0.049431 0.043302" quat="1 0 0 0" type="mesh" mesh="L8_Link3_Shaft_1"/>
+          <geom pos="-0.199278 -0.049431 0.043302" type="mesh" mesh="L9_PLATE_v3_1"/>
+        </body>
+      </body>
+    </body>
+    <body name="L4_Motor2_Shaft_1" pos="-0.099802 0.372198 0.038633" quat="0.5 0.5 0.5 0.5">
+      <inertial pos="3.76623e-05 -0.0367559 0.0148282" quat="0.470205 0.882544 0.00325175 -0.00342723" mass="0.115828" diaginertia="9.32374e-05 8.85576e-05 1.96795e-05"/>
+      <joint name="L3_Motor2_1_L4_Motor2_Shaft_1" pos="0 0 0" axis="0 0 1" actuatorfrcrange="-100 100"/>
+      <geom pos="-0.372198 -0.038633 0.099802" type="mesh" mesh="L4_Motor2_Shaft_1"/>
+      <geom pos="-0.372198 -0.038633 0.099802" type="mesh" mesh="L5_Coupler_1"/>
+      <geom pos="-0.372198 -0.038633 0.099802" type="mesh" mesh="L6_DcutShaft_1"/>
+      <geom pos="-0.372198 -0.038633 0.099802" quat="1 0 0 0" type="mesh" mesh="L7_SpurGear_1"/>
+      <body name="L7_Holder_Bearing2_1" pos="0 0 0.067">
+        <inertial pos="2.61003e-07 2.2523e-07 0.00149966" mass="0.00113081" diaginertia="1e-06 1e-06 1e-06"/>
+        <joint name="L6_DcutShaft_1_L7_Holder_Bearing2_1" pos="0 0 0" axis="0 0 1"/>
+        <geom pos="-0.372198 -0.038633 0.032802" quat="1 0 0 0" type="mesh" mesh="L7_Holder_Bearing2_1"/>
+      </body>
+      <body name="L7_Holder_Bearing1_1" pos="0 0 0.049">
+        <inertial pos="2.61003e-07 2.2523e-07 -0.00150034" mass="0.00113081" diaginertia="1e-06 1e-06 1e-06"/>
+        <joint name="L6_DcutShaft_1_L7_Holder_Bearing1_1" pos="0 0 0" axis="0 0 -1"/>
+        <geom pos="-0.372198 -0.038633 0.050802" quat="1 0 0 0" type="mesh" mesh="L7_Holder_Bearing1_1"/>
+      </body>
+    </body>
+    <body name="L2_Left_Wall1_1" pos="-0.017802 0.286278 0.016542" quat="0.5 0.5 0.5 0.5">
+      <inertial pos="0.0210989 0.0165544 -0.0284615" quat="0.732108 0.680689 0.0237381 -0.0108493" mass="0.312402" diaginertia="0.000368114 0.000265256 0.000193111"/>
+      <joint name="L1_Guide1_1_L2_Left_Wall1_1" pos="0 0 0" axis="-1 0 0" type="slide" actuatorfrcrange="-100 100"/>
+      <geom pos="-0.286278 -0.016542 0.017802" quat="1 0 0 0" type="mesh" mesh="L2_Left_Wall1_1"/>
+      <geom pos="-0.286278 -0.016542 0.017802" quat="1 0 0 0" type="mesh" mesh="L3_RackGear_1"/>
+    </body>
+  </worldbody>
+</mujoco>
