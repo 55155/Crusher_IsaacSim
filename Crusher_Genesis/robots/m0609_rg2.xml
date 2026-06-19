@@ -1,0 +1,109 @@
+<mujoco model="m0609_rg2">
+
+  <compiler angle="degree"/>
+
+  <asset>
+    <mesh name="MF0609_0_0" file="m0609/assets/MF0609_0_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_1_0" file="m0609/assets/MF0609_1_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_0" file="m0609/assets/MF0609_2_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_1" file="m0609/assets/MF0609_2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_2" file="m0609/assets/MF0609_2_2.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_3_0" file="m0609/assets/MF0609_3_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_4_0" file="m0609/assets/MF0609_4_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_4_1" file="m0609/assets/MF0609_4_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_5_0" file="m0609/assets/MF0609_5_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_6_0" file="m0609/assets/MF0609_6_0.stl" scale="0.001 0.001 0.001"/>
+
+    <!-- OnRobot RG2 (AndrejOrsula/ur5_rg2_ign visual mesh, dae→obj 변환) -->
+    <mesh name="rg2_hand"   file="rg2/assets/hand.obj"/>
+    <mesh name="rg2_finger" file="rg2/assets/finger.obj"/>
+
+    <material name="white" rgba="0.9 0.9 0.9 1"/>
+    <material name="metal" rgba="0.65 0.65 0.65 1"/>
+    <material name="rg2"   rgba="0.2 0.2 0.25 1"/>
+  </asset>
+
+
+  <worldbody>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_0_0" material="metal"/>
+    <body name="link_1" pos="0 0 0.1345">
+      <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+      <joint name="joint_1" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-400 400" damping="400" frictionloss="1"/>
+      <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_1_0" material="white"/>
+      <body name="link_2" pos="0 0.0062 0" quat="0.499898 -0.500102 -0.5 -0.5">
+        <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+        <joint name="joint_2" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-300 300" damping="400" frictionloss="1"/>
+        <geom type="mesh" mesh="MF0609_2_0"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_0" material="white"/>
+        <geom type="mesh" mesh="MF0609_2_1"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_1" material="metal"/>
+        <geom type="mesh" mesh="MF0609_2_2"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_2" material="white"/>
+        <body name="link_3" pos="0.411 0 0" quat="0.707035 0 0 0.707179">
+          <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+          <joint name="joint_3" pos="0 0 0" axis="0 0 1" range="-2.618 2.618" actuatorfrcrange="-300 300" damping="400" frictionloss="1"/>
+          <geom type="mesh" mesh="MF0609_3_0"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_3_0" material="white"/>
+          <body name="link_4" pos="0 -0.368 0" quat="0.707035 0.707179 0 0">
+            <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+            <joint name="joint_4" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-200 200" damping="400" frictionloss="1"/>
+            <geom type="mesh" mesh="MF0609_4_0"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_4_0" material="white"/>
+            <geom type="mesh" mesh="MF0609_4_1"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_4_1" material="white"/>
+            <body name="link_5" quat="0.707035 -0.707179 0 0">
+              <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+              <joint name="joint_5" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-220 220" damping="300" frictionloss="1"/>
+              <geom type="mesh" mesh="MF0609_5_0"/>
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_5_0" material="white"/>
+              <body name="link_6" pos="0 -0.121 0" quat="0.707035 0.707179 0 0">
+                <inertial pos="-3e-05 -4.5e-05 -0.0539" quat="0.963897 0.266271 -0.00109467 0.000577053" mass="1.16" diaginertia="0.00802262 0.00540366 0.00538672"/>
+                <joint name="joint_6" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-50 50" damping="200" frictionloss="1"/>
+                <geom type="mesh" mesh="MF0609_6_0"/>
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_6_0" material="metal"/>
+
+                <!-- ===== OnRobot RG2 (AndrejOrsula 구조 충실 재현) =====
+                     hand +x 를 link_6 +z(approach)에 정렬(euler degree).
+                     핑거 = revolute(원본 설계), 오른쪽 핑거 mesh 는 rpy(180,0,0) 미러.
+                     joint 0=열림, +각도=닫힘(안쪽으로 회전). angle=degree. -->
+                <body name="rg2_hand" pos="0 0 0" euler="0 -90 0">
+                  <inertial pos="0.05 0 0" mass="0.6" diaginertia="0.001 0.001 0.001"/>
+                  <geom type="mesh" mesh="rg2_hand" material="rg2" contype="0" conaffinity="0"/>
+                  <!-- Panda 그리퍼 패턴: slide(prismatic) + equality 동기화.
+                       0=닫힘(안쪽면 중앙 맞물림), +=열림. inertia 는 유지. -->
+                  <body name="rg2_left" pos="0.105 0.017 0">
+                    <inertial pos="0.05 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+                    <joint name="rg2_left_joint" type="slide" axis="0 1 0" range="0 0.045"/>
+                    <geom type="mesh" mesh="rg2_finger" material="rg2" contype="0" conaffinity="0"/>
+                  </body>
+                  <body name="rg2_right" pos="0.105 -0.017 0">
+                    <inertial pos="0.05 0 0" mass="0.1" diaginertia="1e-4 1e-4 1e-4"/>
+                    <joint name="rg2_right_joint" type="slide" axis="0 -1 0" range="0 0.045"/>
+                    <geom type="mesh" mesh="rg2_finger" material="rg2" contype="0" conaffinity="0" euler="180 0 0"/>
+                  </body>
+                </body>
+
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position joint="joint_1" kp="2000" kv="100" ctrlrange="-6.2832 6.2832"/>
+    <position joint="joint_2" kp="2000" kv="100" ctrlrange="-6.2832 6.2832"/>
+    <position joint="joint_3" kp="2000" kv="100" ctrlrange="-2.618 2.618"/>
+    <position joint="joint_4" kp="1000" kv="50"  ctrlrange="-6.2832 6.2832"/>
+    <position joint="joint_5" kp="1000" kv="50"  ctrlrange="-6.2832 6.2832"/>
+    <position joint="joint_6" kp="500"  kv="25"  ctrlrange="-6.2832 6.2832"/>
+    <position joint="rg2_left_joint"  kp="80" kv="3" ctrlrange="0 0.045"/>
+    <position joint="rg2_right_joint" kp="80" kv="3" ctrlrange="0 0.045"/>
+  </actuator>
+
+  <!-- Panda 식 좌우 핑거 동기화 -->
+  <equality>
+    <joint joint1="rg2_left_joint" joint2="rg2_right_joint" polycoef="0 1 0 0 0"/>
+  </equality>
+</mujoco>
