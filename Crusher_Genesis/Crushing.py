@@ -29,7 +29,9 @@ DT, SUBSTEPS = 1e-3, 10
 RENDER_EVERY = 15
 
 # ── 봉투 (cloth 패널) ────────────────────────────────────────────────────────
-W, H, D = 0.08, 0.12, 0.01
+#   D(두께)는 PBD 하한 주의: 앞/뒤 패널 간격이 2*particle_size(≈5.7mm) 보다 작으면
+#   파티클-파티클 충돌제약이 즉시 위반(2.1 폭발) → 6mm 가 사실상 최소.
+W, H, D = 0.08, 0.12, 0.006
 NW, NH, ND = 6, 9, 2
 PARTICLE_SIZE = 2.83e-3
 
@@ -48,13 +50,13 @@ BAG_POS     = (GRASP_XY[0], GRASP_XY[1], BAG_MOUTH_Z - H/2)
 GRIP_X_WIDTH    = 0.005     # 가로 중앙 strip 폭
 GRIP_Z_FROM_TOP = 0.005     # 상단에서 두께
 GRIP_LINK       = "rg2_left"
-BOX_SIZE    = (0.03, 0.006, 0.03)
+BOX_SIZE    = (0.03, 0.004, 0.03)       # 얇아진 봉투(D=6mm) 안에 들어가도록 두께 4mm
 BOX_RHO     = 300.0
 BOX_SPAWN   = (0.20, 0.006, 0.575)
 
 # ── 페이즈 step (DT 변경에 맞춰 절반으로) ───────────────────────────────────
-N_DROP, N_CLOSE, N_CSET, N_GRASP, N_LIFT, N_MOVE, N_PLACE, N_REL, N_HOLD = \
-    500, 250, 150, 75, 450, 600, 350, 150, 150
+N_DROP, N_CLOSE, N_CSET, N_GRASP, N_LIFT, N_MOVE, N_APPROACH, N_DESCEND, N_REL, N_HOLD = \
+    500, 250, 150, 75, 450, 600, 350, 350, 150, 150
 
 # ── 카메라 ──────────────────────────────────────────────────────────────────
 CAM_WIDE_POS  = np.array([1.15, -1.05, 1.05])
@@ -71,11 +73,24 @@ CRUSHER_EULER = (0.0, 0.0, 90.0)
 STRETCH_COMPLIANCE = 1e-3
 BENDING_COMPLIANCE = 1e-3
 
-# ── Wall_1 정면 placement: Wall_1 world pos + offset → IK Q_PLACE ──────────
-WALL_LINK_NAME    = "L2_Left_Wall1_1"
-EE_LINK_NAME      = "rg2_hand"
-# Wall_1 face 기준 봉투 hang 위치 (front=음의 X, slightly above wall)
-EE_OFFSET_M       = np.array([-0.05, 0.0, 0.05])
+# ── 슬롯(=L2_Wall3_1 수직 back wall) 앞 placement ─────────────────────────
+#   Wall_1 은 MJCF 에서 body/joint 없는 worldbody geom → link 아님, geom 으로 조회.
+#   (geom 식별: geom.metadata["mesh_path"]; 월드 좌표: geom.get_AABB() = 정점기반,
+#    get_pos() 는 frame origin 이라 mesh 위치 아님)
+WALL_GEOM_MESH    = "L2_Wall3_1"     # 봉투가 기대는 수직 back wall mesh
+EE_LINK_NAME      = "rg2_left"       # 봉투는 핑거끝(rg2_left)에 weld → 핑거를 타깃
+# 슬롯 앞면(min-x) 기준 핑거 TCP 목표.
+#   xy: 앞으로(−x) 살짝 띄워 벽 앞면에 정렬
+#   z : 벽 상단(max-z) 기준 위로 띄운다 → 핑거가 벽면과 충돌 안 함(문제1).
+#       봉투는 그 아래로 늘어져 슬롯에 들어간다.
+SLOT_DX           = -0.015           # 앞으로(−x)
+SLOT_DY           =  0.0
+SLOT_DZ_FINAL     =  0.06            # 최종 하강 후 핑거 높이 = 벽 상단 + 이만큼
+# 2-step IK(문제2): step1 = 슬롯 바로 위(APPROACH), step2 = z 만 내려 DESCEND
+APPROACH_DZ       =  0.12            # APPROACH 는 최종보다 이만큼 더 위
+# place 에서 EE(공구축 roll, j6)를 90° 돌려 봉투를 90° 회전 → 봉투 얇은 면을
+# 슬롯의 얇은 x-gap 에 정렬(현재 봉투 두께는 y 방향 → 회전 후 x 방향).
+J6_PLACE          =  np.pi / 2.0     # +90° (정렬 안 맞으면 -np.pi/2 로 부호 반전)
 
 # ── 경로 ────────────────────────────────────────────────────────────────────
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -177,6 +192,26 @@ def _rgb_of(r):
     return a[..., :3].astype("uint8")
 
 
+# worldbody 정적 벽 geom 공통 변환: pos="0 0 0", quat="0.5 0.5 0.5 0.5"(→ R 아래), scale 1e-3
+_R_GEOM_HALF = np.array([[0., 0., 1.], [1., 0., 0.], [0., 1., 0.]])  # quat(.5,.5,.5,.5)
+
+
+def wall_geom_world_aabb(mesh_name):
+    """worldbody 정적 벽 geom 의 월드 AABB (해석적, build 불필요).
+
+    Genesis 가 정적 충돌 geom 을 link 당 1개로 병합해 개별 mesh live 조회가 안 되므로,
+    geom MJCF 변환(pos0, quat .5.5.5.5, scale 1e-3) + 엔티티 변환(CRUSHER_POS, yaw)으로
+    STL 정점을 직접 월드로 보내 min/max 를 구한다. (벽은 완전 정적 → 해석=실측)
+    """
+    yaw = np.radians(CRUSHER_EULER[2])
+    R_e = np.array([[np.cos(yaw), -np.sin(yaw), 0.],
+                    [np.sin(yaw),  np.cos(yaw), 0.],
+                    [0., 0., 1.]])
+    v = tm.load(os.path.join(_DIR, "MJCF", f"{mesh_name}.stl")).vertices * 0.001
+    w = np.array(CRUSHER_POS) + (R_e @ (_R_GEOM_HALF @ v.T)).T
+    return w.min(axis=0), w.max(axis=0)
+
+
 def main(use_viewer: bool = True):
     print("="*60); print(f" Crushing — full pick & move + Crusher (viewer={use_viewer})"); print("="*60)
     make_bag()
@@ -184,7 +219,7 @@ def main(use_viewer: bool = True):
     print(f"[crusher] patched MJCF → {crusher_xml}")
 
     import genesis as gs
-    gs.init(backend=gs.cuda, logging_level="warning")
+    gs.init(backend=gs.metal, logging_level="warning")
 
     scene_kwargs = dict(
         sim_options=gs.options.SimOptions(dt=DT, substeps=SUBSTEPS, gravity=(0, 0, -9.81)),
@@ -235,40 +270,36 @@ def main(use_viewer: bool = True):
     grip_link_idx = robot.get_link(GRIP_LINK).idx
     robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
 
-    # ── Wall_1 world pos 분석 (Crusher 좌표계 검증) ─────────────────────────
-    wall_link  = crusher.get_link(WALL_LINK_NAME)
-    ee_link    = robot.get_link(EE_LINK_NAME)
-    wall_pos   = _npy(wall_link.get_pos())
-
-    # MJCF body 'L2_Left_Wall1_1' 의 원본 pos (Crusher local frame, before transform)
-    wall_body_mjcf = np.array([-0.017802, 0.286278, 0.016542])
-    yaw_deg = CRUSHER_EULER[2]; yaw = np.radians(yaw_deg)
-    R_yaw = np.array([[np.cos(yaw), -np.sin(yaw), 0],
-                      [np.sin(yaw),  np.cos(yaw), 0],
-                      [0, 0, 1]])
-    wall_expected = R_yaw @ wall_body_mjcf + np.array(CRUSHER_POS)
-    print(f"\n[wall-analysis]")
-    print(f"  MJCF body L2_Left_Wall1_1 pos      = {wall_body_mjcf}  (Crusher local)")
-    print(f"  CRUSHER_POS={CRUSHER_POS}  EULER yaw={yaw_deg}°")
-    print(f"  R_yaw @ body + CRUSHER_POS         = {wall_expected}  (manual transform)")
-    print(f"  Genesis link.get_pos()             = {wall_pos}  (Genesis built-in)")
-    print(f"  diff (manual - genesis)            = {wall_expected - wall_pos}\n")
-
-    ee_target  = wall_pos + EE_OFFSET_M
-    print(f"[place] Wall_1 world={wall_pos}  ee_target={ee_target}")
+    # ── Wall_1(=L2_Wall3_1) 슬롯 위치 ───────────────────────────────────────
+    #   이 벽은 body/joint 없이 worldbody 에 박힌 정적 geom 이라 link.get_pos() 로
+    #   안 잡힌다. 게다가 Genesis 는 같은 링크(world)의 충돌 mesh geom 들을 1개로
+    #   "병합"하므로 개별 mesh 를 entity.geoms 에서 live 조회할 수도 없다.
+    #   → 완전 정적 geom 이므로 MJCF geom 변환(pos0, quat .5.5.5.5, scale 1e-3) +
+    #     엔티티 변환(CRUSHER_POS, yaw) 으로 STL 정점을 직접 월드로 보내 AABB 계산.
+    ee_link = robot.get_link(EE_LINK_NAME)
+    w_lo, w_hi = wall_geom_world_aabb(WALL_GEOM_MESH)
+    w_center = (w_lo + w_hi) / 2.0
+    # 슬롯 앞면(min-x) xy + 벽 상단(max-z) 위로 띄운 z → 핑거가 벽면과 충돌 안 함(문제1)
+    slot_xy   = np.array([w_lo[0] + SLOT_DX, w_center[1] + SLOT_DY])
+    ee_final    = np.array([slot_xy[0], slot_xy[1], w_hi[2] + SLOT_DZ_FINAL])   # 최종(하강 후)
+    ee_approach = ee_final + np.array([0.0, 0.0, APPROACH_DZ])                  # 슬롯 바로 위
+    print(f"\n[wall] geom '{WALL_GEOM_MESH}'  world AABB lo={np.round(w_lo,4)} hi={np.round(w_hi,4)}")
+    print(f"[wall] wall_top_z={w_hi[2]:.4f}  ee_final={np.round(ee_final,4)}  "
+          f"ee_approach={np.round(ee_approach,4)}")
 
     # Genesis IK 가 이 robot/target 조합에서 비정상 — manual brute search 로 대체.
-    # j2+j3+j5=2.90 invariant 유지 (EE 수직 자세 보존), j4=j6=0 고정.
-    # j1, j2, j3 grid scan → EE world pos 측정 → target 최근접 Q 채택.
+    # j2+j3+j5=2.90 invariant 유지 (EE 수직 자세 보존), j4=0 고정.
+    # j6 = J6_PLACE 로 공구축 roll 을 줘서 봉투를 90° 회전(문제1). j6 가 rg2_left 를
+    # 공구축 둘레로 돌리므로 scan 이 그 오프셋까지 반영해 j1,j2,j3 를 찾는다.
     def _find_q_place(target):
         best_q, best_err, best_ee = None, float("inf"), None
         for j1 in np.linspace(-0.8, 0.8, 17):
-            for j2 in np.linspace(-1.0, 0.5, 16):
-                for j3 in np.linspace(0.3, 2.0, 18):
+            for j2 in np.linspace(-1.2, 0.5, 18):
+                for j3 in np.linspace(0.2, 2.0, 19):
                     j5 = 2.90 - j2 - j3
                     if not (-1.0 < j5 < 3.5):
                         continue
-                    q = np.array([j1, j2, j3, 0.0, j5, 0.0])
+                    q = np.array([j1, j2, j3, 0.0, j5, J6_PLACE])
                     robot.set_dofs_position(np.concatenate([q, [FING_CLOSE, FING_CLOSE]]))
                     ee = _npy(ee_link.get_pos())
                     e = float(np.linalg.norm(ee - target))
@@ -276,10 +307,13 @@ def main(use_viewer: bool = True):
                         best_err, best_q, best_ee = e, q.copy(), ee
         return best_q, best_err, best_ee
 
-    Q_PLACE_IK, err_m, ee_at_ik = _find_q_place(ee_target)
-    err_mm = err_m * 1000
-    print(f"[place] best Q (grid scan) = {Q_PLACE_IK}")
-    print(f"[place] EE @ best Q        = {ee_at_ik}  (target {ee_target}, err {err_mm:.1f} mm)")
+    # 2-step IK(문제2): APPROACH(슬롯 위) → DESCEND(z 만 하강)
+    Q_APPROACH, err_a, ee_a = _find_q_place(ee_approach)
+    Q_DESCEND,  err_d, ee_d = _find_q_place(ee_final)
+    print(f"[place] Q_APPROACH={np.round(Q_APPROACH,3)}  EE={np.round(ee_a,4)} "
+          f"(target {np.round(ee_approach,4)}, err {err_a*1000:.1f} mm)")
+    print(f"[place] Q_DESCEND ={np.round(Q_DESCEND,3)}  EE={np.round(ee_d,4)} "
+          f"(target {np.round(ee_final,4)}, err {err_d*1000:.1f} mm)")
 
     # 다시 원래 자세 (sim 시작점) 으로 복귀
     robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
@@ -339,23 +373,26 @@ def main(use_viewer: bool = True):
     run("grasp",   Q_GRASP, Q_GRASP, FING_CLOSE, FING_CLOSE, N_GRASP, attach=True, release=True)
     run("lift",    Q_GRASP, Q_LIFT,  FING_CLOSE, FING_CLOSE, N_LIFT)
     run("move",    Q_LIFT,  Q_MOVE,  FING_CLOSE, FING_CLOSE, N_MOVE)
-    run("place",   Q_MOVE,  Q_PLACE_IK, FING_CLOSE, FING_CLOSE, N_PLACE)
+    # 2-step: 슬롯 바로 위로 접근 → z 만 수직 하강 (벽면 충돌 회피, 봉투 수직 안착)
+    run("approach", Q_MOVE,     Q_APPROACH, FING_CLOSE, FING_CLOSE, N_APPROACH)
+    run("descend",  Q_APPROACH, Q_DESCEND,  FING_CLOSE, FING_CLOSE, N_DESCEND)
 
     # ── Phase A verify: 봉투가 release 직전에 Wall_1 입구에 있는지 ──────────
     bag_at_place = bag_com()
     ee_at_place  = _npy(ee_link.get_pos())
-    wall_at_place = _npy(wall_link.get_pos())
-    err_ee_target = ee_at_place - ee_target
-    err_bag_wall  = bag_at_place - wall_at_place
-    print(f"\n[verify @ end-of-place, before release]")
-    print(f"  EE  world  = {ee_at_place}  (target {ee_target}, err {np.linalg.norm(err_ee_target)*1000:.1f} mm)")
-    print(f"  bag com    = {bag_at_place}")
-    print(f"  wall_1 com = {wall_at_place}")
-    print(f"  bag - wall = {err_bag_wall}  (xy_dist {np.linalg.norm(err_bag_wall[:2])*1000:.1f}mm, "
+    # 벽은 정적이라 front_face 동일 (해석값 재사용)
+    wall_front = np.array([w_lo[0], w_center[1], w_center[2]])
+    err_ee_target = ee_at_place - ee_final
+    err_bag_wall  = bag_at_place - wall_front
+    print(f"\n[verify @ end-of-descend, before release]")
+    print(f"  EE({EE_LINK_NAME}) = {ee_at_place}  (target {ee_final}, err {np.linalg.norm(err_ee_target)*1000:.1f} mm)")
+    print(f"  bag com         = {bag_at_place}")
+    print(f"  wall front_face = {wall_front}")
+    print(f"  bag - wallfront = {err_bag_wall}  (xy_dist {np.linalg.norm(err_bag_wall[:2])*1000:.1f}mm, "
           f"dz {err_bag_wall[2]*1000:+.1f}mm)")
 
-    run("release", Q_PLACE_IK, Q_PLACE_IK, FING_CLOSE, FING_OPEN, N_REL, drop_release=True)
-    run("hold",    Q_PLACE_IK, Q_PLACE_IK, FING_OPEN, FING_OPEN, N_HOLD)
+    run("release", Q_DESCEND, Q_DESCEND, FING_CLOSE, FING_OPEN, N_REL, drop_release=True)
+    run("hold",    Q_DESCEND, Q_DESCEND, FING_OPEN, FING_OPEN, N_HOLD)
 
     print(f"\n[verify @ end-of-hold]  bag final com = {bag_com()}  (will fall w/o holder clamp)")
 
