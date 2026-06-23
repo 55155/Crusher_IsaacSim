@@ -20,6 +20,7 @@ Crushing.py — 시스템 전체 통합 시뮬레이션.
 """
 import os, shutil, tempfile
 import xml.etree.ElementTree as ET
+from datetime import datetime
 import numpy as np
 import trimesh as tm
 from PIL import Image
@@ -31,42 +32,44 @@ RENDER_EVERY = 15
 # ── 봉투 (cloth 패널) ────────────────────────────────────────────────────────
 #   D(두께)는 PBD 하한 주의: 앞/뒤 패널 간격이 2*particle_size(≈5.7mm) 보다 작으면
 #   파티클-파티클 충돌제약이 즉시 위반(2.1 폭발) → 6mm 가 사실상 최소.
-W, H, D = 0.08, 0.12, 0.006
+#   사용자 요청으로 전체 스케일 ↓ (80×120 → 50×80 mm).
+W, H, D = 0.05, 0.08, 0.006
 NW, NH, ND = 6, 9, 2
 PARTICLE_SIZE = 2.83e-3
 
 # ── 로봇 waypoint (S=j2+j3+j5=2.90 → EE 자세 유지) ────────────────────────
-Q_GRASP = np.array([0, -0.40, 1.30, 0, 2.00, 0], float)
-Q_LIFT  = np.array([0, -0.11, 0.60, 0, 2.41, 0], float)
-Q_MOVE  = np.array([0, -0.05, 0.85, 0, 2.10, 0], float)
-Q_PLACE = np.array([0, -0.10, 1.15, 0, 1.85, 0], float)
+# 초기 fallback 값. main() 에서 grid scan 으로 새 BAG_POS/CRUSHER_POS 에 맞춰 재계산.
+Q_GRASP_INIT = np.array([0, -0.40, 1.30, 0, 2.00, 0], float)
+Q_LIFT_INIT  = np.array([0, -0.11, 0.60, 0, 2.41, 0], float)
+Q_MOVE_INIT  = np.array([0, -0.05, 0.85, 0, 2.10, 0], float)
 FING_OPEN, FING_CLOSE = 0.04, 0.006
 
 # ── 봉투/박스 spawn ─────────────────────────────────────────────────────────
-GRASP_XY    = np.array([0.20, 0.006]); BAG_MOUTH_Z = 0.50
+#   바닥(z=0 알루미늄판 상단) 근처로 lower. Q_GRASP 는 main()에서 grid scan 으로 재계산.
+GRASP_XY    = np.array([0.30, 0.0]); BAG_MOUTH_Z = 0.20
 BAG_POS     = (GRASP_XY[0], GRASP_XY[1], BAG_MOUTH_Z - H/2)
 # 파지 대상: 봉투 "가로 중앙 + 상단" 좁은 strip (3D throat 박스 대신)
-#   x: bag 중앙선 ±5mm   y: bag 두께 전체 (핑거 사이)   z: top ±5mm
-GRIP_X_WIDTH    = 0.005     # 가로 중앙 strip 폭
-GRIP_Z_FROM_TOP = 0.005     # 상단에서 두께
+GRIP_X_WIDTH    = 0.005
+GRIP_Z_FROM_TOP = 0.005
 GRIP_LINK       = "rg2_left"
-BOX_SIZE    = (0.03, 0.004, 0.03)       # 얇아진 봉투(D=6mm) 안에 들어가도록 두께 4mm
+BOX_SIZE    = (0.025, 0.004, 0.025)     # bag scale 따라 box 도 축소
 BOX_RHO     = 300.0
-BOX_SPAWN   = (0.20, 0.006, 0.575)
+BOX_SPAWN   = (GRASP_XY[0], GRASP_XY[1], BAG_MOUTH_Z + 0.075)
 
 # ── 페이즈 step (DT 변경에 맞춰 절반으로) ───────────────────────────────────
-N_DROP, N_CLOSE, N_CSET, N_GRASP, N_LIFT, N_MOVE, N_APPROACH, N_DESCEND, N_REL, N_HOLD = \
-    500, 250, 150, 75, 450, 600, 350, 350, 150, 150
+N_DROP, N_CLOSE, N_CSET, N_GRASP, N_LIFT, N_MOVE, N_APPROACH, N_SETTLE, N_DESCEND, N_REL, N_HOLD = \
+    500, 250, 150, 75, 450, 600, 350, 500, 350, 150, 150
+# N_SETTLE: APPROACH 직후 공중에서 봉투 진동 안정화 (0.5 s)
 
 # ── 카메라 ──────────────────────────────────────────────────────────────────
 CAM_WIDE_POS  = np.array([1.15, -1.05, 1.05])
 CAM_WIDE_LOOK = np.array([0.27, 0.0, 0.45])
 CAM_TRACK_OFF = np.array([0.45, -0.42, 0.18])
 
-# ── Crusher 배치 (매니퓰레이터 정면 + 작업영역 높이로 elevate) ────────────
-#   원본 Wall_1 local z≈17mm → 받침대 효과로 z=0.4 띄움 → Wall_1 world z≈0.42.
-#   M0609 reach 영역 (z 0.2~1.2 m) 내로 진입.
-CRUSHER_POS   = (0.55, 0.0, 0.4)
+# ── Crusher 배치 (바닥 위, 매니퓰레이터 정면) ──────────────────────────────
+#   사용자 요청: 공중 부양 제거 → z=0 (알루미늄판 상단에 안착).
+#   Wall_top world ≈ 0.10 (정도). Q_DESCEND 는 grid scan 으로 닿게 찾음.
+CRUSHER_POS   = (0.55, 0.0, 0.0)
 CRUSHER_EULER = (0.0, 0.0, 90.0)
 
 # ── PBD 봉투 강성 (Samplebag 에서 검증: 박스 안전 + 유연성 ↑) ──────────────
@@ -85,7 +88,7 @@ EE_LINK_NAME      = "rg2_left"       # 봉투는 핑거끝(rg2_left)에 weld →
 #       봉투는 그 아래로 늘어져 슬롯에 들어간다.
 SLOT_DX           = -0.015           # 앞으로(−x)
 SLOT_DY           =  0.0
-SLOT_DZ_FINAL     =  0.06            # 최종 하강 후 핑거 높이 = 벽 상단 + 이만큼
+SLOT_DZ_FINAL     =  0.02            # 봉투 bottom 이 plate 근처까지 닿도록 깊게 하강
 # 2-step IK(문제2): step1 = 슬롯 바로 위(APPROACH), step2 = z 만 내려 DESCEND
 APPROACH_DZ       =  0.12            # APPROACH 는 최종보다 이만큼 더 위
 # place 에서 EE(공구축 roll, j6)를 90° 돌려 봉투를 90° 회전 → 봉투 얇은 면을
@@ -96,7 +99,9 @@ J6_PLACE          =  np.pi / 2.0     # +90° (정렬 안 맞으면 -np.pi/2 로 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(_DIR, "Sim_result"); os.makedirs(OUT_DIR, exist_ok=True)
 STL_PATH = os.path.join(OUT_DIR, "medicine_envelope_open.stl")
-MP4_PATH = os.path.join(OUT_DIR, "Crushing.mp4")
+# 타임스탬프로 mp4 분리 저장 (이전 결과 비교용)
+_TS      = datetime.now().strftime("%Y%m%d_%H%M%S")
+MP4_PATH = os.path.join(OUT_DIR, f"Crushing_{_TS}.mp4")
 PLATE_PATH = os.path.join(_DIR, "robots/assets/aluminum_plate.stl")
 ROBOT_MJCF = "robots/m0609_rg2.xml"
 CRUSHER_SRC_XML = os.path.join(_DIR, "MJCF", "Crusher_IsaacSim_colored.xml")
@@ -181,6 +186,40 @@ def _prepare_crusher_mjcf():
     return dst
 
 
+# RG2 핑거 충돌 활성화 — 원본 m0609_rg2.xml 에서 contype="0" 라 PBD coupler 가
+# 무시. 런타임 패치로 contype/conaffinity 속성 제거 → default 0xFFFF (충돌 ON).
+RG2_GEOMS_TO_ENABLE = {"rg2_finger", "rg2_hand"}
+
+
+def patch_robot_mjcf(src, dst):
+    """m0609_rg2.xml → RG2 핑거/손 collision 활성화 사본."""
+    tree = ET.parse(src); root = tree.getroot()
+    wb = root.find("worldbody")
+    if wb is not None:
+        for g in wb.iter("geom"):
+            if g.get("mesh") in RG2_GEOMS_TO_ENABLE:
+                g.attrib.pop("contype", None)
+                g.attrib.pop("conaffinity", None)
+    tree.write(dst)
+
+
+def _prepare_robot_mjcf():
+    """robots/m0609_rg2.xml 디렉터리 복사 + 패치본 생성."""
+    src_xml = os.path.join(_DIR, ROBOT_MJCF)
+    src_dir = os.path.dirname(src_xml)
+    tmp_dir = tempfile.mkdtemp(prefix="m0609_mjcf_")
+    # robots/ 하위 전체 복사 (m0609/assets/*, rg2/assets/* 등 mesh 의존)
+    for root_dir, _, files in os.walk(src_dir):
+        rel = os.path.relpath(root_dir, src_dir)
+        dst_dir = os.path.join(tmp_dir, rel) if rel != "." else tmp_dir
+        os.makedirs(dst_dir, exist_ok=True)
+        for f in files:
+            shutil.copy2(os.path.join(root_dir, f), os.path.join(dst_dir, f))
+    dst = os.path.join(tmp_dir, "m0609_rg2_patched.xml")
+    patch_robot_mjcf(src_xml, dst)
+    return dst
+
+
 def _npy(x): return x.cpu().numpy() if hasattr(x, "cpu") else np.asarray(x)
 def _pos_of(b):
     x = _npy(b.get_particles_pos())
@@ -217,9 +256,11 @@ def main(use_viewer: bool = True):
     make_bag()
     crusher_xml = _prepare_crusher_mjcf()
     print(f"[crusher] patched MJCF → {crusher_xml}")
+    robot_xml = _prepare_robot_mjcf()
+    print(f"[robot]   patched MJCF → {robot_xml}  (RG2 핑거 충돌 ON)")
 
     import genesis as gs
-    gs.init(backend=gs.metal, logging_level="warning")
+    gs.init(backend=gs.cuda, logging_level="warning")
 
     scene_kwargs = dict(
         sim_options=gs.options.SimOptions(dt=DT, substeps=SUBSTEPS, gravity=(0, 0, -9.81)),
@@ -234,14 +275,21 @@ def main(use_viewer: bool = True):
             camera_fov=46, max_FPS=60)
     scene = gs.Scene(**scene_kwargs)
 
-    # 알루미늄 플레이트
-    scene.add_entity(
-        gs.morphs.Mesh(file=PLATE_PATH, fixed=True, pos=(0, 0, 0)),
-        material=gs.materials.Rigid(),
-        surface=gs.surfaces.Default(color=(0.82, 0.82, 0.85), metallic=0.85, roughness=0.3),
-    )
-    # M0609 + RG2
-    robot = scene.add_entity(gs.morphs.MJCF(file=ROBOT_MJCF, decimate=False))
+    # 알루미늄 플레이트 — 2×2 그리드 (각 1m×1m). 로봇 정면 +x, 좌우 ±y 까지 작업면 확장
+    plate_positions = [
+        ( 0.5, -0.5, 0.0),   # 정면 좌
+        ( 0.5,  0.5, 0.0),   # 정면 우
+        (-0.5, -0.5, 0.0),   # 뒤 좌
+        (-0.5,  0.5, 0.0),   # 뒤 우
+    ]
+    for p in plate_positions:
+        scene.add_entity(
+            gs.morphs.Mesh(file=PLATE_PATH, fixed=True, pos=p),
+            material=gs.materials.Rigid(),
+            surface=gs.surfaces.Default(color=(0.82, 0.82, 0.85), metallic=0.85, roughness=0.3),
+        )
+    # M0609 + RG2 (핑거 충돌 활성화 패치본)
+    robot = scene.add_entity(gs.morphs.MJCF(file=robot_xml, decimate=False))
     # Crusher (정면, Wall_1 -x 향함, faceted 정밀 렌더)
     crusher = scene.add_entity(
         gs.morphs.MJCF(file=crusher_xml, pos=CRUSHER_POS, euler=CRUSHER_EULER,
@@ -268,7 +316,7 @@ def main(use_viewer: bool = True):
     scene.build(n_envs=0)
 
     grip_link_idx = robot.get_link(GRIP_LINK).idx
-    robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
+    robot.set_dofs_position(np.concatenate([Q_GRASP_INIT, [FING_OPEN, FING_OPEN]]))
 
     # ── Wall_1(=L2_Wall3_1) 슬롯 위치 ───────────────────────────────────────
     #   이 벽은 body/joint 없이 worldbody 에 박힌 정적 geom 이라 link.get_pos() 로
@@ -291,48 +339,95 @@ def main(use_viewer: bool = True):
     # j2+j3+j5=2.90 invariant 유지 (EE 수직 자세 보존), j4=0 고정.
     # j6 = J6_PLACE 로 공구축 roll 을 줘서 봉투를 90° 회전(문제1). j6 가 rg2_left 를
     # 공구축 둘레로 돌리므로 scan 이 그 오프셋까지 반영해 j1,j2,j3 를 찾는다.
-    def _find_q_place(target):
+    def _find_q_place(target, j6=0.0):
+        # 1단: 거친 grid scan
         best_q, best_err, best_ee = None, float("inf"), None
-        for j1 in np.linspace(-0.8, 0.8, 17):
-            for j2 in np.linspace(-1.2, 0.5, 18):
-                for j3 in np.linspace(0.2, 2.0, 19):
+        for j1 in np.linspace(-1.0, 1.0, 21):
+            for j2 in np.linspace(-1.5, 0.6, 22):
+                for j3 in np.linspace(0.1, 2.5, 25):
                     j5 = 2.90 - j2 - j3
-                    if not (-1.0 < j5 < 3.5):
+                    if not (-1.5 < j5 < 3.5):
                         continue
-                    q = np.array([j1, j2, j3, 0.0, j5, J6_PLACE])
+                    q = np.array([j1, j2, j3, 0.0, j5, j6])
                     robot.set_dofs_position(np.concatenate([q, [FING_CLOSE, FING_CLOSE]]))
                     ee = _npy(ee_link.get_pos())
                     e = float(np.linalg.norm(ee - target))
                     if e < best_err:
                         best_err, best_q, best_ee = e, q.copy(), ee
+        # 2단: 1단 결과 주변에서 미세 scan (해상도 ↑)
+        if best_q is not None:
+            base = best_q
+            for j1 in np.linspace(base[0]-0.1, base[0]+0.1, 11):
+                for j2 in np.linspace(base[1]-0.1, base[1]+0.1, 11):
+                    for j3 in np.linspace(base[2]-0.1, base[2]+0.1, 11):
+                        j5 = 2.90 - j2 - j3
+                        if not (-1.5 < j5 < 3.5):
+                            continue
+                        q = np.array([j1, j2, j3, 0.0, j5, j6])
+                        robot.set_dofs_position(np.concatenate([q, [FING_CLOSE, FING_CLOSE]]))
+                        ee = _npy(ee_link.get_pos())
+                        e = float(np.linalg.norm(ee - target))
+                        if e < best_err:
+                            best_err, best_q, best_ee = e, q.copy(), ee
         return best_q, best_err, best_ee
 
-    # 2-step IK(문제2): APPROACH(슬롯 위) → DESCEND(z 만 하강)
-    Q_APPROACH, err_a, ee_a = _find_q_place(ee_approach)
-    Q_DESCEND,  err_d, ee_d = _find_q_place(ee_final)
-    print(f"[place] Q_APPROACH={np.round(Q_APPROACH,3)}  EE={np.round(ee_a,4)} "
-          f"(target {np.round(ee_approach,4)}, err {err_a*1000:.1f} mm)")
-    print(f"[place] Q_DESCEND ={np.round(Q_DESCEND,3)}  EE={np.round(ee_d,4)} "
-          f"(target {np.round(ee_final,4)}, err {err_d*1000:.1f} mm)")
+    # ── 모든 waypoint Q 를 grid scan 으로 동적 계산 (새 BAG/CRUSHER 위치 대응) ──
+    # GRASP: 봉투 mouth 바로 위 (j6=0, 자연 자세)
+    target_grasp = np.array([GRASP_XY[0], GRASP_XY[1], BAG_MOUTH_Z + 0.02])
+    Q_GRASP, err_g, ee_g = _find_q_place(target_grasp, j6=0.0)
+    # LIFT: GRASP 에서 z +20cm
+    target_lift  = target_grasp + np.array([0.0, 0.0, 0.20])
+    Q_LIFT,  err_l, ee_l = _find_q_place(target_lift, j6=0.0)
+    # MOVE: GRASP 와 APPROACH 의 중간 (위로 휘둘러 이동)
+    target_move  = (target_lift + ee_approach) / 2.0
+    Q_MOVE,  err_m, ee_m = _find_q_place(target_move, j6=J6_PLACE/2.0)
+    # APPROACH / DESCEND: 슬롯 위 / 슬롯 안 (j6=π/2, 봉투 90° 회전)
+    Q_APPROACH, err_a, ee_a = _find_q_place(ee_approach, j6=J6_PLACE)
+    Q_DESCEND,  err_d, ee_d = _find_q_place(ee_final, j6=J6_PLACE)
+    print(f"\n[waypoint scan]")
+    print(f"  GRASP   q={np.round(Q_GRASP,3)} EE={np.round(ee_g,4)} (target {np.round(target_grasp,4)} err {err_g*1000:.1f}mm)")
+    print(f"  LIFT    q={np.round(Q_LIFT,3)} EE={np.round(ee_l,4)} (target {np.round(target_lift,4)} err {err_l*1000:.1f}mm)")
+    print(f"  MOVE    q={np.round(Q_MOVE,3)} EE={np.round(ee_m,4)} (target {np.round(target_move,4)} err {err_m*1000:.1f}mm)")
+    print(f"  APPROACH q={np.round(Q_APPROACH,3)} EE={np.round(ee_a,4)} (target {np.round(ee_approach,4)} err {err_a*1000:.1f}mm)")
+    print(f"  DESCEND  q={np.round(Q_DESCEND,3)} EE={np.round(ee_d,4)} (target {np.round(ee_final,4)} err {err_d*1000:.1f}mm)")
 
-    # 다시 원래 자세 (sim 시작점) 으로 복귀
+    # 다시 시작 자세 (FING_OPEN)
     robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
 
     pos0 = _pos_of(bag); z, x, y = pos0[:, 2], pos0[:, 0], pos0[:, 1]
     band = np.where(z >= np.quantile(z, 0.92))[0]
+    # 4개 코너: (xmin,ymin), (xmax,ymin), (xmin,ymax), (xmax,ymax)
+    # 기존 argmin(-x+y) 는 argmax(x-y) 와 동일 → 중복. 수정: argmax(y-x).
     corners = list({int(i) for i in [
         band[np.argmin(x[band] + y[band])], band[np.argmax(x[band] - y[band])],
-        band[np.argmin(-x[band] + y[band])], band[np.argmax(x[band] + y[band])]]})
-
-    # 가로 중앙 strip + 상단 → 가장 좁은 그립 영역
-    x_center = float(GRASP_XY[0])
-    z_top    = float(z.max())
-    mid_strip = (np.abs(x - x_center) < GRIP_X_WIDTH) & (z > z_top - GRIP_Z_FROM_TOP)
-    grip_idx = np.array([i for i in np.where(mid_strip)[0] if i not in corners])
-    print(f"[bag] N={pos0.shape[0]}  grip(mid-top strip)={len(grip_idx)}  corners={len(corners)}")
-    print(f"      grip strip: x∈[{x_center-GRIP_X_WIDTH:.3f},{x_center+GRIP_X_WIDTH:.3f}], "
-          f"z>{z_top-GRIP_Z_FROM_TOP:.3f}")
+        band[np.argmax(y[band] - x[band])], band[np.argmax(x[band] + y[band])]]})
+    print(f"[bag] N={pos0.shape[0]}  bbox X={x.min():.3f}~{x.max():.3f}  "
+          f"Y={y.min():.3f}~{y.max():.3f}  Z={z.min():.3f}~{z.max():.3f}")
+    print(f"[bag] corners={len(corners)} positions:")
+    for c in corners:
+        print(f"        idx={c}  pos=({pos0[c,0]:.4f},{pos0[c,1]:.4f},{pos0[c,2]:.4f})")
     bag.fix_particles(particles_idx_local=corners)
+
+    def _select_mid_top_grip():
+        """현재 상태의 봉투 particle 에서 가로 중앙 + 상단 strip 선정.
+        grasp 직전에 호출 → dropin/close 변형 후 실제 위치 기반 선정."""
+        cur = _pos_of(bag); cx, cy, cz = cur[:, 0], cur[:, 1], cur[:, 2]
+        x_center = float(GRASP_XY[0])
+        z_top    = float(cz.max())
+        strip = (np.abs(cx - x_center) < GRIP_X_WIDTH) & (cz > z_top - GRIP_Z_FROM_TOP)
+        idx = np.array([i for i in np.where(strip)[0] if i not in corners])
+        if len(idx) > 0:
+            sp = cur[idx]
+            print(f"[grip-select] N={len(idx)}  "
+                  f"X={sp[:,0].min():.4f}~{sp[:,0].max():.4f}  "
+                  f"Y={sp[:,1].min():.4f}~{sp[:,1].max():.4f}  "
+                  f"Z={sp[:,2].min():.4f}~{sp[:,2].max():.4f}")
+        return idx
+
+    # 초기 진단 — sim 시작 전 grip 후보 위치
+    print(f"[bag] initial grip strip preview:")
+    _ = _select_mid_top_grip()
+    grip_idx = np.array([], dtype=int)  # 실제 선정은 grasp phase 직전에
 
     def bag_com():
         p = _pos_of(bag); v = p[~np.isnan(p).any(axis=1)]
@@ -347,7 +442,10 @@ def main(use_viewer: bool = True):
 
     def run(name, qa0, qa1, f0, f1, n, attach=False, release=False,
             drop_release=False, track_to=None):
+        nonlocal grip_idx
         if attach:
+            # grasp 직전에 동적 재선정 — dropin/close 후 실제 봉투 상태 기준
+            grip_idx = _select_mid_top_grip()
             bag.fix_particles_to_link(link_idx=grip_link_idx, particles_idx_local=grip_idx)
             print(f"[grasp] attach {len(grip_idx)} → {GRIP_LINK}")
         if release:
@@ -373,8 +471,9 @@ def main(use_viewer: bool = True):
     run("grasp",   Q_GRASP, Q_GRASP, FING_CLOSE, FING_CLOSE, N_GRASP, attach=True, release=True)
     run("lift",    Q_GRASP, Q_LIFT,  FING_CLOSE, FING_CLOSE, N_LIFT)
     run("move",    Q_LIFT,  Q_MOVE,  FING_CLOSE, FING_CLOSE, N_MOVE)
-    # 2-step: 슬롯 바로 위로 접근 → z 만 수직 하강 (벽면 충돌 회피, 봉투 수직 안착)
+    # 3-step: 슬롯 바로 위 → 공중 정지(봉투 안정화) → z 만 수직 하강
     run("approach", Q_MOVE,     Q_APPROACH, FING_CLOSE, FING_CLOSE, N_APPROACH)
+    run("settle",   Q_APPROACH, Q_APPROACH, FING_CLOSE, FING_CLOSE, N_SETTLE)
     run("descend",  Q_APPROACH, Q_DESCEND,  FING_CLOSE, FING_CLOSE, N_DESCEND)
 
     # ── Phase A verify: 봉투가 release 직전에 Wall_1 입구에 있는지 ──────────
