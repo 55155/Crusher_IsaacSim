@@ -43,8 +43,11 @@ FING_OPEN, FING_CLOSE = 0.04, 0.006
 # ── 봉투/박스 spawn ─────────────────────────────────────────────────────────
 GRASP_XY    = np.array([0.20, 0.006]); BAG_MOUTH_Z = 0.50
 BAG_POS     = (GRASP_XY[0], GRASP_XY[1], BAG_MOUTH_Z - H/2)
-THROAT      = dict(x=(0.17, 0.27), y=(-0.012, 0.024), z=(0.42, 0.50))
-GRIP_LINK   = "rg2_left"
+# 파지 대상: 봉투 "가로 중앙 + 상단" 좁은 strip (3D throat 박스 대신)
+#   x: bag 중앙선 ±5mm   y: bag 두께 전체 (핑거 사이)   z: top ±5mm
+GRIP_X_WIDTH    = 0.005     # 가로 중앙 strip 폭
+GRIP_Z_FROM_TOP = 0.005     # 상단에서 두께
+GRIP_LINK       = "rg2_left"
 BOX_SIZE    = (0.03, 0.006, 0.03)
 BOX_RHO     = 300.0
 BOX_SPAWN   = (0.20, 0.006, 0.575)
@@ -58,9 +61,21 @@ CAM_WIDE_POS  = np.array([1.15, -1.05, 1.05])
 CAM_WIDE_LOOK = np.array([0.27, 0.0, 0.45])
 CAM_TRACK_OFF = np.array([0.45, -0.42, 0.18])
 
-# ── Crusher 배치 (매니퓰레이터 정면, Wall_1 이 -x 향함) ─────────────────
-CRUSHER_POS   = (0.45, 0.0, 0.0)
+# ── Crusher 배치 (매니퓰레이터 정면 + 작업영역 높이로 elevate) ────────────
+#   원본 Wall_1 local z≈17mm → 받침대 효과로 z=0.4 띄움 → Wall_1 world z≈0.42.
+#   M0609 reach 영역 (z 0.2~1.2 m) 내로 진입.
+CRUSHER_POS   = (0.55, 0.0, 0.4)
 CRUSHER_EULER = (0.0, 0.0, 90.0)
+
+# ── PBD 봉투 강성 (Samplebag 에서 검증: 박스 안전 + 유연성 ↑) ──────────────
+STRETCH_COMPLIANCE = 1e-3
+BENDING_COMPLIANCE = 1e-3
+
+# ── Wall_1 정면 placement: Wall_1 world pos + offset → IK Q_PLACE ──────────
+WALL_LINK_NAME    = "L2_Left_Wall1_1"
+EE_LINK_NAME      = "rg2_hand"
+# Wall_1 face 기준 봉투 hang 위치 (front=음의 X, slightly above wall)
+EE_OFFSET_M       = np.array([-0.05, 0.0, 0.05])
 
 # ── 경로 ────────────────────────────────────────────────────────────────────
 _DIR = os.path.dirname(os.path.abspath(__file__))
@@ -198,9 +213,12 @@ def main(use_viewer: bool = True):
                        decimate=False, convexify=False),
         surface=gs.surfaces.Default(smooth=False),
     )
-    # PBD 약봉투
+    # PBD 약봉투 — Samplebag 검증된 유연 강성
     bag = scene.add_entity(
-        material=gs.materials.PBD.Cloth(),
+        material=gs.materials.PBD.Cloth(
+            stretch_compliance=STRETCH_COMPLIANCE,
+            bending_compliance=BENDING_COMPLIANCE,
+        ),
         morph=gs.morphs.Mesh(file=STL_PATH, scale=1.0, pos=BAG_POS, euler=(90, 0, 0)),
         surface=gs.surfaces.Default(color=(0.97, 0.97, 0.95), opacity=0.7, roughness=0.9, double_sided=True),
     )
@@ -217,16 +235,69 @@ def main(use_viewer: bool = True):
     grip_link_idx = robot.get_link(GRIP_LINK).idx
     robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
 
+    # ── Wall_1 world pos 분석 (Crusher 좌표계 검증) ─────────────────────────
+    wall_link  = crusher.get_link(WALL_LINK_NAME)
+    ee_link    = robot.get_link(EE_LINK_NAME)
+    wall_pos   = _npy(wall_link.get_pos())
+
+    # MJCF body 'L2_Left_Wall1_1' 의 원본 pos (Crusher local frame, before transform)
+    wall_body_mjcf = np.array([-0.017802, 0.286278, 0.016542])
+    yaw_deg = CRUSHER_EULER[2]; yaw = np.radians(yaw_deg)
+    R_yaw = np.array([[np.cos(yaw), -np.sin(yaw), 0],
+                      [np.sin(yaw),  np.cos(yaw), 0],
+                      [0, 0, 1]])
+    wall_expected = R_yaw @ wall_body_mjcf + np.array(CRUSHER_POS)
+    print(f"\n[wall-analysis]")
+    print(f"  MJCF body L2_Left_Wall1_1 pos      = {wall_body_mjcf}  (Crusher local)")
+    print(f"  CRUSHER_POS={CRUSHER_POS}  EULER yaw={yaw_deg}°")
+    print(f"  R_yaw @ body + CRUSHER_POS         = {wall_expected}  (manual transform)")
+    print(f"  Genesis link.get_pos()             = {wall_pos}  (Genesis built-in)")
+    print(f"  diff (manual - genesis)            = {wall_expected - wall_pos}\n")
+
+    ee_target  = wall_pos + EE_OFFSET_M
+    print(f"[place] Wall_1 world={wall_pos}  ee_target={ee_target}")
+
+    # Genesis IK 가 이 robot/target 조합에서 비정상 — manual brute search 로 대체.
+    # j2+j3+j5=2.90 invariant 유지 (EE 수직 자세 보존), j4=j6=0 고정.
+    # j1, j2, j3 grid scan → EE world pos 측정 → target 최근접 Q 채택.
+    def _find_q_place(target):
+        best_q, best_err, best_ee = None, float("inf"), None
+        for j1 in np.linspace(-0.8, 0.8, 17):
+            for j2 in np.linspace(-1.0, 0.5, 16):
+                for j3 in np.linspace(0.3, 2.0, 18):
+                    j5 = 2.90 - j2 - j3
+                    if not (-1.0 < j5 < 3.5):
+                        continue
+                    q = np.array([j1, j2, j3, 0.0, j5, 0.0])
+                    robot.set_dofs_position(np.concatenate([q, [FING_CLOSE, FING_CLOSE]]))
+                    ee = _npy(ee_link.get_pos())
+                    e = float(np.linalg.norm(ee - target))
+                    if e < best_err:
+                        best_err, best_q, best_ee = e, q.copy(), ee
+        return best_q, best_err, best_ee
+
+    Q_PLACE_IK, err_m, ee_at_ik = _find_q_place(ee_target)
+    err_mm = err_m * 1000
+    print(f"[place] best Q (grid scan) = {Q_PLACE_IK}")
+    print(f"[place] EE @ best Q        = {ee_at_ik}  (target {ee_target}, err {err_mm:.1f} mm)")
+
+    # 다시 원래 자세 (sim 시작점) 으로 복귀
+    robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
+
     pos0 = _pos_of(bag); z, x, y = pos0[:, 2], pos0[:, 0], pos0[:, 1]
     band = np.where(z >= np.quantile(z, 0.92))[0]
     corners = list({int(i) for i in [
         band[np.argmin(x[band] + y[band])], band[np.argmax(x[band] - y[band])],
         band[np.argmin(-x[band] + y[band])], band[np.argmax(x[band] + y[band])]]})
-    thr = ((x >= THROAT['x'][0]) & (x <= THROAT['x'][1]) &
-           (y >= THROAT['y'][0]) & (y <= THROAT['y'][1]) &
-           (z >= THROAT['z'][0]) & (z <= THROAT['z'][1]))
-    grip_idx = np.array([i for i in np.where(thr)[0] if i not in corners])
-    print(f"[bag] N={pos0.shape[0]} grip={len(grip_idx)} corners={len(corners)}")
+
+    # 가로 중앙 strip + 상단 → 가장 좁은 그립 영역
+    x_center = float(GRASP_XY[0])
+    z_top    = float(z.max())
+    mid_strip = (np.abs(x - x_center) < GRIP_X_WIDTH) & (z > z_top - GRIP_Z_FROM_TOP)
+    grip_idx = np.array([i for i in np.where(mid_strip)[0] if i not in corners])
+    print(f"[bag] N={pos0.shape[0]}  grip(mid-top strip)={len(grip_idx)}  corners={len(corners)}")
+    print(f"      grip strip: x∈[{x_center-GRIP_X_WIDTH:.3f},{x_center+GRIP_X_WIDTH:.3f}], "
+          f"z>{z_top-GRIP_Z_FROM_TOP:.3f}")
     bag.fix_particles(particles_idx_local=corners)
 
     def bag_com():
@@ -268,9 +339,25 @@ def main(use_viewer: bool = True):
     run("grasp",   Q_GRASP, Q_GRASP, FING_CLOSE, FING_CLOSE, N_GRASP, attach=True, release=True)
     run("lift",    Q_GRASP, Q_LIFT,  FING_CLOSE, FING_CLOSE, N_LIFT)
     run("move",    Q_LIFT,  Q_MOVE,  FING_CLOSE, FING_CLOSE, N_MOVE)
-    run("place",   Q_MOVE,  Q_PLACE, FING_CLOSE, FING_CLOSE, N_PLACE)
-    run("release", Q_PLACE, Q_PLACE, FING_CLOSE, FING_OPEN,  N_REL, drop_release=True)
-    run("hold",    Q_PLACE, Q_PLACE, FING_OPEN, FING_OPEN,   N_HOLD)
+    run("place",   Q_MOVE,  Q_PLACE_IK, FING_CLOSE, FING_CLOSE, N_PLACE)
+
+    # ── Phase A verify: 봉투가 release 직전에 Wall_1 입구에 있는지 ──────────
+    bag_at_place = bag_com()
+    ee_at_place  = _npy(ee_link.get_pos())
+    wall_at_place = _npy(wall_link.get_pos())
+    err_ee_target = ee_at_place - ee_target
+    err_bag_wall  = bag_at_place - wall_at_place
+    print(f"\n[verify @ end-of-place, before release]")
+    print(f"  EE  world  = {ee_at_place}  (target {ee_target}, err {np.linalg.norm(err_ee_target)*1000:.1f} mm)")
+    print(f"  bag com    = {bag_at_place}")
+    print(f"  wall_1 com = {wall_at_place}")
+    print(f"  bag - wall = {err_bag_wall}  (xy_dist {np.linalg.norm(err_bag_wall[:2])*1000:.1f}mm, "
+          f"dz {err_bag_wall[2]*1000:+.1f}mm)")
+
+    run("release", Q_PLACE_IK, Q_PLACE_IK, FING_CLOSE, FING_OPEN, N_REL, drop_release=True)
+    run("hold",    Q_PLACE_IK, Q_PLACE_IK, FING_OPEN, FING_OPEN, N_HOLD)
+
+    print(f"\n[verify @ end-of-hold]  bag final com = {bag_com()}  (will fall w/o holder clamp)")
 
     cam.stop_recording(save_to_filename=MP4_PATH, fps=20)
     print(f"[saved] {MP4_PATH}")

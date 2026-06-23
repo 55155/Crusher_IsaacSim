@@ -25,6 +25,11 @@ W, H, D = 0.08, 0.12, 0.01
 NW, NH, ND = 6, 9, 2
 PARTICLE_SIZE = 2.83e-3
 
+# PBD cloth 강성 (default: stretch=1e-7, bending=1e-5)
+# bending compliance 를 키워 굽힘 쉬워짐 → 홀더 클램프 시 자연 접힘
+STRETCH_COMPLIANCE = 1e-3   # 1e-7 → 1e-3 (10000× 완화), particle 거리 제약 완화 테스트
+BENDING_COMPLIANCE = 1e-3
+
 BAG_MOUTH_Z = 0.50
 BAG_POS = (0.20, 0.006, BAG_MOUTH_Z - H/2)
 BOX_SIZE  = (0.03, 0.006, 0.03)
@@ -98,7 +103,10 @@ def main(use_viewer: bool = True):
         surface=gs.surfaces.Default(color=(0.82, 0.82, 0.85), metallic=0.85, roughness=0.3),
     )
     bag = scene.add_entity(
-        material=gs.materials.PBD.Cloth(),
+        material=gs.materials.PBD.Cloth(
+            stretch_compliance=STRETCH_COMPLIANCE,
+            bending_compliance=BENDING_COMPLIANCE,
+        ),
         morph=gs.morphs.Mesh(file=STL_PATH, scale=1.0, pos=BAG_POS, euler=(90, 0, 0)),
         surface=gs.surfaces.Default(color=(0.97, 0.97, 0.95), opacity=0.7, roughness=0.9, double_sided=True),
     )
@@ -119,17 +127,44 @@ def main(use_viewer: bool = True):
     print(f"[bag] N={pos0.shape[0]} corners={len(corners)}")
     bag.fix_particles(particles_idx_local=corners)
 
+    # ── PBD stretch 측정 준비 ───────────────────────────────────────────────
+    # Genesis PBD 는 STL 을 particle_size 간격으로 재샘플링하므로 particle 인덱스 ≠
+    # STL vertex 인덱스. 초기 particle 위치에서 nearest-neighbor (≤ 1.5×particle_size)
+    # 쌍을 찾아 "neighbor 거리" 의 변화를 stretch ratio 로 측정.
+    from scipy.spatial import cKDTree
+    tree = cKDTree(pos0)
+    pairs = tree.query_pairs(r=PARTICLE_SIZE * 1.5, output_type="ndarray")
+    init_len = np.linalg.norm(pos0[pairs[:, 0]] - pos0[pairs[:, 1]], axis=1)
+    print(f"[stretch] {len(pairs)} neighbor pairs (r<{PARTICLE_SIZE*1500:.1f}mm), "
+          f"init mean={init_len.mean()*1000:.2f}mm min={init_len.min()*1000:.2f} "
+          f"max={init_len.max()*1000:.2f}")
+
+    stretch_log = []
     cam.start_recording()
     for k in range(N_STEPS):
         scene.step()
         if (k + 1) % RENDER_EVERY == 0:
             cam.render()
         if (k + 1) % 200 == 0:
+            pos = _pos_of(bag)
+            cur_len = np.linalg.norm(pos[pairs[:, 0]] - pos[pairs[:, 1]], axis=1)
+            ratio = cur_len / init_len
             bz = _npy(box.get_pos())[2]
-            print(f"  step={k+1}/{N_STEPS}  box_z={bz:+.4f}")
+            stretch_log.append([(k + 1) * DT, ratio.mean(), ratio.max(), ratio.min(), bz])
+            print(f"  t={(k+1)*DT:.3f}s  box_z={bz:+.4f}  "
+                  f"stretch mean={ratio.mean():.4f} max={ratio.max():.4f} min={ratio.min():.4f}")
 
     cam.stop_recording(save_to_filename=MP4_PATH, fps=30)
     print(f"[saved] {MP4_PATH}")
+
+    if stretch_log:
+        arr = np.array(stretch_log)
+        ss = arr[arr[:, 0] > 0.5]  # 정상상태 t>0.5s
+        print("\n[stretch summary]  (t > 0.5s steady-state)")
+        print(f"   mean ratio : avg={ss[:, 1].mean():.4f}  peak={ss[:, 1].max():.4f}")
+        print(f"   max  ratio : avg={ss[:, 2].mean():.4f}  peak={ss[:, 2].max():.4f}")
+        print(f"   min  ratio : avg={ss[:, 3].mean():.4f}  trough={ss[:, 3].min():.4f}")
+        print("   해석: ratio>1.0 인장 / <1.0 압축 / 1.0=rest. max ratio<1.05면 매우 단단.")
     print("완료.")
 
 
