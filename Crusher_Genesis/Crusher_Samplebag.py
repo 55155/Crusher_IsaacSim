@@ -33,8 +33,10 @@ DT, SUBSTEPS = 1e-3, 10
 RENDER_EVERY = 15
 
 # ── 샘플백 (PBD cloth) ──────────────────────────────────────────────────────
-W, H, D = 0.03, 0.05, 0.006     # 30 × 50 × 6 mm
-NW, NH, ND = 6, 9, 2
+# 원래 medicine envelope 스케일 (80×120 mm). D 만 PBD 안정성 위해 6 mm 유지
+# (원본 10 mm → 6 mm; 2·particle_size=5.66 mm 보다 큼).
+W, H, D = 0.08, 0.12, 0.006     # 80 × 120 × 6 mm
+NW, NH, ND = 16, 24, 2
 PARTICLE_SIZE = 2.83e-3
 STRETCH_COMPLIANCE = 1e-3
 BENDING_COMPLIANCE = 1e-3
@@ -58,6 +60,7 @@ WALL_KP,  WALL_KV  = 5000.0, 500.0
 CRANK_START_Q = -np.pi / 2      # 크랭크 초기 -90°
 CRANK_OMEGA   =  np.pi          # 0.5 rev/s (분쇄)
 WALL_VEL      =  0.005          # 5 mm/s (천천히 닫힘)
+WALL_OFFSET   = -0.007          # Left_Wall 초기 -7 mm (gap 확장; 봉투 투입용)
 
 # ── 페이즈 step 수 ──────────────────────────────────────────────────────────
 N_DROPIN  = 1000  # 1.0 s
@@ -66,12 +69,13 @@ N_WARMUP  = 500   # 0.5 s
 N_CLAMP   = 1000  # 1.0 s (5 mm/s × 1s = 5 mm 슬라이드)
 N_CRANK   = 4000  # 4.0 s (4 회전)
 
-# ── 카메라 ──────────────────────────────────────────────────────────────────
-CAM_WIDE_POS  = np.array([1.15, -1.05, 1.05])
-CAM_WIDE_LOOK = np.array([0.27, 0.0, 0.10])
+# ── 카메라 (gap 영역 줌 인) ────────────────────────────────────────────────
+CAM_WIDE_POS  = np.array([0.85, -0.45, 0.45])
+CAM_WIDE_LOOK = np.array([0.50, 0.0, 0.08])
+CAM_FOV       = 32
 
-# ── 정적 벽 mesh ────────────────────────────────────────────────────────────
-WALL_BACK_MESH    = "L2_Wall3_1"
+# ── 정적 벽 mesh (Wall_1 ↔ Left_Wall 사이의 좁은 gap 이 타깃) ─────────────
+WALL_BACK_MESH    = "L1_Wall1_1"
 WALL_LEFT_MESH    = "L2_Left_Wall1_1"
 LEFTWALL_BODY_POS = (-0.017802, 0.286278, 0.016542)
 LEFTWALL_GEOM_POS = (-0.286278, -0.016542, 0.017802)
@@ -203,7 +207,7 @@ def main(use_viewer: bool = True):
     if use_viewer:
         scene_kwargs["viewer_options"] = gs.options.ViewerOptions(
             camera_pos=tuple(CAM_WIDE_POS), camera_lookat=tuple(CAM_WIDE_LOOK),
-            camera_fov=46, max_FPS=60)
+            camera_fov=CAM_FOV, max_FPS=60)
     scene = gs.Scene(**scene_kwargs)
 
     # 알루미늄 plate 2×2 그리드 (작업면)
@@ -222,10 +226,20 @@ def main(use_viewer: bool = True):
     )
 
     # ── gap 위치 해석 (build 전) ────────────────────────────────────────────
+    # 진단: 모든 정적 벽 AABB 출력 (Wall_1 / Wall_2 / Wall_3 / Left_Wall)
+    for nm in ("L1_Wall1_1", "L1_Wall2_1", "L2_Wall3_1"):
+        lo, hi = crusher_mesh_world_aabb(nm)
+        print(f"[wall-aabb] {nm:<12} x=[{lo[0]:+.4f},{hi[0]:+.4f}] "
+              f"y=[{lo[1]:+.4f},{hi[1]:+.4f}] z=[{lo[2]:+.4f},{hi[2]:+.4f}]")
+    lw_lo, lw_hi = crusher_mesh_world_aabb(WALL_LEFT_MESH, LEFTWALL_BODY_POS, LEFTWALL_GEOM_POS)
+    print(f"[wall-aabb] {WALL_LEFT_MESH:<12} x=[{lw_lo[0]:+.4f},{lw_hi[0]:+.4f}] "
+          f"y=[{lw_lo[1]:+.4f},{lw_hi[1]:+.4f}] z=[{lw_lo[2]:+.4f},{lw_hi[2]:+.4f}]")
+
     wb_lo, wb_hi = crusher_mesh_world_aabb(WALL_BACK_MESH)
-    wl_lo, wl_hi = crusher_mesh_world_aabb(WALL_LEFT_MESH, LEFTWALL_BODY_POS, LEFTWALL_GEOM_POS)
+    wl_lo, wl_hi = lw_lo, lw_hi
     gap_lo_x, gap_hi_x = sorted([wb_hi[0], wl_lo[0]])
     gap_cx = (gap_lo_x + gap_hi_x) / 2.0
+    gap_width = gap_hi_x - gap_lo_x
     y_lo = max(wb_lo[1], wl_lo[1]); y_hi = min(wb_hi[1], wl_hi[1])
     gap_cy = (y_lo + y_hi) / 2.0
     wall_top_z = max(wb_hi[2], wl_hi[2])
@@ -239,10 +253,41 @@ def main(use_viewer: bool = True):
     start_y  = target_y
     start_z  = target_z + SLOT_DZ_START
 
-    print(f"\n[gap]    back +x={wb_hi[0]:.4f}  left -x={wl_lo[0]:.4f}  "
-          f"width={(gap_hi_x-gap_lo_x)*1000:.1f}mm  wall_top_z={wall_top_z:.4f}")
+    print(f"\n[gap]    {WALL_BACK_MESH}.+x={wb_hi[0]:.4f}  Left_Wall.-x={wl_lo[0]:.4f}  "
+          f"width={gap_width*1000:.2f}mm  wall_top_z={wall_top_z:.4f}")
     print(f"[bag]    start = ({start_x:.4f}, {start_y:.4f}, {start_z:.4f})")
     print(f"[bag]    target= ({target_x:.4f}, {target_y:.4f}, {target_z:.4f})")
+
+    # ── 봉투 회전 후 x-축 두께 = D (6 mm). gap 통과 가능한지 사전 검증 ─────
+    # Left_Wall 을 WALL_OFFSET (음수) 만큼 미리 이동 → 효과 gap = static + |WALL_OFFSET|
+    bag_thickness_x = D                       # euler=(90,0,90) 후 D 가 x 방향
+    bag_span_y      = W                       # W 가 y 방향
+    eff_gap = gap_width - WALL_OFFSET         # WALL_OFFSET<0 이면 gap 확장
+    margin_x = eff_gap - bag_thickness_x
+    min_clearance = 2 * PARTICLE_SIZE         # PBD 충돌 솔버 여유
+    fit_ok = margin_x > min_clearance
+    print(f"[fit]    static_gap={gap_width*1000:.2f}mm  wall_offset={WALL_OFFSET*1000:+.2f}mm"
+          f"  eff_gap={eff_gap*1000:.2f}mm")
+    print(f"[fit]    bag_thickness_x={bag_thickness_x*1000:.2f}mm  margin={margin_x*1000:+.2f}mm"
+          f"  required>={min_clearance*1000:.2f}mm  → {'PASS' if fit_ok else 'FAIL'}")
+    if not fit_ok:
+        print(f"[fit][WARN] gap 가 좁아 봉투 통과 불가. D 또는 WALL_OFFSET 조정 필요.")
+    # mouth (현 회전 후 x-y 평면) vs 박스 단면
+    box_x, box_y = BOX_SIZE[0], BOX_SIZE[1]
+    if box_x > bag_thickness_x:
+        print(f"[fit][WARN] BOX_SIZE[0]={box_x*1000:.1f}mm > bag mouth x={bag_thickness_x*1000:.1f}mm"
+              f" — 박스가 봉투 mouth 통과 불가. BOX_SIZE 재조정 필요.")
+    if box_y > bag_span_y:
+        print(f"[fit][WARN] BOX_SIZE[1]={box_y*1000:.1f}mm > bag mouth y={bag_span_y*1000:.1f}mm")
+    # 봉투 깊이 (H) vs 벽 깊이 — 봉투 bottom 이 wall bottom 보다 낮으면 plate 와 충돌
+    wall_depth = wall_top_z - wb_lo[2]
+    bag_bottom_z = target_z - H
+    print(f"[depth]  wall(z)=[{wb_lo[2]:.4f}, {wall_top_z:.4f}]  depth={wall_depth*1000:.1f}mm  "
+          f"bag(H)={H*1000:.0f}mm  bag_bottom_z={bag_bottom_z:.4f}")
+    if bag_bottom_z < wb_lo[2]:
+        print(f"[depth][WARN] bag_bottom({bag_bottom_z:.4f}) < wall_bottom({wb_lo[2]:.4f})"
+              f" — 봉투가 벽 아래로 {(wb_lo[2]-bag_bottom_z)*1000:.1f}mm 비져나옴. "
+              f"SLOT_DZ_FINAL 을 +{(wb_lo[2]-bag_bottom_z+0.005)*1000:.0f}mm 정도 올리거나 H 축소 검토.")
 
     # ── 봉투, 박스, carrier ───────────────────────────────────────────────
     bag_pos_init = (start_x, start_y, start_z - H/2)   # 봉투 중심
@@ -251,7 +296,7 @@ def main(use_viewer: bool = True):
             stretch_compliance=STRETCH_COMPLIANCE,
             bending_compliance=BENDING_COMPLIANCE,
         ),
-        morph=gs.morphs.Mesh(file=STL_PATH, scale=1.0, pos=bag_pos_init, euler=(90, 0, 0)),
+        morph=gs.morphs.Mesh(file=STL_PATH, scale=1.0, pos=bag_pos_init, euler=(90, 0, 90)),
         surface=gs.surfaces.Default(color=(0.97, 0.97, 0.95), opacity=0.7, roughness=0.9, double_sided=True),
     )
     # 박스 — 봉투 mouth 바로 위에서 낙하 (dropin 동안 봉투 안 안착)
@@ -272,7 +317,7 @@ def main(use_viewer: bool = True):
     )
 
     cam = scene.add_camera(res=(960, 720), pos=tuple(CAM_WIDE_POS),
-                           lookat=tuple(CAM_WIDE_LOOK), fov=46, GUI=False)
+                           lookat=tuple(CAM_WIDE_LOOK), fov=CAM_FOV, GUI=False)
     scene.build(n_envs=0)
 
     # ── 봉투 corner 4개 식별 + carrier 에 weld ──
@@ -304,6 +349,13 @@ def main(use_viewer: bool = True):
     print(f"[ctrl] crank DOF #{crank_dof}: kp={CRANK_KP}, kv={CRANK_KV}")
     print(f"[ctrl] wall  DOF #{wall_dof}: kp={WALL_KP}, kv={WALL_KV}")
 
+    # Left_Wall 을 WALL_OFFSET 만큼 미리 열어 둠 (gap 확장; 봉투 투입용).
+    # build 직후, 첫 step 이전 → teleport 안전.
+    crusher.set_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+    wq0 = _npy(crusher.get_dofs_position())[wall_dof]
+    print(f"[init] Left_Wall offset = {wq0*1000:+.2f} mm  "
+          f"(effective gap ≈ {(gap_width - WALL_OFFSET)*1000:.2f} mm)")
+
     cam.start_recording()
     step = [0]
 
@@ -318,6 +370,7 @@ def main(use_viewer: bool = True):
     # ── Phase 1: dropin (박스가 봉투 안으로 낙하, carrier 정지) ──
     print("\n[phase] 1/5 dropin (1.0 s) — 박스 봉투 안으로")
     for _ in range(N_DROPIN):
+        crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
         scene.step(); step[0] += 1
         render_tick()
     bp = _npy(box.get_pos()); bc = bag_com()
@@ -331,6 +384,7 @@ def main(use_viewer: bool = True):
         s = (k + 1) / N_DESCEND
         cur = tuple(start_p + (final_p - start_p) * s)
         carrier.set_pos(np.array(cur), zero_velocity=True)
+        crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
         scene.step(); step[0] += 1
         render_tick()
     bp = _npy(box.get_pos()); bc = bag_com()
@@ -342,6 +396,7 @@ def main(use_viewer: bool = True):
         s = (k + 1) / N_WARMUP
         q_target = CRANK_START_Q * s
         crusher.control_dofs_position(np.array([q_target]), dofs_idx_local=[crank_dof])
+        crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
         # carrier 위치 유지 (이 후 phase 도 동일하게)
         carrier.set_pos(final_p, zero_velocity=True)
         scene.step(); step[0] += 1
