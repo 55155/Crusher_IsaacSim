@@ -50,7 +50,7 @@ CRUSHER_POS   = (0.55, 0.0, 0.0)
 CRUSHER_EULER = (0.0, 0.0, 90.0)
 
 # ── 타깃 / 시작 오프셋 ──────────────────────────────────────────────────────
-SLOT_DX_FRONT  = -0.005   # back wall 의 +x 면 기준 앞으로(−x) 5 mm
+SLOT_DX_FRONT  =  0.000   # gap 중심 기준 x 오프셋 (0 = Wall3↔Left_Wall 정중앙)
 SLOT_DZ_START  =  0.20    # target 보다 20 cm 위에서 시작
 SLOT_DZ_FINAL  =  0.00    # 봉투 mouth 이 wall_top 과 같은 높이
 
@@ -75,7 +75,7 @@ CAM_WIDE_LOOK = np.array([0.50, 0.0, 0.08])
 CAM_FOV       = 32
 
 # ── 정적 벽 mesh (Wall_1 ↔ Left_Wall 사이의 좁은 gap 이 타깃) ─────────────
-WALL_BACK_MESH    = "L1_Wall1_1"
+WALL_BACK_MESH    = "L2_Wall3_1"   # Left_Wall 과 마주보는 수직 back wall (L1_Wall1_1 은 바닥 플레이트라 오류)
 WALL_LEFT_MESH    = "L2_Left_Wall1_1"
 LEFTWALL_BODY_POS = (-0.017802, 0.286278, 0.016542)
 LEFTWALL_GEOM_POS = (-0.286278, -0.016542, 0.017802)
@@ -195,7 +195,8 @@ def main(use_viewer: bool = True):
     print(f"[crusher] patched MJCF → {crusher_xml}")
 
     import genesis as gs
-    gs.init(backend=gs.cuda, logging_level="warning")
+    _backend = gs.metal if sys.platform == "darwin" else gs.cuda
+    gs.init(backend=_backend, logging_level="warning")
 
     scene_kwargs = dict(
         sim_options=gs.options.SimOptions(dt=DT, substeps=SUBSTEPS, gravity=(0, 0, -9.81)),
@@ -245,7 +246,7 @@ def main(use_viewer: bool = True):
     wall_top_z = max(wb_hi[2], wl_hi[2])
 
     # 목표 = 봉투 중심이 wall_top 살짝 아래 (봉투 mouth ~ wall_top 정렬)
-    target_x = wb_hi[0] + SLOT_DX_FRONT       # back wall 의 +x 면 앞으로
+    target_x = gap_cx + SLOT_DX_FRONT         # Wall3↔Left_Wall gap 중심
     target_y = gap_cy
     target_z = wall_top_z + SLOT_DZ_FINAL
     # 시작 = target 위 + 동일 xy
