@@ -6,14 +6,16 @@ gap 위에서 시작 → 천천히 하강 → 목표(=Wall_back ↔ Left_Wall �
 이후 Motor2 가 Left_Wall 을 닫고, Motor1 크랭크가 동작해 박스를 타격.
 
 시퀀스:
-  1. dropin  : 봉투 corners 가 carrier 에 weld 된 채 정지, 박스가 봉투 안으로 낙하
-  2. descend : carrier 가 start_pos → target_pos 로 선형 하강 (봉투 같이 내려옴)
-  3. warmup  : Motor1 크랭크 0 → -π/2 (start angle) 까지 PD position 램프
-  4. clamp   : Motor2 Left_Wall +5 mm/s 슬라이드 (back wall 쪽으로 닫힘)
-  5. crank   : Motor1 +π rad/s 등속 회전 (분쇄)
+  1. openwall : Left_Wall 0 → -7mm 개방. 완전히 열릴 때까지 다른 동작 정지(봉투 매단 채 대기)
+  2. bagsettle: 매달린 봉투 안정화 (박스 옆에 대기)
+  3. dropbox  : 박스를 mouth 위로 옮겨 매달린 봉투 안으로 낙하
+  4. descend  : carrier 가 봉투(+박스)를 start_pos → target_pos(슬롯) 로 선형 하강
+  5. warmup   : Motor1 크랭크 0 → -π/2 (start angle) 까지 PD position 램프
+  6. clamp    : Motor2 Left_Wall +5 mm/s 슬라이드 (back wall 쪽으로 닫힘)
+  7. crank    : Motor1 +π rad/s 등속 회전 (분쇄)
 
 출력:
-  Sim_result/Crusher_Samplebag_<ts>.mp4
+  Sim_result/Crusher_Samplebag_<ts>_side_xz.mp4 (측면 x-z) + _top_xy.mp4 (평면 x-y)
 """
 import os, sys, shutil, tempfile
 import xml.etree.ElementTree as ET
@@ -63,16 +65,21 @@ WALL_VEL      =  0.005          # 5 mm/s (천천히 닫힘)
 WALL_OFFSET   = -0.007          # Left_Wall 초기 -7 mm (gap 확장; 봉투 투입용)
 
 # ── 페이즈 step 수 ──────────────────────────────────────────────────────────
-N_DROPIN  = 1000  # 1.0 s
-N_DESCEND = 1500  # 1.5 s
-N_WARMUP  = 500   # 0.5 s
-N_CLAMP   = 1000  # 1.0 s (5 mm/s × 1s = 5 mm 슬라이드)
-N_CRANK   = 4000  # 4.0 s (4 회전)
+N_OPENWALL  = 800   # 0.8 s  Left_Wall 0 → -7mm 개방 + 안착 (이 동안 봉투/박스 정지)
+N_BAGSETTLE = 800   # 0.8 s  매달린 봉투 안정화 (박스 투입 전)
+N_DROPBOX   = 1200  # 1.2 s  매달린 봉투 안으로 박스 낙하 + 안정화
+N_DESCEND   = 1500  # 1.5 s  봉투(+박스) 슬롯으로 하강
+N_WARMUP    = 500   # 0.5 s
+N_CLAMP     = 1000  # 1.0 s (5 mm/s × 1s = 5 mm 슬라이드)
+N_CRANK     = 4000  # 4.0 s (4 회전)
 
-# ── 카메라 (gap 영역 줌 인) ────────────────────────────────────────────────
+# ── 카메라 (슬롯 줌 인: 측면 y-z + 평면 x-y) ───────────────────────────────
+CAM_RES   = (960, 720)
+CAM_FOV   = 45
+CAM_DIST  = 0.40              # 슬롯 중심 ↔ 카메라 거리
+# 인터랙티브 viewer 용 광각
 CAM_WIDE_POS  = np.array([0.85, -0.45, 0.45])
 CAM_WIDE_LOOK = np.array([0.50, 0.0, 0.08])
-CAM_FOV       = 32
 
 # ── 정적 벽 mesh (Wall_1 ↔ Left_Wall 사이의 좁은 gap 이 타깃) ─────────────
 WALL_BACK_MESH    = "L2_Wall3_1"   # Left_Wall 과 마주보는 수직 back wall (L1_Wall1_1 은 바닥 플레이트라 오류)
@@ -85,7 +92,8 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(_DIR, "Sim_result"); os.makedirs(OUT_DIR, exist_ok=True)
 STL_PATH = os.path.join(OUT_DIR, "crusher_samplebag_open.stl")
 _TS      = datetime.now().strftime("%Y%m%d_%H%M%S")
-MP4_PATH = os.path.join(OUT_DIR, f"Crusher_Samplebag_{_TS}.mp4")
+MP4_SIDE = os.path.join(OUT_DIR, f"Crusher_Samplebag_{_TS}_side_xz.mp4")
+MP4_TOP  = os.path.join(OUT_DIR, f"Crusher_Samplebag_{_TS}_top_xy.mp4")
 CRUSHER_SRC_XML = os.path.join(_DIR, "MJCF", "Crusher_IsaacSim_colored.xml")
 
 # ── Crusher MJCF 패치 옵션 ──────────────────────────────────────────────────
@@ -300,11 +308,13 @@ def main(use_viewer: bool = True):
         morph=gs.morphs.Mesh(file=STL_PATH, scale=1.0, pos=bag_pos_init, euler=(90, 0, 90)),
         surface=gs.surfaces.Default(color=(0.97, 0.97, 0.95), opacity=0.7, roughness=0.9, double_sided=True),
     )
-    # 박스 — 봉투 mouth 바로 위에서 낙하 (dropin 동안 봉투 안 안착)
-    box_spawn_z = start_z + 0.02
+    # 박스 — 봉투가 슬롯에 안정화될 때까지 옆에 파킹(set_pos 로 hold), 이후 mouth 위로
+    #   옮겨 낙하시킨다. dynamic(fixed=False) 이라 매 step set_pos 로 붙들어 둠.
+    box_park   = (target_x, target_y - 0.20, target_z + 0.10)   # 슬롯에서 y 로 비켜둔 대기 위치
+    box_drop_p = (start_x, start_y, start_z + 0.03)             # 매달린 봉투 mouth 바로 위
     box = scene.add_entity(
         material=gs.materials.Rigid(rho=BOX_RHO),
-        morph=gs.morphs.Box(size=BOX_SIZE, pos=(start_x, start_y, box_spawn_z), fixed=False),
+        morph=gs.morphs.Box(size=BOX_SIZE, pos=box_park, fixed=False),
         surface=gs.surfaces.Default(color=(0.85, 0.35, 0.25)),
     )
     # carrier — 봉투 corners 가 부착될 invisible kinematic rigid.
@@ -317,8 +327,17 @@ def main(use_viewer: bool = True):
         surface=gs.surfaces.Default(color=(0.2, 0.8, 0.2), opacity=0.4),
     )
 
-    cam = scene.add_camera(res=(960, 720), pos=tuple(CAM_WIDE_POS),
-                           lookat=tuple(CAM_WIDE_LOOK), fov=CAM_FOV, GUI=False)
+    # 슬롯 중심 기준 2개 카메라:
+    #   cam_side : -y 에서 +y 로 바라봄 → 이미지 평면 (x, z) [측면, 틈 사이 하강이 보임]
+    #   cam_top  : +z 에서 -z 로 내려다봄 → 이미지 평면 (x, y) [평면]
+    slot_center = np.array([gap_cx, gap_cy, wall_top_z])
+    cam_side = scene.add_camera(
+        res=CAM_RES, pos=tuple(slot_center + np.array([0.0, -CAM_DIST, 0.0])),
+        lookat=tuple(slot_center), up=(0.0, 0.0, 1.0), fov=CAM_FOV, GUI=False)
+    cam_top = scene.add_camera(
+        res=CAM_RES, pos=tuple(slot_center + np.array([0.0, 0.0, CAM_DIST])),
+        lookat=tuple(slot_center), up=(0.0, 1.0, 0.0), fov=CAM_FOV, GUI=False)
+    print(f"[cam] slot_center={slot_center}  side(x,z)-y  top(x,y)+z  dist={CAM_DIST}")
     scene.build(n_envs=0)
 
     # ── 봉투 corner 4개 식별 + carrier 에 weld ──
@@ -350,14 +369,15 @@ def main(use_viewer: bool = True):
     print(f"[ctrl] crank DOF #{crank_dof}: kp={CRANK_KP}, kv={CRANK_KV}")
     print(f"[ctrl] wall  DOF #{wall_dof}: kp={WALL_KP}, kv={WALL_KV}")
 
-    # Left_Wall 을 WALL_OFFSET 만큼 미리 열어 둠 (gap 확장; 봉투 투입용).
-    # build 직후, 첫 step 이전 → teleport 안전.
-    crusher.set_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+    # Left_Wall 은 닫힌(0) 상태에서 시작 → Phase 1 에서 천천히 개방한다.
+    # (이전엔 init 에서 즉시 텔레포트 개방 + 봉투 하강이 동시에 일어나 순서가 섞였음)
+    crusher.set_dofs_position(np.array([0.0]), dofs_idx_local=[wall_dof])
     wq0 = _npy(crusher.get_dofs_position())[wall_dof]
-    print(f"[init] Left_Wall offset = {wq0*1000:+.2f} mm  "
-          f"(effective gap ≈ {(gap_width - WALL_OFFSET)*1000:.2f} mm)")
+    print(f"[init] Left_Wall start = {wq0*1000:+.2f} mm (closed)  "
+          f"target open = {WALL_OFFSET*1000:+.2f} mm → eff gap {(gap_width - WALL_OFFSET)*1000:.2f} mm")
 
-    cam.start_recording()
+    cam_side.start_recording()
+    cam_top.start_recording()
     step = [0]
 
     def bag_com():
@@ -366,47 +386,80 @@ def main(use_viewer: bool = True):
 
     def render_tick():
         if step[0] % RENDER_EVERY == 0:
-            cam.render()
+            cam_side.render()
+            cam_top.render()
 
-    # ── Phase 1: dropin (박스가 봉투 안으로 낙하, carrier 정지) ──
-    print("\n[phase] 1/5 dropin (1.0 s) — 박스 봉투 안으로")
-    for _ in range(N_DROPIN):
+    start_p = np.array([start_x,  start_y,  start_z])
+    final_p = np.array([target_x, target_y, target_z])
+    box_park_p = np.array(box_park)
+
+    # ── Phase 1: openwall (Left_Wall 0 → -7mm 개방, 완전히 열릴 때까지 대기) ──
+    #   봉투는 carrier 가 start 위치에 매달아 둠, 박스는 옆에 hold → 벽만 움직인다.
+    print(f"\n[phase] 1/7 openwall ({N_OPENWALL*DT:.1f} s) — Left_Wall 0 → {WALL_OFFSET*1000:+.0f}mm 개방 (다른 동작 정지)")
+    for k in range(N_OPENWALL):
+        s = (k + 1) / N_OPENWALL
+        wq_target = WALL_OFFSET * s
+        crusher.control_dofs_position(np.array([wq_target]), dofs_idx_local=[wall_dof])
+        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])
+        carrier.set_pos(start_p, zero_velocity=True)           # 봉투 매단 채 정지
+        box.set_pos(box_park_p, zero_velocity=True)            # 박스 대기
+        scene.step(); step[0] += 1
+        render_tick()
+    wq = _npy(crusher.get_dofs_position())[wall_dof]
+    print(f"  [openwall] wall_pos={wq*1000:+.2f} mm  (target {WALL_OFFSET*1000:+.0f}mm)")
+
+    # ── Phase 2: bagsettle (매달린 봉투 안정화, 벽 개방 유지) ──
+    print(f"[phase] 2/7 bagsettle ({N_BAGSETTLE*DT:.1f} s) — 매달린 봉투 안정화")
+    for _ in range(N_BAGSETTLE):
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])
+        carrier.set_pos(start_p, zero_velocity=True)
+        box.set_pos(box_park_p, zero_velocity=True)
+        scene.step(); step[0] += 1
+        render_tick()
+    bc = bag_com()
+    print(f"  [bagsettle] bag_com=({bc[0]:.3f},{bc[1]:.3f},{bc[2]:.3f})")
+
+    # ── Phase 3: dropbox (매달린 봉투 안으로 박스 낙하) ──
+    print(f"[phase] 3/7 dropbox ({N_DROPBOX*DT:.1f} s) — 박스를 mouth 위로 옮겨 낙하")
+    box.set_pos(np.array(box_drop_p), zero_velocity=True)      # mouth 위로 1회 이동 후 자유낙하
+    for _ in range(N_DROPBOX):
+        crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])
+        carrier.set_pos(start_p, zero_velocity=True)           # 봉투 매단 채 정지
         scene.step(); step[0] += 1
         render_tick()
     bp = _npy(box.get_pos()); bc = bag_com()
-    print(f"  [dropin] box_z={bp[2]:.4f}  bag_com_z={bc[2]:.4f}")
+    print(f"  [dropbox] box=({bp[0]:.3f},{bp[1]:.3f},{bp[2]:.3f})  bag_com_z={bc[2]:.4f}")
 
-    # ── Phase 2: descend (carrier 선형 하강) ──
-    print("[phase] 2/5 descend (1.5 s) — carrier start → target")
-    start_p = np.array([start_x,  start_y,  start_z])
-    final_p = np.array([target_x, target_y, target_z])
+    # ── Phase 4: descend (봉투+박스를 슬롯 안으로 하강) ──
+    print(f"[phase] 4/7 descend ({N_DESCEND*DT:.1f} s) — 봉투(+박스)를 슬롯으로 하강")
     for k in range(N_DESCEND):
         s = (k + 1) / N_DESCEND
         cur = tuple(start_p + (final_p - start_p) * s)
         carrier.set_pos(np.array(cur), zero_velocity=True)
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])
         scene.step(); step[0] += 1
         render_tick()
     bp = _npy(box.get_pos()); bc = bag_com()
-    print(f"  [descend] carrier_z={cur[2]:.4f}  bag_com_z={bc[2]:.4f}  box_z={bp[2]:.4f}")
+    print(f"  [descend] carrier_z={cur[2]:.4f}  bag_com=({bc[0]:.3f},{bc[1]:.3f},{bc[2]:.3f})  box_z={bp[2]:.4f}")
 
-    # ── Phase 3: crank warmup (0 → -π/2 PD position 램프) ──
-    print(f"[phase] 3/5 crank warmup (0.5 s) — 0 → {CRANK_START_Q:+.3f} rad")
+    # ── Phase 5: crank warmup (0 → -π/2 PD position 램프) ──
+    print(f"[phase] 5/7 crank warmup (0.5 s) — 0 → {CRANK_START_Q:+.3f} rad")
     for k in range(N_WARMUP):
         s = (k + 1) / N_WARMUP
         q_target = CRANK_START_Q * s
         crusher.control_dofs_position(np.array([q_target]), dofs_idx_local=[crank_dof])
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
-        # carrier 위치 유지 (이 후 phase 도 동일하게)
         carrier.set_pos(final_p, zero_velocity=True)
         scene.step(); step[0] += 1
         render_tick()
     q_now = _npy(crusher.get_dofs_position())[crank_dof]
     print(f"  [warmup] crank actual={q_now:+.3f} rad")
 
-    # ── Phase 4: clamp (Motor2 Left_Wall 닫힘) ──
-    print(f"[phase] 4/5 clamp (1.0 s) — Motor2 @ +{WALL_VEL*1000:.0f} mm/s")
+    # ── Phase 6: clamp (Motor2 Left_Wall 닫힘) ──
+    print(f"[phase] 6/7 clamp (1.0 s) — Motor2 @ +{WALL_VEL*1000:.0f} mm/s")
     for _ in range(N_CLAMP):
         # 크랭크는 -π/2 유지 (warmup 끝 자세 그대로)
         crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
@@ -417,8 +470,8 @@ def main(use_viewer: bool = True):
     wq = _npy(crusher.get_dofs_position())[wall_dof]
     print(f"  [clamp] wall_pos={wq*1000:+.1f} mm")
 
-    # ── Phase 5: crank (Motor1 등속 회전, Motor2 정지) ──
-    print(f"[phase] 5/5 crank (4.0 s) — Motor1 @ {CRANK_OMEGA:.3f} rad/s")
+    # ── Phase 7: crank (Motor1 등속 회전, Motor2 정지) ──
+    print(f"[phase] 7/7 crank (4.0 s) — Motor1 @ {CRANK_OMEGA:.3f} rad/s")
     for k in range(N_CRANK):
         crusher.control_dofs_velocity(np.array([CRANK_OMEGA]), dofs_idx_local=[crank_dof])
         crusher.control_dofs_velocity(np.array([0.0]), dofs_idx_local=[wall_dof])
@@ -430,8 +483,10 @@ def main(use_viewer: bool = True):
             bp = _npy(box.get_pos())
             print(f"  [crank] step={k+1}  crank={cq:+.3f} rad  box=({bp[0]:.3f},{bp[1]:.3f},{bp[2]:.3f})")
 
-    cam.stop_recording(save_to_filename=MP4_PATH, fps=30)
-    print(f"\n[saved] {MP4_PATH}")
+    cam_side.stop_recording(save_to_filename=MP4_SIDE, fps=30)
+    cam_top.stop_recording(save_to_filename=MP4_TOP, fps=30)
+    print(f"\n[saved] side(x,z) → {MP4_SIDE}")
+    print(f"[saved] top (x,y) → {MP4_TOP}")
     print(f"[verify] bag_com final = {bag_com()}")
     print(f"[verify] box final     = {_npy(box.get_pos())}")
     print("완료.")
