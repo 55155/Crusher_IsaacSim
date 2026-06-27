@@ -1,23 +1,23 @@
 """
-fem_uniaxial_compression.py — 정제 단축 압축 (공식 예제 패턴: soft vertex constraint)
+fem_uniaxial_compression.py — 정제 단축 압축 (공식 예제 패턴: vertex constraint 구동)
 
 공식 예제 `fem_hard_and_soft_constraint.py` 의 표준 패턴:
-  - FEMOptions(use_implicit_solver=True, enable_vertex_constraints=True)
-  - tablet.set_vertex_constraints(idx, target_positions, is_soft_constraint=True, stiffness=K)
+  - FEMOptions(use_implicit_solver=True, enable_vertex_constraints=True), coupler 없음
+  - tablet.set_vertex_constraints(idx, target_positions)   # implicit → hard Dirichlet
   - 매 step tablet.update_constraint_targets(idx, new_target) 로 BC 갱신
 
 자유도:
-  - 정제 top 노드: 강성 K 스프링으로 target 위치에 끌림 (시간에 따라 -z 이동)
-  - 정제 bot 노드: 강성 K 스프링으로 초기 위치 고정 (Dirichlet)
+  - 정제 top 노드: hard Dirichlet, target 을 시간에 따라 -z 이동 (압축축 = 두께 4mm)
+  - 정제 bot 노드: hard Dirichlet, 초기 위치 고정
   - 정제 내부: 모두 자유 (FEM)
-  - Plate: 시각 보조 (target 위치 따라 그림자처럼 이동)
+  - Plate: 시각 보조 (압축면 따라 텔레포트, 접촉 계산 없음)
 
 측정:
   - d(t)        : target 변위 [m]
   - top_z, bot_z: 정제 표면 노드 평균 z [m]
   - ΔH(t)       : 정제 두께 변화 [m]
   - ε(t)        : 공학 strain [-]
-  - W_int(t)    : FEM strain energy [J] (solver field)
+  - σ(t)        : nominal stress = E·ε [MPa]   (정제 파단 ~2-3 MPa 기준)
 
 출력:
   Sim_result/fem_uniaxial_<ts>.mp4
@@ -38,24 +38,23 @@ for _s in (sys.stdout, sys.stderr):
 
 # ── 옵션 (테스트 단계 — mesh 거칠게 + 짧은 시뮬) ───────────────
 DT, SUBSTEPS = 1e-3, 1            # implicit: 큰 dt OK
-PLATE_VEL    = 2.0e-3             # 2 mm/s (더 빨라야 짧은 시뮬에서 변형 보임)
-DURATION     = 0.3                # 0.3 s → 0.6 mm 변위
+DURATION     = 0.3                # s
+PLATE_VEL    = 4.0e-5             # 0.04 mm/s → d_max=0.012mm (ε≈0.3% on 4mm 두께)
+                                  # 정제 파단 ε≈0.15%(σ≈3MPa) 부근까지만 압축
 N_STEPS      = int(DURATION / DT)
 RENDER_EVERY = 1
 SAMPLE_EVERY = 3
-TARGET_FACES = 200                # STL decimation: 원본 ~수천 face → 200 face
-                                  # → tet 수 ~12000 → ~수백 으로 감소 예상
+TARGET_FACES = 50                 # STL decimation: 원본 ~수천 face → 50 face
+                                  # → tet/노드 대폭 축소 (테스트 반복용)
 
 # 재료 (literature 정제 일반값)
-# Soft constraint 의 stiffness K 는 정제 강성과 비슷해야 BC 가 효과 있음.
-# K_tablet = E·A/L ≈ 2e9 · 5e-5 / 2.5e-3 = 4e7 N/m. K_bc 는 이 정도 또는 조금 강하게.
 E_TABLET   = 2.0e9    # 2 GPa
 NU_TABLET  = 0.25
 RHO_TABLET = 1300.0   # kg/m^3
-BC_STIFF   = 1.0e7    # N/m  (soft constraint 강성)
 
-# 정제 STL
-TABLET_STL   = "C:/Crusher_isaacsim/tablets_stl/stl/tablet_R4.0_AR1.00_CV0.20.stl"
+# 정제 STL — repo 루트의 tablets_stl/stl 기준 (스크립트 위치로부터, 머신 독립)
+_REPO_ROOT   = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+TABLET_STL   = os.path.join(_REPO_ROOT, "tablets_stl", "stl", "tablet_R4.0_AR1.00_CV0.20.stl")
 TABLET_SCALE = 1e-3   # mm → m
 
 # Plate (시각 + 압축 driver)
@@ -84,6 +83,9 @@ def main(use_viewer: bool = False):
 
     # ── STL load + decimate (테스트 단계: 노드 대폭 축소) ─────────
     raw_mesh = tm.load(TABLET_STL)
+    # P2 축 정렬: 이 STL은 두께(4mm)가 Y축, 지름(8mm)이 X·Z.
+    # 두께를 압축축 Z로 보내기 위해 X축 +90° 회전 (Y→Z). 이후 bbox·배치 모두 올바른 축 기준.
+    raw_mesh.apply_transform(tm.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
     n_face_orig = len(raw_mesh.faces)
     if n_face_orig > TARGET_FACES:
         try:
@@ -111,8 +113,7 @@ def main(use_viewer: bool = False):
     print(f"[plate] gap = {plate_gap*1e3:.2f} mm  (margin {PLATE_MARGIN*1e3:.2f} mm each side)")
 
     import genesis as gs
-    _backend = gs.metal if sys.platform == "darwin" else gs.cuda
-    gs.init(backend=_backend, precision="64", logging_level="warning")  # SAP requires 64bit
+    gs.init(backend=gs.gpu, logging_level="warning")   # 예제식: coupler 없이 constraint 구동
 
     scene = gs.Scene(
         sim_options=gs.options.SimOptions(dt=DT, substeps=SUBSTEPS, gravity=(0, 0, -9.81)),
@@ -120,7 +121,6 @@ def main(use_viewer: bool = False):
             use_implicit_solver=True,         # backward Euler
             enable_vertex_constraints=True,   # *** 필수 *** (디폴트 False)
         ),
-        coupler_options=gs.options.SAPCouplerOptions(),   # Drake SAP contact
         vis_options=gs.options.VisOptions(background_color=(0.95, 0.95, 0.97)),
         show_viewer=use_viewer,
     )
@@ -134,10 +134,10 @@ def main(use_viewer: bool = False):
         material=gs.materials.Rigid(),
         surface=gs.surfaces.Default(color=(0.45, 0.45, 0.55)),
     )
-    # 상부 plate (movable: IPC 의 ABD 가 ≥ 1 movable body 요구)
+    # 상부 plate (시각용 fixed=True; 매 step set_pos 로 압축면 추적만)
     plate_top_z0 = plate_gap + PLATE_MARGIN + PLATE_SIZE[2] / 2
     plate_top = scene.add_entity(
-        morph=gs.morphs.Box(size=PLATE_SIZE, pos=(0, 0, plate_top_z0), fixed=False),
+        morph=gs.morphs.Box(size=PLATE_SIZE, pos=(0, 0, plate_top_z0), fixed=True),
         material=gs.materials.Rigid(),
         surface=gs.surfaces.Default(color=(0.70, 0.45, 0.45)),
     )
@@ -180,31 +180,21 @@ def main(use_viewer: bool = False):
     print(f"\n[tablet] nodes={len(pos0)}  z=[{z_lo*1000:.2f}, {z_hi*1000:.2f}] mm")
     print(f"[bc]     top nodes={len(top_idx)}, bot nodes={len(bot_idx)}  (band={band*1e3:.2f} mm)")
 
-    # ── 공식 예제 패턴: soft vertex constraint ────────────────────
-    # init_positions 가 torch tensor → 그 위에 offset 더해서 target 만듦
+    # ── 예제식 hard vertex constraint ─────────────────────────────
+    # implicit solver 는 constrained 노드를 무조건 hard Dirichlet 처리(소스 확인).
+    # → 예제처럼 is_soft/stiffness 없이 호출.
     init_pos = tablet.init_positions   # torch tensor (N, 3)
     dev, dt_ = init_pos.device, init_pos.dtype
 
     bot_init = init_pos[bot_idx].clone()
     top_init = init_pos[top_idx].clone()
 
-    # 하면 노드: 초기 위치 유지 (Dirichlet)
-    tablet.set_vertex_constraints(
-        bot_idx, bot_init,
-        is_soft_constraint=True, stiffness=BC_STIFF,
-    )
-    # 상면 노드: 초기 위치에서 시작, 매 step -z 로 갱신
-    tablet.set_vertex_constraints(
-        top_idx, top_init,
-        is_soft_constraint=True, stiffness=BC_STIFF,
-    )
-    print(f"[bc]     soft constraint stiffness K = {BC_STIFF:.1e} N/m")
-
-    # FEM solver 접근 (energy field probe)
-    fem_solver = scene.sim.fem_solver
+    tablet.set_vertex_constraints(bot_idx, bot_init)   # 하면: 초기 위치 고정
+    tablet.set_vertex_constraints(top_idx, top_init)   # 상면: 매 step -z 로 갱신
+    print(f"[bc]     hard Dirichlet (implicit)")
 
     # 데이터 기록
-    t_arr, d_arr, top_z_arr, bot_z_arr, W_int_arr = [], [], [], [], []
+    t_arr, d_arr, top_z_arr, bot_z_arr = [], [], [], []
 
     cam.start_recording()
     print("\n[run] stepping...")
@@ -227,22 +217,16 @@ def main(use_viewer: bool = False):
             pos = _npy(tablet.get_state().pos).squeeze()
             top_z_now = float(pos[top_idx, 2].mean())
             bot_z_now = float(pos[bot_idx, 2].mean())
-            try:
-                e_dict = fem_solver.elements_el_energy.to_numpy()
-                W_int = float(np.asarray(e_dict["energy"]).sum())
-            except Exception:
-                W_int = float("nan")
 
             t_arr.append(t)
             d_arr.append(d * 1e3)
             top_z_arr.append(top_z_now * 1e3)
             bot_z_arr.append(bot_z_now * 1e3)
-            W_int_arr.append(W_int * 1e3)
 
             if step % (SAMPLE_EVERY * 50) == 0:
                 tab_h = (top_z_now - bot_z_now) * 1e3
-                print(f"  t={t*1e3:6.1f} ms  d={d*1e3:.3f} mm  top_z={top_z_now*1e3:.3f}mm  "
-                      f"tablet_h={tab_h:.3f}mm  W_int={W_int*1e3:.3f} mJ")
+                print(f"  t={t*1e3:6.1f} ms  d={d*1e3:.4f} mm  top_z={top_z_now*1e3:.4f}mm  "
+                      f"tablet_h={tab_h:.4f}mm")
 
         if step % RENDER_EVERY == 0:
             cam.render()
@@ -253,11 +237,11 @@ def main(use_viewer: bool = False):
     # ── Plot ───────────────────────────────────────────────────
     t_arr = np.array(t_arr); d_arr = np.array(d_arr)
     top_z_arr = np.array(top_z_arr); bot_z_arr = np.array(bot_z_arr)
-    W_int_arr = np.array(W_int_arr)
 
     tablet_h = top_z_arr - bot_z_arr     # 정제 두께
     H0 = tablet_h[0] if len(tablet_h) else 1
     eps = (H0 - tablet_h) / H0           # nominal strain
+    sigma_MPa = E_TABLET * eps / 1e6     # nominal stress σ = E·ε [MPa]
 
     fig, ax = plt.subplots(2, 2, figsize=(12, 8))
 
@@ -278,20 +262,21 @@ def main(use_viewer: bool = False):
     ax[1,0].set_title("(c) Tablet surface node tracking")
     ax[1,0].legend(); ax[1,0].grid(alpha=0.3)
 
-    ax[1,1].plot(t_arr*1e3, W_int_arr, 'k-', lw=1.5)
-    ax[1,1].set_xlabel("Time [ms]"); ax[1,1].set_ylabel("$W_{int}$ [mJ]")
-    ax[1,1].set_title("(d) FEM strain energy (solver field)")
-    ax[1,1].grid(alpha=0.3)
+    ax[1,1].plot(eps*100, sigma_MPa, 'k-', lw=1.5)
+    ax[1,1].set_xlabel("Engineering strain $\\varepsilon$ [%]"); ax[1,1].set_ylabel("$\\sigma$ [MPa]")
+    ax[1,1].set_title("(d) Nominal stress σ = E·ε")
+    ax[1,1].axhspan(2, 3, color='r', alpha=0.12, label="정제 파단 ~2-3 MPa")
+    ax[1,1].legend(); ax[1,1].grid(alpha=0.3)
 
-    fig.suptitle(f"FEM Uniaxial (SAP coupler) — {os.path.basename(TABLET_STL)}\n"
-                 f"$E$={E_TABLET/1e9:.1f}GPa  $\\nu$={NU_TABLET}  $v$={PLATE_VEL*1e3:.2f}mm/s")
+    fig.suptitle(f"FEM Uniaxial (constraint-driven) — {os.path.basename(TABLET_STL)}\n"
+                 f"$E$={E_TABLET/1e9:.1f}GPa  $\\nu$={NU_TABLET}  $v$={PLATE_VEL*1e3:.3f}mm/s")
     plt.tight_layout()
     plt.savefig(PNG, dpi=120, bbox_inches='tight')
     plt.close()
     print(f"[saved plot]  {PNG}")
 
-    print(f"\n[summary] d_max={d_arr.max():.3f}mm  ΔH_max={(H0-tablet_h.min()):.3f}mm  "
-          f"ε_max={eps.max()*100:.2f}%  W_int_max={np.nanmax(W_int_arr):.3f}mJ")
+    print(f"\n[summary] d_max={d_arr.max():.4f}mm  ΔH_max={(H0-tablet_h.min()):.4f}mm  "
+          f"ε_max={eps.max()*100:.3f}%  σ_max={sigma_MPa.max():.3f} MPa")
 
 
 if __name__ == "__main__":
