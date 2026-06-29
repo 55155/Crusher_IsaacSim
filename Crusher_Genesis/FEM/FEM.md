@@ -93,6 +93,62 @@ Genesis 공식 예제 `fem_hard_and_soft_constraint.py` 의 표준 패턴을 그
 
 ---
 
+## 4.5. `elements_el_energy` 단위 의심 (추론 메모)
+
+`fem_solver.elements_el_energy.energy` 합으로 출력한 $W_{int}$ 가 단순 추정치
+($\tfrac{1}{2}\sigma\varepsilon V \approx 1$ J) 대비 **~10⁹ 배** 부풀어 나옴
+(ε=8.09% 시점에 3 × 10¹² mJ ≈ 3 GJ).
+
+검증 단서:
+- 변위·strain·node trajectory 는 모두 SI(m, %) 로 **정확**.
+- 부풀음이 **에너지 field 하나만** — 다른 양은 정상.
+- 비율이 정확히 **m³ ↔ mm³ (10⁹)** — 다른 단위 변환은 이 자릿수가 안 나옴.
+
+가설 (확률 순):
+1. **솔버 내부 raw buffer** — `elements_el_energy` 가 Newton step 보조용 (J 가
+   아닌 unscaled quantity). trend 는 옳지만 절대값 J 해석 불가.
+2. **부피 단위 mismatch** — element V_tet 가 m³ 가 아닌 mm³ 로 곱해진 자리가
+   있을 가능성. (1) 의 한 형태.
+
+함의:
+- **trend (∝ ε²) 는 신뢰**, **절대값 [J] 는 신뢰 불가**.
+- 정량 W·σ 가 필요하면 **node 변위로 ∇u 직접 계산 → constitutive law 후처리**
+  또는 **구속 노드 반력 ∫F·v dt** 가 안전.
+
+(자세한 자릿수 분석은 commit 메시지/대화 기록 참고. 정확한 위치 확정은
+`elements_i.V_tet` 등 internal field 추출 필요 — 현 단계 우선순위 낮음.)
+
+---
+
+## 4.6. 현재 막힌 지점 (2026-06-29) — Hertz point contact
+
+velocity control(`control_dofs_velocity` + 무거운 plate ram, DigitalTwin.md §7-7 (3))
+도입 후 F(t)는 **부드럽게 연속 증가**(spike 사라짐) — SAP 연결 자체는 정상.
+다만 d_max=20 μm 에서 F=0.022 N — 이론 elastic (E·A·ε=500 N) 대비 **~30,000×**,
+Hertz 점접촉 (~16 N) 대비도 **~700× 부족**. mesh 1000→5000 face 올려도 1.5×만 늘음.
+→ **CV=0.20 convex dome 꼭대기 점접촉이 본질**. 처방: d_max ≈ 1 mm 까지 깊게
+눌러서 dome→cylindrical band 면접촉 영역으로 진입시키는 것 (PLATE_VEL 10×↑ 또는
+DURATION ↑). 그래도 안 되면 SAP `hydroelastic_stiffness` 조정 검토.
+
+## 4.7. Pre-fracture modeling (다음 단계 계획)
+
+elastic FEM이 σ_I_max 위치(균열 핵)를 정확히 예측 → 그 위치를 따라 정제를
+**rigid 조각 + weak equality constraint** 로 미리 메쉬 분할 → constraint reaction
+> σ_t 도달 시 끊김 = 균열 발생. 4단계 워크플로우:
+
+1. **Elastic FEM scan** (현재 셋업) → tet 별 σ_I field → 상위 5% 위치 추출.
+2. **Pre-fragmentation mesh** (Python/trimesh) — FEM 예측 weak surface(적도면 +
+   방사 N개)를 따라 정제 chunk 분할.
+3. **Genesis 재구성** — 각 chunk 를 rigid entity, 인접면에 equality constraint;
+   매 step Python 에서 reaction force 모니터링.
+4. **Break threshold** — `|F_constr/A_face| > σ_t` (Brazilian/Pitt) 면 `remove_constraint`
+   → 균열 시퀀스·N_f·W\* 자연스럽게 출력.
+
+→ contact 문제 해결 직후의 자연스러운 다음 작업. MVP는 적도면 1개 + constraint 1개
+검증부터 (DigitalTwin.md §7-4 pre-fractured composite hack 의 구체화).
+
+---
+
 ## 5. 실행
 
 ```bash
