@@ -2,7 +2,9 @@
 crusher_velocity_ctrl_viewer.py  [velocity control — 8 RPM, with viewer]
 Crusher + Tablet simulation
 
-Motor runs CCW at constant target velocity — no stall detection, no reversal.
+Motor driven by a strike–retract FSM (Finite State Machine):
+  STRIKE(CCW, 강방향) → 접촉 → RETRACT(CW, 무부하, 후퇴각 기준) → STRIKE …
+  파쇄(N_f)는 STRIKE가 직전 접촉각을 stall 없이 통과할 때 카운트. (Crusher.md §12)
 Opens MuJoCo passive viewer + realtime plot.
 
 Output (2 subplots):
@@ -14,6 +16,7 @@ Usage:
 """
 
 import os, sys, re, csv, math, argparse, xml.etree.ElementTree as ET
+from collections import deque
 from datetime import datetime
 
 import numpy as np
@@ -47,6 +50,17 @@ SIM_DURATION   = 20.0
 MOTOR_DELAY    =  2.0
 TARGET_RPM     =  8.0
 PLOT_UPDATE_N  =  50   # realtime plot update interval [steps]
+
+# ── Control: strike–retract FSM (Crusher.md §12) ──────────────────────
+#   STRIKE(CCW, 강방향) → 접촉 → RETRACT(CW, 무부하) → 후퇴각 도달 → STRIKE …
+#   준정적이라 후퇴는 '해제'가 목적: 시간이 아니라 후퇴각 기준 (Crusher.md §12-6)
+CONTACT_RPM_EPS   = 4.0   # [RPM] STRIKE 중 단기 평균 |속도| 가 이 값 미만이면 접촉(stall)
+CONTACT_HOLD_N    = 10    # 접촉 확정에 필요한 연속 샘플 수 (실기 rpm_buffer maxlen=5 대응)
+STRIKE_SPINUP_S   = 0.3   # [s]  STRIKE 진입 후 가속 유예 — 0 통과를 접촉으로 오판 방지
+STRIKE_TIMEOUT_S  = 6.0   # [s]  미접촉 시 강제 후퇴 (정제 소진/이탈 안전)
+RETRACT_ANGLE_DEG = 20.0  # [deg] CW 후퇴 목표각 (접촉 해제에 충분한 최소량)
+RETRACT_TIMEOUT_S = 6.0   # [s]  약한 CW가 목표각 못 채울 때 안전 타임아웃
+BREAK_ADVANCE_DEG = 8.0   # [deg] 직전 접촉각을 stall 없이 이만큼 통과 → 파쇄(N_f++)
 
 # ── Real motor: BL4281 + 감속기 1:212 (준정적 조건) ───────────────────
 GEAR_RATIO       = 212.0
@@ -123,7 +137,7 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
         "name": "tablet_geom", "type": "mesh", "mesh": "tablet_mesh",
         "material": "tablet_mat", "density": f"{density_kg_m3:.1f}",
         "condim": "3", "friction": ".5 .02 .01",
-        "solref": "0.001 2",
+        "solref": "0.005 2",
         "solimp": "0.99 0.999 0.001",
         "margin": "0.001",
     })
@@ -199,12 +213,21 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
     mujoco.mj_forward(model, data)
     print(f"  Done  crank={math.degrees(data.qpos[qadr]):.1f} deg\n")
 
-    # Phase 2 state
-    p2_start   = data.time
-    motor_on   = False
-    motor_on_t = None
+    # Phase 2 state — strike–retract FSM (Crusher.md §12)
+    p2_start        = data.time
+    motor_on        = False
+    motor_on_t      = None
+    motor_dir       = +1              # +1 = CCW(STRIKE/강방향), -1 = CW(RETRACT/무부하)
+    fsm_state       = "STRIKE"        # "STRIKE" | "RETRACT"
+    state_enter_t   = data.time       # 현재 상태 진입 시각
+    state_enter_ang = math.degrees(data.qpos[qadr])   # 현재 상태 진입 크랭크각 [deg]
+    contact_angle   = None            # 직전 STRIKE 접촉각 [deg]
+    contact_buf     = deque(maxlen=CONTACT_HOLD_N)    # 최근 |RPM| (접촉 판정)
+    n_fracture      = 0               # 파쇄(균열 진전) 카운트 = N_f
+    reversal_log    = []              # [(time, new_dir)] — 상태 전이 마커(플롯용)
 
     t_log = []; rpm_log = []; ang_log = []; fy_log = []; ncon_log = []
+    mavg_log = []                     # 접촉 판정용 단기 평균 |RPM| 로그
 
     print_every = 1000
     print(f"[Phase 2] Viewer open — motor ON at t+{MOTOR_DELAY}s  (max {SIM_DURATION}s)")
@@ -218,9 +241,13 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
         f"Crusher {target_rpm} RPM  |  kv={kv:.0f}  lim={MOTOR_FORCELIM:.0f} N·m",
         fontsize=11, fontweight="bold")
 
-    line_rpm, = ax1.plot([], [], color="tab:purple", lw=1.5, label="Crank speed [RPM]")
+    line_rpm,  = ax1.plot([], [], color="tab:purple", lw=1.5, label="Crank speed [RPM]")
+    line_mavg, = ax1.plot([], [], color="tab:orange", lw=1.5, ls="--",
+                           label=f"Contact avg ({CONTACT_HOLD_N} smp)")
     ax1.axhline(target_rpm, color="tab:purple", ls=":", lw=1.0, alpha=0.5,
                 label=f"Target {target_rpm} RPM")
+    ax1.axhline(CONTACT_RPM_EPS, color="tab:red", ls="-", lw=1.2, alpha=0.8,
+                label=f"ε = {CONTACT_RPM_EPS} RPM (contact threshold)")
     ax1.axhline(0, color="gray", lw=0.5)
     ax1.set_ylabel("RPM")
     ax1b = ax1.twinx()
@@ -252,7 +279,7 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
 
             if not motor_on and (data.time - p2_start) >= MOTOR_DELAY:
                 data.eq_active[eid_lock] = 0
-                data.ctrl[aid_crank]     = target_vel
+                data.ctrl[aid_crank]     = target_vel * motor_dir
                 motor_on   = True
                 motor_on_t = data.time
                 print(f"  *** Motor ON  t={data.time:.2f}s  CCW {target_vel:.4f} rad/s ***")
@@ -263,11 +290,63 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
             ang_now = math.degrees(data.qpos[qadr])
             fc_now  = _contact_force(model, data, bid_tablet)
 
+            # ── Strike–retract FSM (Crusher.md §12) ───────────────────
+            if motor_on:
+                contact_buf.append(abs(rpm_now))
+                mavg = float(np.mean(contact_buf)) if contact_buf else abs(rpm_now)
+                in_state_t = data.time - state_enter_t
+
+                if fsm_state == "STRIKE":
+                    # 파쇄: 직전 접촉각을 stall 없이 통과 → 균열 진전 (N_f++)
+                    if (contact_angle is not None
+                            and ang_now > contact_angle + BREAK_ADVANCE_DEG
+                            and abs(rpm_now) > CONTACT_RPM_EPS):
+                        n_fracture   += 1
+                        contact_angle = None          # 새 접촉면 재탐색
+                        print(f"  *** FRACTURE  t={data.time:.2f}s  "
+                              f"crank={ang_now:.1f}°  N_f={n_fracture} ***")
+                    # 접촉: spin-up 유예 후 단기 윈도우가 차고 평균 |RPM| < ε → RETRACT
+                    contact = (in_state_t > STRIKE_SPINUP_S
+                               and len(contact_buf) == contact_buf.maxlen
+                               and mavg < CONTACT_RPM_EPS)
+                    if contact or in_state_t > STRIKE_TIMEOUT_S:
+                        if contact:
+                            contact_angle = ang_now
+                            why = "contact"
+                        else:
+                            why = "timeout(미접촉)"
+                        motor_dir       = -1          # CW (무부하 후퇴)
+                        data.ctrl[aid_crank] = target_vel * motor_dir
+                        fsm_state       = "RETRACT"
+                        state_enter_t   = data.time
+                        state_enter_ang = ang_now
+                        contact_buf.clear()
+                        reversal_log.append((data.time, motor_dir))
+                        print(f"  *** STRIKE→RETRACT ({why})  t={data.time:.2f}s  "
+                              f"crank={ang_now:.1f}° ***")
+
+                else:  # RETRACT (CW, 무부하) — 시간 아닌 후퇴각 기준
+                    retracted = abs(ang_now - state_enter_ang)
+                    if retracted >= RETRACT_ANGLE_DEG or in_state_t > RETRACT_TIMEOUT_S:
+                        why = "angle" if retracted >= RETRACT_ANGLE_DEG else "timeout"
+                        motor_dir       = +1          # CCW (강방향 타격)
+                        data.ctrl[aid_crank] = target_vel * motor_dir
+                        fsm_state       = "STRIKE"
+                        state_enter_t   = data.time
+                        state_enter_ang = ang_now
+                        contact_buf.clear()
+                        reversal_log.append((data.time, motor_dir))
+                        print(f"  *** RETRACT→STRIKE ({why}, Δ={retracted:.1f}°)  "
+                              f"t={data.time:.2f}s ***")
+            else:
+                mavg = abs(rpm_now)
+
             t_log.append(data.time)
             rpm_log.append(rpm_now)
             ang_log.append(ang_now)
             fy_log.append(fc_now[1])
             ncon_log.append(data.ncon)
+            mavg_log.append(mavg)
 
             if len(t_log) % print_every == 0:
                 print(f"  {data.time:6.2f}s | {rpm_now:7.2f} | {ang_now:8.1f} | "
@@ -276,6 +355,7 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
             # Realtime plot update
             if len(t_log) % PLOT_UPDATE_N == 0 and len(t_log) > 1:
                 line_rpm.set_data(t_log, rpm_log)
+                line_mavg.set_data(t_log, mavg_log)
                 line_ang.set_data(t_log, ang_log)
                 line_fy.set_data(t_log,  fy_log)
                 for ax in (ax1, ax1b, ax2):
@@ -287,6 +367,10 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
                 if motor_on_t:
                     for ax in (ax1, ax2):
                         _vlines.append(ax.axvline(motor_on_t, color="tab:green",
+                                                   ls="--", lw=1.0, alpha=0.7))
+                for rt, _ in reversal_log:
+                    for ax in (ax1, ax2):
+                        _vlines.append(ax.axvline(rt, color="tab:red",
                                                    ls="--", lw=1.0, alpha=0.7))
                 fig_rt.canvas.draw_idle(); fig_rt.canvas.flush_events()
 
@@ -311,6 +395,8 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
     print(f"  RPM range  : {rpm.min():.2f} ~ {rpm.max():.2f}  (target {target_rpm})")
     print(f"  F_Y        : {F_Y_min:.3f} ~ {F_Y_max:.3f} N")
     print(f"  Impulse    : {J_Y:.5f} N*s")
+    print(f"  Cycles     : {len(reversal_log)//2}  (strike–retract)")
+    print(f"  N_f        : {n_fracture}  (fracture events)")
     print(f"  {'='*55}")
 
     # ── Final 2-subplot figure ────────────────────────────────────────
@@ -320,13 +406,25 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
         f"R={R_mm:.1f} AR={AR:.2f} CV={CV:.2f}  ρ={density_kg_m3:.0f} kg/m³",
         fontsize=10, fontweight="bold")
 
-    ax_a.plot(t, rpm, color="tab:purple", lw=1.5, label="Crank speed [RPM]")
-    ax_a.axhline(target_rpm, color="tab:purple", ls=":", lw=1.0, alpha=0.5,
+    mavg = np.array(mavg_log)
+    ax_a.plot(t, rpm,  color="tab:purple", lw=1.5, label="Crank speed [RPM]")
+    ax_a.plot(t, mavg, color="tab:orange", lw=1.5, ls="--",
+              label=f"Contact avg ({CONTACT_HOLD_N} smp)")
+    ax_a.axhline(target_rpm,      color="tab:purple", ls=":", lw=1.0, alpha=0.5,
                  label=f"Target {target_rpm} RPM")
+    ax_a.axhline(CONTACT_RPM_EPS, color="tab:red",    ls="-", lw=1.2, alpha=0.8,
+                 label=f"ε = {CONTACT_RPM_EPS} RPM (contact threshold)")
     ax_a.axhline(0, color="gray", lw=0.5)
     if motor_on_t:
         ax_a.axvline(motor_on_t, color="tab:green", ls="--", lw=1.2,
                      label=f"Motor ON (t={motor_on_t:.1f}s)")
+    _seen_dir = set()
+    for rt, nd in reversal_log:
+        dir_str = "CW(retract)" if nd < 0 else "CCW(strike)"
+        col     = "tab:red" if nd < 0 else "tab:green"
+        lbl     = dir_str if dir_str not in _seen_dir else None
+        _seen_dir.add(dir_str)
+        ax_a.axvline(rt, color=col, ls="--", lw=1.0, alpha=0.6, label=lbl)
     ax_a.set_ylabel("RPM", fontsize=11)
     ax_ab = ax_a.twinx()
     ax_ab.plot(t, ang, color="tab:green", lw=1.0, ls="-.", alpha=0.75,
@@ -335,8 +433,9 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
     ax_ab.tick_params(axis='y', labelcolor='tab:green')
     _la, _lba = ax_a.get_legend_handles_labels()
     _lab, _lbab = ax_ab.get_legend_handles_labels()
-    ax_a.legend(_la + _lab, _lba + _lbab, fontsize=9, loc="upper right")
-    ax_a.set_title("Crank Speed & Angle", fontsize=10)
+    ax_a.legend(_la + _lab, _lba + _lbab, fontsize=8, loc="upper right")
+    ax_a.set_title(f"Crank Speed & Angle  |  cycles={len(reversal_log)//2}  N_f={n_fracture}",
+                   fontsize=10)
     ax_a.grid(True, alpha=0.3)
 
     ax_b.plot(t, fy, color="tab:blue", lw=1.5, label="Tablet F_Y [N]")
@@ -347,6 +446,8 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
     ax_b.axhline(0, color="k", lw=0.5)
     if motor_on_t:
         ax_b.axvline(motor_on_t, color="tab:green", ls="--", lw=1.2)
+    for rt, _ in reversal_log:
+        ax_b.axvline(rt, color="tab:red", ls="--", lw=1.2, alpha=0.8)
     ax_b.set_ylabel("F_Y [N]", fontsize=11)
     ax_b.set_xlabel("Time [s]", fontsize=11)
     ax_b.set_title(
@@ -372,6 +473,7 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
         w.writerow(["# density_kg_m3", density_kg_m3])
         w.writerow(["# F_Y_max", f"{F_Y_max:.5f}", "F_Y_min", f"{F_Y_min:.5f}",
                     "Impulse_Ns", f"{J_Y:.6f}"])
+        w.writerow(["# cycles", len(reversal_log)//2, "N_f", n_fracture])
         w.writerow([])
         w.writerow(["Time_s", "Crank_deg", "F_Y_N", "Crank_RPM", "ncon"])
         for i in range(len(t_log)):
