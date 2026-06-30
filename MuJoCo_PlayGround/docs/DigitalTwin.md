@@ -100,18 +100,21 @@
   - 문제는 **MPM → Rigid → PBD** 이 3단 커플링이 잘 될지가 의문이다.
 - 샘플백 이송도 문제이다. 현재 파지를 해보고 있는데, 생각보다는 파지가 잘 되질 않는다.
 
-### 5-1. 백엔드 이슈 (Genesis 1.0.0+)
+### 5-1. 백엔드 이슈 — *해결됨* (2026-06-30)
 
-현재 Genesis 1.0.0 버전부터 Taichi를 버리고 **Warp**로 GPU 연산 라이브러리를 변경하면서 5080 및 5090과 호환이 되지 않는 현상 발생.
+이전: Genesis 1.0.0부터 Taichi → **Warp** 전환 시 5080/5090 호환 안 됨.
 → 관련 이슈: https://github.com/Genesis-Embodied-AI/genesis-world/issues/2942
 
-- **두 가지 선택지**
-  - Genesis version fallback
-  - **version 유지 → CPU 연산하기 → 채택**
+**원인 판명**: GPU 호환 문제가 아니라 **그래픽 드라이버 버그**. 드라이버 업데이트 후
+정상 작동 확인.
 
-→ **PBD.cloth() + IPC + CPU 기반 연산**
-→ PBD 제약 푸는 과정이 꽤나 오래 걸림. 2초 돌리는 데 CPU 기준 약 80분.
-→ **Metal로 돌리는 게 맞는 듯함.**
+**현재 표준 (2026-06-30 결정)**:
+- Genesis **v1.2.0** 으로 통일 (`C:\genesis-world\` source 기준)
+- env: **`isaacsim`** (Python 3.11, Warp backend, uipc 포함)
+- Genesis_env (Python 3.10, 0.2.1, Taichi) 는 deprecated — 신규 작업 안 함
+
+> 과거 SAP 결과(`fem_uniaxial_20260629_*` 등)는 Genesis 0.2.1 + Taichi 산물이라
+> 새 환경 결과와 직접 비교 시 백엔드 차이 고려 필요.
 
 ---
 
@@ -187,8 +190,11 @@
 | 전체 | 반력 (reaction force) | N | 접촉면/고정점에 가해진 힘 → 분쇄력 측정 |
 | 전체 | 변형 에너지 | J | 정제에 쌓인 에너지 |
 | 전체 | 부피 변화 | m³ | 압축률 |
+| **derived** | **균열 핵 위치 (crack nucleation site)** | (tet idx → world xyz) | **`argmax_e σ_I(e)` — 응력 집중부**. 단일 점이 아니라 *상위 N% percentile field* 로 추출하면 weak surface 후보. **pre-fracture 모델링(FEM.md §4.7)의 직접 입력.** |
+| derived | 첫 파쇄 시점 t\* | s | `min{t : σ_I_max(t) ≥ σ_t}` — Regime I 의 F_threshold 도출 |
 
 > 충돌된 힘들을 정제에 쌓인 에너지로 사용하고, 이를 N-time과 매칭.
+> 균열 핵 위치는 FEM 가 *가장 잘 푸는* 양 (§7-5) — Twin → pre-fractured composite hand-off 의 핵심 인자.
 
 ### 7-4. 활용 — 예측과 캘리브레이션
 

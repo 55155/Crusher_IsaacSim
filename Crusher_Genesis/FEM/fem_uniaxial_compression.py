@@ -208,22 +208,32 @@ def main(use_viewer: bool = False):
     coupler = scene.sim.coupler
     top_idx_np = np.asarray(top_idx, dtype=np.int64)
 
-    # ── plate_top: velocity control (PD-controlled DOF velocity target) ──
-    # set_pos 금지 — discontinuous teleport 가 SAP contact impulse 흐름을 망침
-    # (DigitalTwin.md §7-7 (3) 참고). 모든 6 DOF 에 velocity target 명시.
-    #
-    # kv 선정: critical damping 부근 → kv ≈ m / dt = 18 / 1e-3 = 1.8e4
-    # (rho=1e7 plate 질량 ~18 kg, dt=1e-3). 약간 여유 두고 1e4 사용.
+    # ── plate_top: velocity control + force cap (real Crusher 모터 흉내) ──
+    # 모델: "−PLATE_VEL 추종, 단 z 방향 최대 800 N (모터 peak)"
+    #   F_PD = kv × (v_target − v_actual)        ← VELOCITY 모드
+    #   F_actual = clamp(F_PD, force_range)      ← 마지막 step
+    # kv 충분히 크게 → v_error 작아도 force_range 한계까지 즉시 saturate
+    # 디폴트 force_range 는 ±∞ → kv 만 키우면 무한대 힘 → 비현실적
     n_dof = plate_top.n_dofs
     print(f"[plate_top] n_dofs={n_dof}")
     all_dofs = list(range(n_dof))
-    plate_top.set_dofs_kp(np.zeros(n_dof))           # position 제어 OFF (pure velocity ctrl)
-    plate_top.set_dofs_kv(np.ones(n_dof) * 1.0e4)    # velocity 추종 (≈ critical)
+    plate_top.set_dofs_kp(np.zeros(n_dof))           # position 제어 OFF
+    plate_top.set_dofs_kv(np.ones(n_dof) * 1.0e7)    # kv 1e7: v_err 1e-4 일 때 1e3 N → cap 으로 800 으로 잘림
+
+    # force_range: z 방향만 ±800 N (Crusher 모터 peak). 나머지 DOF 는 ±∞ → kv 가 lock
+    F_MAX_Z = 800.0
+    fmin = np.full(n_dof, -np.inf)
+    fmax = np.full(n_dof,  np.inf)
+    if n_dof >= 3:
+        fmin[2] = -F_MAX_Z
+        fmax[2] =  F_MAX_Z
+    plate_top.set_dofs_force_range(lower=fmin, upper=fmax)
+
     v_target = np.zeros(n_dof)
     if n_dof >= 3:
-        v_target[2] = -PLATE_VEL                     # z 방향만 비영, 나머지 0 (drift 방지)
+        v_target[2] = -PLATE_VEL                     # z 방향만 비영
     plate_top.control_dofs_velocity(velocity=v_target, dofs_idx_local=all_dofs)
-    print(f"[plate_top] velocity target = {v_target.tolist()} (kv=1e4)")
+    print(f"[plate_top] v_target_z={-PLATE_VEL} m/s   F_z ∈ [±{F_MAX_Z}] N   kv=1e7")
 
     def _read_F_top_z():
         """평판→정제 수직 반력 [N].
@@ -286,8 +296,12 @@ def main(use_viewer: bool = False):
     eps = (H0 - tablet_h) / H0           # nominal strain
     sigma_MPa = E_TABLET * eps / 1e6     # nominal stress σ = E·ε [MPa]
 
-    # W(t) = ∫ |F| · v dt  사다리꼴 적분 [mJ]
-    P_arr = F_arr * PLATE_VEL                        # 순간 일률 [W = N·m/s]
+    # W(t) = ∫ F · |v_actual| dt  사다리꼴 적분 [mJ]
+    #   v_actual = d(plate_z)/dt  실측 (PD 추종 결과). PLATE_VEL 상수 가정 폐기.
+    #   → plate 가 정지하면 W 도 plateau (정직한 측정).
+    d_m = d_arr * 1e-3                               # mm → m
+    v_actual = np.gradient(d_m, t_arr)               # m/s, 양수 = 하강 속도
+    P_arr = F_arr * np.abs(v_actual)                 # 순간 일률 [W]
     W_arr = np.concatenate(([0.0], np.cumsum(0.5 * (P_arr[1:] + P_arr[:-1]) * np.diff(t_arr))))
     W_mJ = W_arr * 1e3
 

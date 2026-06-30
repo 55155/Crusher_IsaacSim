@@ -1,18 +1,24 @@
 """
-Crusher_only.py — Crusher_IsaacSim 단독 시각화 + Motor1 크랭크 회전.
+Crusher_only.py — Crusher_IsaacSim 단독 시각화 + Motor1 크랭크 준정적 회전.
 
 목적:
-  Crusher 메커니즘만 띄워서 Motor1(L4_Shaft) 의 revolute joint 를 일정 각속도로 돌리고,
-  크랭크-슬라이더 폐쇄 루프 (weld: L7_Link3 ↔ L8_Link3_Shaft) 와 패시브 조인트
-  (L6_Link2, L7_Link3, L8 slider) 가 정상 추종하는지 검증.
+  Crusher 메커니즘만 띄워서 Motor1(L4_Shaft) 를 실 운전 사양 (8 RPM, 12.5 N·m cap)
+  으로 회전시키고, 크랭크-슬라이더 폐쇄 루프와 패시브 조인트 / 슬라이더 stroke 가
+  Crusher.md §2-2 의 운동학·반력 식과 일치하는지 검증.
+
+제어 방식 (FEM 스크립트와 동일 패턴, fem_uniaxial_compression.py:230 참조):
+  control_dofs_velocity(ω_target)  +  set_dofs_force_range(±τ_max)
+    · ω_target  : 8 RPM = 0.838 rad/s  (Crusher.md §1 운전 RPM)
+    · τ_max     : 12.5 N·m            (Crusher.md §2-2 / §11-3, BL4281+PG42)
+    · 슬라이더 반력 F = τ / (r·sin θ)  → 625 N @ θ=90°, 1300 N peak
 
 핵심 처리:
   · 원본 MJCF (Crusher_IsaacSim_colored.xml) 를 Genesis 1.1.0 호환되도록 런타임 패치
     - <equality><joint name="lock_crank"> (joint2 없는 polycoef) 제거
     - <equality><weld> 의 MuJoCo direct solref/solimp 음수 → Genesis 양수형 강화값으로 교체
     - <geom name="ground"> 제거 (별도 plane 사용)
-  · 초기 크랭크각 -π/2 를 한 번에 teleport 하면 weld 가 못 따라와서 진동 → 500 step 동안
-    0 → -π/2 선형 램프로 warmup. 이후 정속 회전 본 시뮬.
+  · 초기 크랭크각 -π/2 를 한 번에 teleport 하면 weld 가 못 따라와서 진동 → 1000 step 동안
+    0 → -π/2 PD position 램프로 warmup. 이후 velocity + torque cap 본 시뮬.
   · decimate=False, convexify=False, smooth=False → MuJoCo 와 동일 faceted 정밀 렌더.
 
 출력 (use_viewer=False 일 때):
@@ -25,13 +31,25 @@ import numpy as np
 DT, SUBSTEPS = 5e-4, 10     # substep_dt=5e-5 → min_timeconst=1e-4 (weld 0.2ms 까지 안전)
 RENDER_EVERY = 40
 N_WARMUP = 1000             # 0.5 s, crank 0 → -π/2 PD position 램프
-N_SPIN   = 8000             # 4 s, 등속 회전 (PD velocity)
-OMEGA    = 2.0 * np.pi      # 1 rev/s
-CRANK_RADIUS_M = 0.02       # 검증용: 슬라이더 기대 stroke = ±2cm
 
-# 크랭크 PD 게인 (control_dofs_position / control_dofs_velocity 가 사용)
+# ── 준정적 운전 사양 (Crusher.md §1, §2-2, §11) ─────────────────────────────
+#   · 실기 운전 RPM : 8 RPM  (BL4281 + PG42 1/212 ~ 1/504, "20 RPM 미만 저속")
+#   · 크랭크 토크   : 0.185 N·m × η0.5 × 212 ≈ 19.6 N·m  (PG42 1/212)
+#                    Crusher.md §2-2 표는 τ=12.5 N·m 로 슬라이더 실측 625 N 매칭
+#   · 슬라이더 실측 반력 : ~1300 N (TDP 근처, sin θ → 0 에서 amplification)
+#   → 본 시뮬: velocity 제어 + force_range 클램프 (FEM 스크립트와 동일 패턴)
+CRANK_RPM           = 8.0
+OMEGA               = CRANK_RPM * 2.0 * np.pi / 60.0   # 0.8378 rad/s
+CRANK_TORQUE_LIM    = 12.5                              # N·m, Crusher.md §2-2 기준
+N_SPIN              = 20000                             # 10 s ≈ 1.33 회전 @ 8 RPM
+CRANK_RADIUS_M      = 0.02                              # 슬라이더 기대 stroke = ±2 cm
+
+# 크랭크 PD 게인 — 준정적 (저속) 운전용
+#   · WARMUP(position) : kp 가 0 → -π/2 ramp 추종에 필요
+#   · SPIN(velocity)   : kv 만 사용, force_range 로 토크 cap
+#     v_err 이 작아도 force_range 한계까지 즉시 saturate 되도록 kv 크게.
 CRANK_KP = 2000.0
-CRANK_KV = 100.0
+CRANK_KV = 5000.0
 
 START_Q = -np.pi / 2
 
@@ -203,6 +221,19 @@ def main(use_viewer: bool = True, show_collision: bool = False):
     print(f"[ctrl] crank DOF #{crank_dof}: kp={CRANK_KP}, kv={CRANK_KV}")
     print(f"[ctrl] wall  DOF #{wall_dof}: kp={WALL_KP}, kv={WALL_KV}")
 
+    # ── 토크 클램프 (Crusher.md §11-3) ────────────────────────────────────────
+    #   실 모터: BL4281 0.185 N·m × η0.5 × 212(reducer) ≈ 19.6 N·m
+    #   준정적 운전점은 12.5 N·m (슬라이더 625 N @ θ=90°, 1300 N @ TDP 근처)
+    #   force_range 로 PD 토크를 ±CRANK_TORQUE_LIM 으로 clip → 실제 모터 한계 모사
+    n_dof = crusher.n_dofs
+    fmin = np.full(n_dof, -np.inf)
+    fmax = np.full(n_dof,  np.inf)
+    fmin[crank_dof] = -CRANK_TORQUE_LIM
+    fmax[crank_dof] =  CRANK_TORQUE_LIM
+    crusher.set_dofs_force_range(lower=fmin, upper=fmax)
+    print(f"[ctrl] crank torque clip: ±{CRANK_TORQUE_LIM:.2f} N·m  "
+          f"(준정적 8 RPM, slider F ≈ τ/(r·sin θ) → 625 N @ θ=90°)")
+
     # 충돌 mesh 오버레이 (viewer + show_collision 일 때만)
     coll_geoms, coll_objs = [], []
     if use_viewer and show_collision:
@@ -231,10 +262,13 @@ def main(use_viewer: bool = True, show_collision: bool = False):
             _refresh_collision()
             cam.render()
 
-    # ── (2) SPIN : 등속 회전 (control_dofs_velocity) ───────────────────────────
-    #     PD velocity 추종 — 텔레포트가 아니라 토크로 다이내믹스 보존.
-    print(f"[spin]   PD velocity {OMEGA:.3f} rad/s for {N_SPIN} step")
+    # ── (2) SPIN : 준정적 등속 회전 (control_dofs_velocity + force_range cap) ──
+    #     PD velocity 추종 토크가 ±CRANK_TORQUE_LIM 으로 클램프 → 실 모터 모사.
+    #     슬라이더 반력 F_slider = τ_crank / (r·sin θ) (Crusher.md §2-2)
+    print(f"[spin]   PD velocity {OMEGA:.4f} rad/s ({CRANK_RPM:.1f} RPM) for {N_SPIN} step "
+          f"= {N_SPIN*DT:.1f} s  → ≈ {N_SPIN*DT*OMEGA/(2*np.pi):.2f} rev")
     qlog = []
+    l8_dof_idx = passive_dofs[-1]   # L8 slider DOF
     for k in range(N_SPIN):
         t = (k + 1) * DT
         crusher.control_dofs_velocity(np.array([OMEGA]), dofs_idx_local=[crank_dof])
@@ -243,10 +277,17 @@ def main(use_viewer: bool = True, show_collision: bool = False):
             _refresh_collision()
             cam.render()
         if (k + 1) % 200 == 0:
-            q = crusher.get_dofs_position().cpu().numpy()
-            qlog.append([t, q[crank_dof], *[q[d] for d in passive_dofs]])
-            print(f"  t={t:.3f}s  crank={q[crank_dof]:+.3f}  "
-                  f"passives={['%+.3f'%q[d] for d in passive_dofs]}")
+            q   = crusher.get_dofs_position().cpu().numpy()
+            tau = crusher.get_dofs_control_force().cpu().numpy()
+            theta = q[crank_dof]
+            tau_c = float(tau[crank_dof])
+            # 슬라이더 등가 반력 (마찰 무시, 준정적): F = τ / (r·|sin θ|)
+            s = np.sin(theta)
+            f_slider = tau_c / (CRANK_RADIUS_M * s) if abs(s) > 1e-3 else float("nan")
+            qlog.append([t, theta, tau_c, q[l8_dof_idx], f_slider,
+                         *[q[d] for d in passive_dofs]])
+            print(f"  t={t:6.3f}s  θ={theta:+.3f}  τ={tau_c:+6.2f} N·m  "
+                  f"slider={q[l8_dof_idx]:+.4f} m  F≈{f_slider:+8.1f} N")
 
     # ── (3) WALL SLIDE TEST : Motor2 슬라이드 (전진 1s → 후진 1s) ───────────────
     print(f"[wall]   PD velocity test on {WALL_JOINT} (±{WALL_VEL} m/s, 2 s)")
@@ -279,20 +320,34 @@ def main(use_viewer: bool = True, show_collision: bool = False):
 
     if qlog:
         arr = np.array(qlog)
-        # 정상상태 (warmup + 초기 transient 1s 제외) 만 검증
+        # 컬럼: 0=t, 1=θ, 2=τ_crank, 3=L8_slider_q, 4=F_slider_est, 5+=passive_qs
+        # 정상상태 — warmup + 1 s transient 제외 (8 RPM 에서 1 s ≈ 50°)
         ss_mask = arr[:, 0] > 1.0
-        spans_full = arr[:, 2:].max(axis=0) - arr[:, 2:].min(axis=0)
-        spans_ss = (arr[ss_mask, 2:].max(axis=0) - arr[ss_mask, 2:].min(axis=0)
-                    if ss_mask.any() else spans_full)
+        passive_cols = arr[:, 5:]
+        spans_full = passive_cols.max(axis=0) - passive_cols.min(axis=0)
+        spans_ss   = (passive_cols[ss_mask].max(axis=0) - passive_cols[ss_mask].min(axis=0)
+                      if ss_mask.any() else spans_full)
         print("[verify] passive joint Δrange  (full vs steady-state, t>1s):")
         for n, sf, ss in zip(PASSIVE_JOINTS, spans_full, spans_ss):
             print(f"   {n:50s}  full={sf:+.4f}  ss={ss:+.4f}")
 
+        # 토크 / 슬라이더 반력 통계
+        tau_ss   = arr[ss_mask, 2] if ss_mask.any() else arr[:, 2]
+        f_est_ss = arr[ss_mask, 4] if ss_mask.any() else arr[:, 4]
+        f_est_ss = f_est_ss[np.isfinite(f_est_ss)]
+        print(f"[torque] crank τ (steady): mean={tau_ss.mean():+.3f}  "
+              f"min={tau_ss.min():+.3f}  max={tau_ss.max():+.3f}  "
+              f"lim=±{CRANK_TORQUE_LIM:.2f} N·m")
+        if f_est_ss.size:
+            print(f"[force]  slider F = τ/(r·sin θ) [N]: "
+                  f"median={np.median(np.abs(f_est_ss)):.1f}  "
+                  f"p95={np.percentile(np.abs(f_est_ss), 95):.1f}  "
+                  f"max={np.max(np.abs(f_est_ss)):.1f}  "
+                  f"(Crusher.md 실측 ≈ 1300 N peak)")
+
         # 슬라이더 stroke 검증 — 기대치: ±CRANK_RADIUS_M (=±2cm)
-        l8_dof = passive_dofs[-1]
-        l8_col = 2 + PASSIVE_JOINTS.index("L2_Linear_bush_1_L8_Link3_Shaft_1")
-        l8_full = arr[:, l8_col]
-        l8_ss   = arr[ss_mask, l8_col] if ss_mask.any() else l8_full
+        l8_full = arr[:, 3]
+        l8_ss   = arr[ss_mask, 3] if ss_mask.any() else l8_full
         center  = (l8_ss.max() + l8_ss.min()) / 2.0
         stroke_full_p2p = l8_full.max() - l8_full.min()
         stroke_ss_p2p   = l8_ss.max()   - l8_ss.min()
