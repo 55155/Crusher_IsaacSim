@@ -16,5 +16,4 @@ Thumbs.db
 # Tool cache
 .codegraph/
 
-# Generated simulation outputs (재생성 가능, 용량 큼)
-Crusher_Genesis/Sim_result/
+# Sim_result outputs are now tracked (2026-07-01) — folder no longer ignored
