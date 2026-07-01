@@ -130,6 +130,25 @@
 - MPM 솔버로 강체 제약을 걸어주는 방식도 생각하고 있어야 할 것 같다. 이전 연구에서는 이런 연구가 존재했나?
 - **피로파손 문제** — 압력:
 
+### 6-1. Primitive object 가설과 FEM 적용성
+
+**가설 (내 생각):**
+- Rigid body collision에서 사전 작업한 메쉬 파일(**Primitive object** — 충돌 영역을 수학적으로 사전 정의해 두는 방식)이 굉장히 좋은 성능을 보인다.
+- 캡슐도 Primitive object로 만들 수 있다면 충돌 성능이 상당 부분 개선될 것이라는 가설. 다만 이 방식이 **FEM에서도 효과적인지는 불분명**하다.
+
+**분석·전략 (Claude):**
+
+1. **Rigid-rigid에서 primitive가 빠른 이유 — 가설 맞음.** Primitive는 충돌 영역이 닫힌 수식(analytic)으로 정의된다. 예: **캡슐 SDF = "선분까지의 거리 − 반지름"** — 곱셈 몇 번. BVH 트리 순회도, 삼각형-삼각형 테스트도 없다. 거리·법선이 **정확**하고 **C¹ 연속**(부드러움)이라 contact normal이 안 튀어 솔버 수렴도 좋고, 닫힌 SDF라 **연속충돌(CCD)·관통 판정**이 쉬워 터널링에 강하다. 메쉬 충돌은 반대(테셀레이션 정밀도 의존, 스텝 사이 빠른 통과를 놓침). Genesis **rigid solver에서 캡슐은 이미 primitive**라 별도 작업이 필요 없다.
+
+2. **FEM 적용성 — 절반만 맞고, 그게 핵심.**
+   - **변형체(정제) 자체는 primitive 불가.** FEM의 본질은 표면이 변형장에 따라 매 스텝 움직이는 것이라, 고정된 캡슐/구 수식으로 표현이 불가능하다. FEM 접촉은 **태생적으로 표면 메쉬 기반**(surface vertex/element).
+   - **하지만 접촉 쌍의 *rigid 쪽*(plate·공구)은 primitive면 큰 이득.** FEM 표면 vertex ↔ primitive 거리를 analytic하게 계산하면 테셀레이션 없이 정확·저렴·터널링에 강하다.
+
+3. **그런데 Genesis SAP coupler는 이걸 안 한다 — 이게 §7-7 터널링의 구조적 원인.** SAP coupler 구현(`sap_coupler.py`)은 rigid collider를 primitive로 쓰지 않고 **Box plate조차 trimesh → tet 메쉬로 변환**(`mesh_to_elements`)하며, **primitive plane은 명시적으로 금지**(`GEOM_TYPE.PLANE` → raise). 접촉은 `FEMSurfaceTetLBVH` ↔ `RigidTetLBVH`, 즉 **BVH 기반 메쉬-메쉬 이산 접촉**이다. → plate가 한 스텝에 정제 표면 tet 두께를 넘게 움직이면 BVH가 겹침을 놓쳐 관통.
+   - 반대로 **IPC는 이 analytic primitive 접촉을 실제로 가지고 있다**(`IPCVertexHalfPlaneNormalContact` = half-plane primitive vs FEM vertex). IPC가 매력적이었던 또 하나의 이유. (단, 현재 RTX 5070에서 Genesis→IPC 경로가 런타임에 죽는 별도 이슈 존재 — §5-1 환경 노트 참고.)
+
+4. **전략 결론.** SAP에 머무는 동안엔 coupler에 primitive를 쓸 수 없으므로, 터널링은 **이산 메쉬 접촉 아티팩트**로 보고 다음으로 누른다: **dt 축소 / substeps 증가**(스텝당 plate 변위 < 표면 tet 크기), **plate 속도 ↓·ramp**, **접촉부 메쉬 세분화**, **plate tet 두께 확보**. primitive contact의 "정답형"은 결국 IPC였다는 점은 기록해 둔다.
+
 ---
 
 ## 7. FEM 방식으로 모델링
