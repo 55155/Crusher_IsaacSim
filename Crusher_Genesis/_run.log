@@ -1,0 +1,46 @@
+﻿============================================================
+ Crusher_Samplebag — 봉투 삽입 + 클램프 + 크랭크 (viewer=False)
+============================================================
+[crusher] patched MJCF → C:\Users\simuser\AppData\Local\Temp\crusher_mjcf_mgy9jhd8\Crusher_genesis.xml
+
+[gap]    back +x=0.2137  left -x=0.2257  width=12.0mm  wall_top_z=0.0864
+[bag]    start = (0.2087, -0.0473, 0.2864)
+[bag]    target= (0.2087, -0.0473, 0.0864)
+[38;5;226m[Genesis] [15:55:19] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+python.exe : C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.p
+y:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+At line:1 char:120
++ ... sim\Crusher_Genesis; & $py Crusher_Samplebag_headless.py 2>&1 | Out-F ...
++                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\simuse...ching disabled.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warnings.warn(message)
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer
+.py:245: DeprecationWarning: keyword.__init__ got an unexpected keyword argument 'ctx'. Support for arbitrary keyword a
+rguments is deprecated and will be removed in Python 3.15.
+  kwarg_node = ast.keyword(
+
+[bag] N=567  corners=4  bbox X=0.194~0.224  Z=0.236~0.286
+[attach] 4 corners → carrier link (idx=14)
+[ctrl] crank DOF #0: kp=2000.0, kv=100.0
+[ctrl] wall  DOF #2: kp=5000.0, kv=500.0
+
+[phase] 1/5 dropin (1.0 s) — 박스 봉투 안으로
+  [dropin] box_z=0.2964  bag_com_z=0.2609
+[phase] 2/5 descend (1.5 s) — carrier start → target
+  [descend] carrier_z=0.0864  bag_com_z=0.0856  box_z=0.0439
+[phase] 3/5 crank warmup (0.5 s) — 0 → -1.571 rad
+  [warmup] crank actual=-1.415 rad
+[phase] 4/5 clamp (1.0 s) — Motor2 @ +5 mm/s
+  [clamp] wall_pos=+4.1 mm
+[phase] 5/5 crank (4.0 s) — Motor1 @ 3.142 rad/s
+  [crank] step=1000  crank=+1.528 rad  box=(0.184,0.020,0.007)
+  [crank] step=2000  crank=+4.658 rad  box=(0.184,0.020,0.007)
+  [crank] step=3000  crank=+7.778 rad  box=(0.184,0.020,0.007)
+  [crank] step=4000  crank=+10.906 rad  box=(0.184,0.020,0.007)
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Sim_result\Crusher_Samplebag_20260624_155514.mp4
+[verify] bag_com final = [ 0.20818658 -0.06996158  0.08561532]
+[verify] box final     = [0.1835161  0.01991616 0.00747267]
+완료.
