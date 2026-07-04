@@ -196,7 +196,9 @@
       <!-- L8 shaft geom (collision-free) -->
       <geom pos="-0.226778 -0.049431 0.048302" quat="1 0 0 0" type="mesh" mesh="L8_Link3_Shaft_1" contype="0" conaffinity="0" />
       <!-- L9 plate geom (충돌 활성 — crusher 접촉면) -->
-      <geom pos="-0.236278 -0.049431 0.048302" type="mesh" mesh="L9_PLATE_v3_1" material="L9_PLATE_v3_1" />
+      <geom pos="-0.236278 -0.049431 0.048302" type="mesh" mesh="L9_PLATE_v3_1" material="L9_PLATE_v3_1"
+            condim="3" friction=".5 .02 .01"
+            solref="0.005 2" solimp="0.99 0.999 0.001" />
     </body>
   </worldbody>
   <equality>

@@ -72,7 +72,7 @@ def _parse_params(fname):
     return (float(m.group(1)), float(m.group(2)), float(m.group(3))) if m else (None, None, None)
 
 
-def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
+def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel, forcelim=None):
     pos_x = PLACE_X_MM * 1e-3
     pos_z = PLACE_Z_MM * 1e-3
     pos_y = (WALL_Y_MM - half_th) * 1e-3
@@ -102,7 +102,7 @@ def _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel):
         "joint":      "L3_Bevel_GearBox_1_L4_Shaft_1",
         "kv":         f"{kv:.1f}",
         "gear":       "1",
-        "forcerange": f"{-MOTOR_FORCELIM:.1f} {MOTOR_FORCELIM:.1f}",
+        "forcerange": f"{-(forcelim or MOTOR_FORCELIM):.3f} {(forcelim or MOTOR_FORCELIM):.3f}",
         "ctrlrange":  f"{-target_vel*2:.4f} {target_vel*2:.4f}",
     }))
 
@@ -139,7 +139,7 @@ def _contact_force(model, data, body_id):
 
 
 # ─────────────────────────────────────────────────────────────────────
-def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=TARGET_RPM):
+def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=TARGET_RPM, forcelim=None):
     target_vel = target_rpm * 2.0 * math.pi / 60.0
 
     print("=" * 62)
@@ -157,15 +157,16 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
 
     print(f"  STL    : {fname}")
     print(f"  R={R_mm:.1f} AR={AR:.2f} CV={CV:.2f}  thickness={th:.2f}mm")
+    _forcelim = forcelim if forcelim is not None else MOTOR_FORCELIM
     print(f"  Target : {target_rpm} RPM = {target_vel:.4f} rad/s")
-    print(f"  kv={kv:.0f} N*m*s/rad  |  forcelim={MOTOR_FORCELIM:.0f} N*m\n")
+    print(f"  kv={kv:.2f} N*m*s/rad  |  forcelim={_forcelim:.3f} N*m  (~{_forcelim/CRANK_R_M:.0f} N at tablet)\n")
 
     os.makedirs(CSV_DIR, exist_ok=True)
     os.makedirs(PLOT_DIR, exist_ok=True)
     ts          = datetime.now().strftime("%Y%m%d_%H%M%S")
     result_stem = f"velctrl_{os.path.splitext(fname)[0]}__{ts}"
 
-    model, (px, py, pz) = _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel)
+    model, (px, py, pz) = _build_model(stl_path, R_mm, half_th, density_kg_m3, kv, target_vel, forcelim=_forcelim)
     data = mujoco.MjData(model)
     _dt  = float(model.opt.timestep)
 
@@ -199,6 +200,7 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
     motor_on_t = None
 
     t_log = []; rpm_log = []; ang_log = []; fy_log = []; ncon_log = []
+    _contact_pairs_logged = False   # contact pair는 최초 1회만 출력
 
     total_steps = int(SIM_DURATION / _dt)
     print_every = max(1, int(1.0 / _dt))
@@ -217,6 +219,23 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
             print(f"  *** Motor ON  t={data.time:.2f}s  CCW {target_vel:.4f} rad/s ***")
 
         mujoco.mj_step(model, data)
+
+        # Contact pair 최초 감지 시 1회 출력
+        if not _contact_pairs_logged and data.ncon > 0:
+            print(f"\n  [CONTACT PAIRS detected at t={data.time:.4f}s  ncon={data.ncon}]")
+            seen = set()
+            for ci in range(data.ncon):
+                c = data.contact[ci]
+                g1n = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, c.geom1) or f"geom#{c.geom1}"
+                g2n = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, c.geom2) or f"geom#{c.geom2}"
+                b1n = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, model.geom_bodyid[c.geom1]) or "?"
+                b2n = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_BODY, model.geom_bodyid[c.geom2]) or "?"
+                key = (c.geom1, c.geom2)
+                if key not in seen:
+                    seen.add(key)
+                    print(f"    [{ci:2d}] {g1n} (body:{b1n})  <->  {g2n} (body:{b2n})")
+            print()
+            _contact_pairs_logged = True
 
         rpm_now = float(data.qvel[vadr]) * 60.0 / (2.0 * math.pi)
         ang_now = math.degrees(data.qpos[qadr])
@@ -330,9 +349,12 @@ def run(stl_path, density_kg_m3=DENSITY_DEFAULT, kv=VEL_KV_DEFAULT, target_rpm=T
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Crusher velocity control + tablet force (headless)")
     parser.add_argument("stl",       nargs="?", default=None)
-    parser.add_argument("--rpm",     type=float, default=TARGET_RPM)
-    parser.add_argument("--kv",      type=float, default=VEL_KV_DEFAULT)
-    parser.add_argument("--density", type=float, default=DENSITY_DEFAULT)
+    parser.add_argument("--rpm",      type=float, default=TARGET_RPM)
+    parser.add_argument("--kv",       type=float, default=VEL_KV_DEFAULT)
+    parser.add_argument("--density",  type=float, default=DENSITY_DEFAULT)
+    parser.add_argument("--forcelim", type=float, default=None,
+                        help="Motor torque limit at crank [N·m]. "
+                             "e.g. 2.0 → ~100 N at tablet  (default: real motor 12.5 N·m → ~625 N)")
     args = parser.parse_args()
 
     stl_path = args.stl
@@ -358,4 +380,5 @@ if __name__ == "__main__":
     if not os.path.exists(stl_path):
         print(f"[ERROR] File not found: {stl_path}"); sys.exit(1)
 
-    run(stl_path, density_kg_m3=args.density, kv=args.kv, target_rpm=args.rpm)
+    run(stl_path, density_kg_m3=args.density, kv=args.kv, target_rpm=args.rpm,
+        forcelim=args.forcelim)
