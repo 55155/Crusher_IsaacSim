@@ -80,6 +80,9 @@ F_slider = τ_crank / (r × sin θ)
 | 45° | 0.707 | **884 N** | — |
 | 30° | 0.500 | **1,250 N** | TDP(상사점) 근처, 이론 최대 |
 
+> 이 준정적 F–θ 를 MuJoCo 8-env 벽 반력으로 실측 robust-mean 에 스칼라 정합한
+> 캘리브레이션(`FORCE_SCALE`=0.9453, 105° 제외, 평균오차 5.6%)은 [DigitalTwin.md](DigitalTwin.md) §6-7 참조.
+
 ### 2-3. 초기 자세
 
 | 설정 | 값 | 설명 |

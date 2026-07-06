@@ -55,14 +55,24 @@ CRUSHER_EULER = (0.0, 0.0, 90.0)
 SLOT_DX_FRONT  =  0.000   # gap 중심 기준 x 오프셋 (0 = Wall3↔Left_Wall 정중앙)
 SLOT_DZ_START  =  0.20    # target 보다 20 cm 위에서 시작
 SLOT_DZ_FINAL  =  0.00    # 봉투 mouth 이 wall_top 과 같은 높이
+# 봉투를 슬롯에 완전히 앉히면 120mm 봉투가 crumple 되어 파티클이 gap 을 메워 슬라이더가
+# 끝까지 못 닫힘. target_z 위 이만큼에서 정지(부분 삽입) → 물려있는 재료를 줄여 클램프.
+DESCEND_STOP_ABOVE = float(os.environ.get("DESCEND_STOP_ABOVE", "0.10"))  # m (0=완전 하강)
 
 # ── 크랭크 / 벽 PD 게인 + 동작 파라미터 ─────────────────────────────────────
 CRANK_KP, CRANK_KV = 2000.0, 100.0
 WALL_KP,  WALL_KV  = 5000.0, 500.0
-CRANK_START_Q = -np.pi / 2      # 크랭크 초기 -90°
+CRANK_START_Q = -np.pi          # 드랍 전 크랭크 홈 = -180° (0°=최대스트로크 반대 dead-center,
+                                # L8 헤드가 슬롯 밖으로 완전 후퇴). 크러싱은 여기서 →0°로 회전.
 CRANK_OMEGA   =  np.pi          # 0.5 rev/s (분쇄)
-WALL_VEL      =  0.005          # 5 mm/s (천천히 닫힘)
-WALL_OFFSET   = -0.007          # Left_Wall 초기 -7 mm (gap 확장; 봉투 투입용)
+WALL_VEL      =  0.005          # 5 mm/s clamp 속도(참고)
+# 실측(2026-07, link world-x): Left_Wall 은 q>0 일 때 Wall3 에서 멀어져 gap 이
+# 넓어진다(개방), q<0 이면 Wall3 쪽으로 닫힌다. 이전 코드는 부호가 반대(-7mm)라
+# 오히려 슬롯이 닫혀 봉투가 드랍되지 못했다. → 개방은 +, 클램프는 - 로 수정.
+WALL_OFFSET   =  0.006          # 개방: Wall3 에서 +6 mm 당김 → static gap 12→18 mm
+                                # (+q 자유이동 한계 ~+7mm; 그 이상 텔레포트 시 간섭 파고듦→
+                                #  조인트 고착. +6mm 로 간섭 없이 개방)
+CLAMP_TARGET  = -0.005          # 클램프: gap 18→7 mm (6 mm 봉투 접촉/압착)
 
 # ── 페이즈 step 수 ──────────────────────────────────────────────────────────
 N_OPENWALL  = 800   # 0.8 s  Left_Wall 0 → -7mm 개방 + 안착 (이 동안 봉투/박스 정지)
@@ -70,7 +80,7 @@ N_BAGSETTLE = 800   # 0.8 s  매달린 봉투 안정화 (박스 투입 전)
 N_DROPBOX   = 1200  # 1.2 s  매달린 봉투 안으로 박스 낙하 + 안정화
 N_DESCEND   = 1500  # 1.5 s  봉투(+박스) 슬롯으로 하강
 N_WARMUP    = 500   # 0.5 s
-N_CLAMP     = 1000  # 1.0 s (5 mm/s × 1s = 5 mm 슬라이드)
+N_CLAMP     = 2000  # 2.0 s  개방(+6mm)→클램프(-5mm), 11 mm 이동 (~5.5 mm/s)
 N_CRANK     = 4000  # 4.0 s (4 회전)
 
 # ── 카메라 (슬롯 줌 인: 측면 y-z + 평면 x-y) ───────────────────────────────
@@ -80,6 +90,10 @@ CAM_DIST  = 0.40              # 슬롯 중심 ↔ 카메라 거리
 # 인터랙티브 viewer 용 광각
 CAM_WIDE_POS  = np.array([0.85, -0.45, 0.45])
 CAM_WIDE_LOOK = np.array([0.50, 0.0, 0.08])
+
+# ── Figure 스틸 (FIG_STILLS=1) : 클램프(Phase 6) 직전 장면을 고해상도 저장 ──
+FIG_STILLS = os.environ.get("FIG_STILLS") == "1"
+STILL_RES  = (2000, 1500)
 
 # ── 정적 벽 mesh (Wall_1 ↔ Left_Wall 사이의 좁은 gap 이 타깃) ─────────────
 WALL_BACK_MESH    = "L2_Wall3_1"   # Left_Wall 과 마주보는 수직 back wall (L1_Wall1_1 은 바닥 플레이트라 오류)
@@ -271,7 +285,7 @@ def main(use_viewer: bool = True):
     # Left_Wall 을 WALL_OFFSET (음수) 만큼 미리 이동 → 효과 gap = static + |WALL_OFFSET|
     bag_thickness_x = D                       # euler=(90,0,90) 후 D 가 x 방향
     bag_span_y      = W                       # W 가 y 방향
-    eff_gap = gap_width - WALL_OFFSET         # WALL_OFFSET<0 이면 gap 확장
+    eff_gap = gap_width + WALL_OFFSET         # 실측: +WALL_OFFSET 만큼 gap 확장(개방)
     margin_x = eff_gap - bag_thickness_x
     min_clearance = 2 * PARTICLE_SIZE         # PBD 충돌 솔버 여유
     fit_ok = margin_x > min_clearance
@@ -338,6 +352,18 @@ def main(use_viewer: bool = True):
         res=CAM_RES, pos=tuple(slot_center + np.array([0.0, 0.0, CAM_DIST])),
         lookat=tuple(slot_center), up=(0.0, 1.0, 0.0), fov=CAM_FOV, GUI=False)
     print(f"[cam] slot_center={slot_center}  side(x,z)-y  top(x,y)+z  dist={CAM_DIST}")
+    # Figure 용 고해상도 스틸 카메라 (side/top 동일 시점, 클램프 직전 1회 촬영)
+    hires_side = hires_top = None
+    fig_dir = os.path.join(OUT_DIR, "crusher_samplebag_fig")
+    if FIG_STILLS:
+        os.makedirs(fig_dir, exist_ok=True)
+        hires_side = scene.add_camera(
+            res=STILL_RES, pos=tuple(slot_center + np.array([0.0, -CAM_DIST, 0.0])),
+            lookat=tuple(slot_center), up=(0.0, 0.0, 1.0), fov=CAM_FOV, GUI=False)
+        hires_top = scene.add_camera(
+            res=STILL_RES, pos=tuple(slot_center + np.array([0.0, 0.0, CAM_DIST])),
+            lookat=tuple(slot_center), up=(0.0, 1.0, 0.0), fov=CAM_FOV, GUI=False)
+        print(f"[fig] hi-res still cams res={STILL_RES} → {fig_dir}")
     scene.build(n_envs=0)
 
     # ── 봉투 corner 4개 식별 + carrier 에 weld ──
@@ -369,12 +395,19 @@ def main(use_viewer: bool = True):
     print(f"[ctrl] crank DOF #{crank_dof}: kp={CRANK_KP}, kv={CRANK_KV}")
     print(f"[ctrl] wall  DOF #{wall_dof}: kp={WALL_KP}, kv={WALL_KV}")
 
-    # Left_Wall 은 닫힌(0) 상태에서 시작 → Phase 1 에서 천천히 개방한다.
-    # (이전엔 init 에서 즉시 텔레포트 개방 + 봉투 하강이 동시에 일어나 순서가 섞였음)
-    crusher.set_dofs_position(np.array([0.0]), dofs_idx_local=[wall_dof])
+    # Left_Wall 링크 (개방 방향 실측용) — world x 로 Wall3(+x=%.4f) 대비 gap 변화 확인
+    lw_link = next((lk for lk in crusher.links if lk.name and "Left_Wall" in lk.name), None)
+    def _lw_x():
+        return float(_npy(lw_link.get_pos())[0]) if lw_link is not None else float("nan")
+    print(f"[slider] Left_Wall link = {getattr(lw_link,'name',None)}  (Wall3.+x=+{wb_hi[0]:.4f} 기준)")
+
+    # Left_Wall 을 처음부터 개방(+WALL_OFFSET) 상태로 세팅하고 시작 → 봉투 드랍/하강
+    # 내내 슬롯을 열어둔다. (실측: +q = Wall3 에서 멀어짐 = 개방)
+    crusher.set_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
     wq0 = _npy(crusher.get_dofs_position())[wall_dof]
-    print(f"[init] Left_Wall start = {wq0*1000:+.2f} mm (closed)  "
-          f"target open = {WALL_OFFSET*1000:+.2f} mm → eff gap {(gap_width - WALL_OFFSET)*1000:.2f} mm")
+    print(f"[init] Left_Wall q={wq0*1000:+.2f}mm (OPEN)  link_x={_lw_x():.4f}  "
+          f"static gap={gap_width*1000:.1f}mm → eff {(gap_width+wq0)*1000:.1f}mm "
+          f"(bag {D*1000:.0f}mm 여유 {(gap_width+wq0-D)*1000:+.1f}mm)")
 
     cam_side.start_recording()
     cam_top.start_recording()
@@ -391,28 +424,55 @@ def main(use_viewer: bool = True):
 
     start_p = np.array([start_x,  start_y,  start_z])
     final_p = np.array([target_x, target_y, target_z])
+    # 부분 삽입 정지 위치 (완전 하강 대신 target 위 DESCEND_STOP_ABOVE 에서 멈춤)
+    stop_p  = np.array([target_x, target_y, target_z + DESCEND_STOP_ABOVE])
     box_park_p = np.array(box_park)
+    print(f"[descend] stop_z={stop_p[2]:.4f} (target {target_z:.4f} +{DESCEND_STOP_ABOVE*1000:.0f}mm)  "
+          f"→ bag_bottom≈{stop_p[2]-H:.4f} vs wall_top {wall_top_z:.4f} "
+          f"(slot 삽입 {(wall_top_z-(stop_p[2]-H))*1000:+.0f}mm)")
+
+    # ── (진단) CRANK_SWEEP=1 : 크랭크 각도별 L8 크러싱헤드 world 위치 측정 → 후퇴각 탐색 ──
+    if os.environ.get("CRANK_SWEEP") == "1":
+        import math
+        l8_link = next((lk for lk in crusher.links if lk.name and "L8" in lk.name), None)
+        print(f"[sweep] L8 link={getattr(l8_link,'name',None)}  slot center=({gap_cx:.4f},{gap_cy:.4f})  "
+              f"Wall3.+x={wb_hi[0]:.4f}  Left_Wall.-x={wl_lo[0]:.4f}")
+        for deg in range(0, 361, 30):
+            q = -math.radians(deg)
+            crusher.set_dofs_position(np.array([q]), dofs_idx_local=[crank_dof])
+            for _ in range(120):
+                crusher.control_dofs_position(np.array([q]), dofs_idx_local=[crank_dof])
+                crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+                carrier.set_pos(start_p, zero_velocity=True); box.set_pos(box_park_p, zero_velocity=True)
+                scene.step()
+            p = _npy(l8_link.get_pos()) if l8_link is not None else np.array([np.nan]*3)
+            print(f"[sweep] crank={q:+.3f}rad ({-deg:+4d}°)  L8=({p[0]:.4f},{p[1]:.4f},{p[2]:.4f})  "
+                  f"dx_slot={p[0]-gap_cx:+.4f}  dy_slot={p[1]-gap_cy:+.4f}")
+        print("[sweep] done — 크랭크 각도별 L8 위치 위 참조"); return
 
     # ── Phase 1: openwall (Left_Wall 0 → -7mm 개방, 완전히 열릴 때까지 대기) ──
     #   봉투는 carrier 가 start 위치에 매달아 둠, 박스는 옆에 hold → 벽만 움직인다.
-    print(f"\n[phase] 1/7 openwall ({N_OPENWALL*DT:.1f} s) — Left_Wall 0 → {WALL_OFFSET*1000:+.0f}mm 개방 (다른 동작 정지)")
+    print(f"\n[phase] 1/7 openwall ({N_OPENWALL*DT:.1f} s) — Left_Wall {WALL_OFFSET*1000:+.0f}mm 개방 "
+          f"+ 크랭크 0 → {CRANK_START_Q:+.3f}rad(-180°) 후퇴 램프")
     for k in range(N_OPENWALL):
         s = (k + 1) / N_OPENWALL
-        wq_target = WALL_OFFSET * s
-        crusher.control_dofs_position(np.array([wq_target]), dofs_idx_local=[wall_dof])
-        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])
+        crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+        crusher.control_dofs_position(np.array([CRANK_START_Q * s]), dofs_idx_local=[crank_dof])  # 0→-180° 램프
         carrier.set_pos(start_p, zero_velocity=True)           # 봉투 매단 채 정지
         box.set_pos(box_park_p, zero_velocity=True)            # 박스 대기
         scene.step(); step[0] += 1
         render_tick()
+    cq = _npy(crusher.get_dofs_position())[crank_dof]
+    print(f"  [openwall] crank={cq:+.3f}rad (home -180° 도달)")
     wq = _npy(crusher.get_dofs_position())[wall_dof]
-    print(f"  [openwall] wall_pos={wq*1000:+.2f} mm  (target {WALL_OFFSET*1000:+.0f}mm)")
+    print(f"  [openwall] wall q={wq*1000:+.2f}mm (open, hold)  link_x={_lw_x():.4f}  "
+          f"eff gap≈{(gap_width+wq)*1000:.1f}mm  (bag {D*1000:.0f}mm 여유 {(gap_width+wq-D)*1000:+.1f}mm)")
 
     # ── Phase 2: bagsettle (매달린 봉투 안정화, 벽 개방 유지) ──
     print(f"[phase] 2/7 bagsettle ({N_BAGSETTLE*DT:.1f} s) — 매달린 봉투 안정화")
     for _ in range(N_BAGSETTLE):
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
-        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])
+        crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])  # 홈(-180°) 유지
         carrier.set_pos(start_p, zero_velocity=True)
         box.set_pos(box_park_p, zero_velocity=True)
         scene.step(); step[0] += 1
@@ -425,7 +485,7 @@ def main(use_viewer: bool = True):
     box.set_pos(np.array(box_drop_p), zero_velocity=True)      # mouth 위로 1회 이동 후 자유낙하
     for _ in range(N_DROPBOX):
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
-        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])
+        crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])  # 홈(-180°) 유지
         carrier.set_pos(start_p, zero_velocity=True)           # 봉투 매단 채 정지
         scene.step(); step[0] += 1
         render_tick()
@@ -433,49 +493,80 @@ def main(use_viewer: bool = True):
     print(f"  [dropbox] box=({bp[0]:.3f},{bp[1]:.3f},{bp[2]:.3f})  bag_com_z={bc[2]:.4f}")
 
     # ── Phase 4: descend (봉투+박스를 슬롯 안으로 하강) ──
-    print(f"[phase] 4/7 descend ({N_DESCEND*DT:.1f} s) — 봉투(+박스)를 슬롯으로 하강")
+    #   크랭크 홈 -180° 유지 → L8 크러싱헤드 완전 후퇴(슬롯 밖). Left_Wall 도 개방 유지.
+    #   봉투 하단이 슬롯 상단(wall_top) 바로 위일 때 "슬롯 진입 직전" 스틸 1회 촬영.
+    print(f"[phase] 4/7 descend ({N_DESCEND*DT:.1f} s) — 봉투(+박스)를 슬롯으로 하강 (크랭크 홈 -180° 후퇴)")
+    preslot_z = wall_top_z + H + 0.02          # 봉투 하단 ~2cm 위
+    preslot_done = False
     for k in range(N_DESCEND):
         s = (k + 1) / N_DESCEND
-        cur = tuple(start_p + (final_p - start_p) * s)
+        cur = tuple(start_p + (stop_p - start_p) * s)
         carrier.set_pos(np.array(cur), zero_velocity=True)
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
-        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])
+        crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])  # 홈(-180°) 유지
         scene.step(); step[0] += 1
         render_tick()
+        if (FIG_STILLS and hires_side is not None and not preslot_done
+                and cur[2] <= preslot_z):
+            from PIL import Image as _I
+            for nm, c in (("side_xz", hires_side), ("top_xy", hires_top)):
+                _I.fromarray(_rgb_of(c.render(rgb=True))).save(
+                    os.path.join(fig_dir, f"preslot_{nm}.png"))
+            bc = bag_com()
+            print(f"[fig] pre-slot-entry stills saved (carrier_z={cur[2]:.4f}, "
+                  f"bag_bottom≈{cur[2]-H:.4f} vs wall_top {wall_top_z:.4f}) → {fig_dir}")
+            preslot_done = True
     bp = _npy(box.get_pos()); bc = bag_com()
     print(f"  [descend] carrier_z={cur[2]:.4f}  bag_com=({bc[0]:.3f},{bc[1]:.3f},{bc[2]:.3f})  box_z={bp[2]:.4f}")
 
-    # ── Phase 5: crank warmup (0 → -π/2 PD position 램프) ──
-    print(f"[phase] 5/7 crank warmup (0.5 s) — 0 → {CRANK_START_Q:+.3f} rad")
+    # ── Phase 5: settle (크랭크는 이미 홈 -180° → 클램프 직전 안정화만) ──
+    print(f"[phase] 5/7 settle (0.5 s) — 크랭크 홈 {CRANK_START_Q:+.3f}rad 유지, 클램프 전 안정화")
     for k in range(N_WARMUP):
-        s = (k + 1) / N_WARMUP
-        q_target = CRANK_START_Q * s
-        crusher.control_dofs_position(np.array([q_target]), dofs_idx_local=[crank_dof])
+        crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
-        carrier.set_pos(final_p, zero_velocity=True)
+        carrier.set_pos(stop_p, zero_velocity=True)
         scene.step(); step[0] += 1
         render_tick()
     q_now = _npy(crusher.get_dofs_position())[crank_dof]
-    print(f"  [warmup] crank actual={q_now:+.3f} rad")
+    print(f"  [settle] crank actual={q_now:+.3f} rad (home)")
+
+    # ── Figure: 클램프 직전 장면 (side / top 2각도) 고해상도 촬영 ──
+    if FIG_STILLS and hires_side is not None:
+        from PIL import Image as _I
+        for nm, c in (("side_xz", hires_side), ("top_xy", hires_top)):
+            rgb = _rgb_of(c.render(rgb=True))
+            _I.fromarray(rgb).save(os.path.join(fig_dir, f"preclamp_{nm}.png"))
+        bc = bag_com(); bp = _npy(box.get_pos())
+        print(f"[fig] pre-clamp stills saved → {fig_dir}  "
+              f"bag_com=({bc[0]:.3f},{bc[1]:.3f},{bc[2]:.3f}) box_z={bp[2]:.4f}")
 
     # ── Phase 6: clamp (Motor2 Left_Wall 닫힘) ──
-    print(f"[phase] 6/7 clamp (1.0 s) — Motor2 @ +{WALL_VEL*1000:.0f} mm/s")
-    for _ in range(N_CLAMP):
+    print(f"[phase] 6/7 clamp ({N_CLAMP*DT:.1f}s) — Left_Wall {WALL_OFFSET*1000:+.0f} → {CLAMP_TARGET*1000:+.0f}mm 닫힘 (Wall3 쪽)")
+    for k in range(N_CLAMP):
+        s = (k + 1) / N_CLAMP
+        wq_target = WALL_OFFSET + (CLAMP_TARGET - WALL_OFFSET) * s   # +12 → -5mm 선형 감소
         # 크랭크는 -π/2 유지 (warmup 끝 자세 그대로)
         crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
-        crusher.control_dofs_velocity(np.array([WALL_VEL]), dofs_idx_local=[wall_dof])
-        carrier.set_pos(final_p, zero_velocity=True)
+        crusher.control_dofs_position(np.array([wq_target]), dofs_idx_local=[wall_dof])
+        carrier.set_pos(stop_p, zero_velocity=True)
         scene.step(); step[0] += 1
         render_tick()
     wq = _npy(crusher.get_dofs_position())[wall_dof]
-    print(f"  [clamp] wall_pos={wq*1000:+.1f} mm")
+    print(f"  [clamp] wall q={wq*1000:+.1f}mm  eff gap≈{(gap_width+wq)*1000:.1f}mm  (bag {D*1000:.0f}mm)")
+
+    # ── Figure: 클램프 직후(슬라이더 닫힌 상태) 고해상도 촬영 ──
+    if FIG_STILLS and hires_side is not None:
+        from PIL import Image as _I
+        for nm, c in (("side_xz", hires_side), ("top_xy", hires_top)):
+            _I.fromarray(_rgb_of(c.render(rgb=True))).save(os.path.join(fig_dir, f"clamped_{nm}.png"))
+        print(f"[fig] clamped stills saved → {fig_dir}  (wall q={wq*1000:+.1f}mm)")
 
     # ── Phase 7: crank (Motor1 등속 회전, Motor2 정지) ──
     print(f"[phase] 7/7 crank (4.0 s) — Motor1 @ {CRANK_OMEGA:.3f} rad/s")
     for k in range(N_CRANK):
         crusher.control_dofs_velocity(np.array([CRANK_OMEGA]), dofs_idx_local=[crank_dof])
-        crusher.control_dofs_velocity(np.array([0.0]), dofs_idx_local=[wall_dof])
-        carrier.set_pos(final_p, zero_velocity=True)
+        crusher.control_dofs_position(np.array([CLAMP_TARGET]), dofs_idx_local=[wall_dof])  # 클램프 유지
+        carrier.set_pos(stop_p, zero_velocity=True)
         scene.step(); step[0] += 1
         render_tick()
         if (k + 1) % 1000 == 0:

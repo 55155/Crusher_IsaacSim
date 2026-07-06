@@ -74,6 +74,39 @@ CAM_POS    = (0.45, -0.45, 0.40)
 CAM_LOOKAT = (-0.10, 0.18, 0.07)
 CAM_FOV    = 42
 
+# ── 인쇄용 고해상도 스틸 (환경변수로 켬) ────────────────────────────────────
+#   PRINT_STILLS=1 : 시뮬 도중 12장을 고해상도·타이트 프레이밍으로 별도 저장
+#   FRAMING_TEST=1 : warmup 만 돌리고 1장만 저장 → fov/프레이밍 빠른 확인용
+#   STILL_FOV      : 낮출수록 확대(크러셔가 프레임을 꽉 채움). 원본 fov 42는 40% 만 채움.
+PRINT_STILLS = os.environ.get("PRINT_STILLS") == "1"
+FRAMING_TEST = os.environ.get("FRAMING_TEST") == "1"
+FRONT_STILL  = os.environ.get("FRONT_STILL") == "1"      # warmup 후 정면(-Y/-X) 고해상도 1장씩
+STILL_RES    = (2400, 1600)                              # 3:2, A4 가로 300DPI 셀에 충분
+STILL_FOV    = float(os.environ.get("STILL_FOV", "22"))  # 프레임 꽉 채우도록 당김
+FRONT_FOV    = float(os.environ.get("FRONT_FOV", "24"))
+FRONT_DIST   = 0.62
+STILL_N      = 12                                        # 컨택트시트 셀 수
+HIRES_DIR    = os.path.join(OUT_DIR, "crusher_frames_hires")
+FRONT_HIRES_DIR = os.path.join(OUT_DIR, "crusher_front_hires")
+FRAMING_PNG  = os.path.join(OUT_DIR, "_framing_test.png")
+# 지정 크랭크 각도(deg, 콤마구분)에서 정면 스틸 캡처. 예: "0,15,30,45,60,75,90,120"
+CRANK_ANGLES     = os.environ.get("CRANK_ANGLES", "")
+CRANK_ANGLES_DIR = os.path.join(OUT_DIR, "crusher_crank_angles")
+
+# ── 슬라이더(impact plate) 포커스 뷰 ────────────────────────────────────────
+#   HIDE_LEFT_WALL=1 : L2_Left_Wall1_1(압착 벽) 시각 지오메트리 제거 → 슬라이더 가림 해소
+#   SLIDER_VIEW=1    : CRANK_ANGLES 캡처 시 impact plate(L9) 를 꽉 잡는 +X 스틸 추가 저장
+HIDE_LEFT_WALL   = os.environ.get("HIDE_LEFT_WALL") == "1"
+SLIDER_VIEW      = os.environ.get("SLIDER_VIEW") == "1"
+SLIDER_ANGLES_DIR = os.path.join(OUT_DIR, "crusher_slider_angles")
+#   impact plate(L9) 를 일정 위치에서 고정 프레이밍 — 런타임에 plate geom 월드좌표로 lookat 세팅.
+#   SLIDER_SHIFT_Y : plate 중심 대비 시점 좌우 미세조정 [m] (+ = 화면 오른쪽/+Y)
+SLIDER_LOOKAT    = (-0.08, 0.236, 0.05)   # set_pose 전 placeholder
+SLIDER_DIST      = float(os.environ.get("SLIDER_DIST", "0.42"))
+SLIDER_FOV       = float(os.environ.get("SLIDER_FOV", "22"))     # plate stroke 가 보이도록 살짝 당김
+SLIDER_SHIFT_Y   = float(os.environ.get("SLIDER_SHIFT_Y", "-0.02"))
+SLIDER_SHIFT_Z   = float(os.environ.get("SLIDER_SHIFT_Z", "0.0"))
+
 
 WALL_GEOMS_TO_ENABLE = {"L1_Wall1_1", "L1_Wall2_1", "L2_Wall3_1"}
 
@@ -117,6 +150,12 @@ def patch_mjcf(src, dst,
                 inertial = body.find("inertial")
                 if inertial is not None:
                     inertial.set("pos", L7_LINK3_COM)
+            # Left Wall(압착 벽) 시각 지오메트리 제거 — 슬라이더 가림 해소.
+            #   body/joint 는 유지(DOF 인덱싱 보존), mesh 가 L2_Left_Wall1_1* 인 geom 만 제거.
+            if HIDE_LEFT_WALL and body.get("name") == "L2_Left_Wall1_1":
+                for g in list(body.findall("geom")):
+                    if (g.get("mesh") or "").startswith("L2_Left_Wall1_1"):
+                        body.remove(g)
     tree.write(dst)
 
 
@@ -196,6 +235,29 @@ def main(use_viewer: bool = True, show_collision: bool = False):
         surface=gs.surfaces.Default(smooth=False),
     )
     cam = scene.add_camera(res=(960, 720), pos=CAM_POS, lookat=CAM_LOOKAT, fov=CAM_FOV, GUI=False)
+    # 인쇄용 고해상도 스틸 전용 카메라 (프레임을 꽉 채우도록 fov 를 당김)
+    stillcam = None
+    if PRINT_STILLS or FRAMING_TEST:
+        os.makedirs(HIRES_DIR, exist_ok=True)
+        stillcam = scene.add_camera(res=STILL_RES, pos=CAM_POS, lookat=CAM_LOOKAT,
+                                    fov=STILL_FOV, GUI=False)
+        print(f"[stills] hi-res still cam: res={STILL_RES} fov={STILL_FOV}  → {HIRES_DIR}")
+    # 정면(elevation) 후보 카메라: -Y 방향과 -X 방향 (수평 eye-level)
+    frontcams = {}
+    if FRONT_STILL or CRANK_ANGLES:
+        lx, ly, lz = CAM_LOOKAT
+        frontcams["Y"] = scene.add_camera(res=STILL_RES, pos=(lx, ly - FRONT_DIST, lz),
+                                          lookat=CAM_LOOKAT, up=(0, 0, 1), fov=FRONT_FOV, GUI=False)
+        frontcams["X"] = scene.add_camera(res=STILL_RES, pos=(lx + FRONT_DIST, ly, lz),
+                                          lookat=CAM_LOOKAT, up=(0, 0, 1), fov=FRONT_FOV, GUI=False)
+        print(f"[front] elevation cams -Y/-X  res={STILL_RES} fov={FRONT_FOV}")
+    # 슬라이더(impact plate) 포커스 +X 카메라 — plate 근방을 고정 프레이밍
+    slidercam = None
+    if SLIDER_VIEW and CRANK_ANGLES:
+        sx, sy, sz = SLIDER_LOOKAT
+        slidercam = scene.add_camera(res=STILL_RES, pos=(sx + SLIDER_DIST, sy, sz),
+                                     lookat=SLIDER_LOOKAT, up=(0, 0, 1), fov=SLIDER_FOV, GUI=False)
+        print(f"[slider] plate-focus +X cam  lookat={SLIDER_LOOKAT} dist={SLIDER_DIST} fov={SLIDER_FOV}")
     scene.build(n_envs=0)
 
     joints = {j.name: j for j in crusher.joints if j.name}
@@ -251,6 +313,100 @@ def main(use_viewer: bool = True, show_collision: bool = False):
 
     cam.start_recording()
 
+    # ── 인쇄용 스틸 캡처 스케줄 (warmup 이후 전 구간에 균등 12장) ───────────────
+    #   FRONT_STILL + PRINT_STILLS : 정면(+X) 카메라로 12장 (회전하는 정면 컨택트시트)
+    #   PRINT_STILLS 단독           : 아이소메트릭 stillcam 으로 12장
+    from PIL import Image as _PILImage
+    _gstep = {"n": 0, "saved": 0}
+    _total_steps = N_WARMUP + N_SPIN + N_WALL_FWD + N_WALL_BACK
+    _capture_set = set()
+    if FRONT_STILL and PRINT_STILLS and frontcams:
+        _sheet_cam, _sheet_dir, _sheet_pfx = frontcams["X"], FRONT_HIRES_DIR, "crusher_front"
+    else:
+        _sheet_cam, _sheet_dir, _sheet_pfx = stillcam, HIRES_DIR, "crusher_hires"
+    if _sheet_cam is not None and PRINT_STILLS:
+        os.makedirs(_sheet_dir, exist_ok=True)
+        _capture_set = {int(round(x)) for x in
+                        np.linspace(N_WARMUP + 500, _total_steps, STILL_N)}
+        print(f"[stills] cam={_sheet_pfx} capture at global steps: {sorted(_capture_set)}")
+
+    def _tick_still():
+        """매 scene.step() 뒤 호출 — 전역 step 카운트 + 예약된 스텝에서 스틸 저장."""
+        _gstep["n"] += 1
+        if _sheet_cam is not None and PRINT_STILLS and _gstep["n"] in _capture_set:
+            rgb = _sheet_cam.render(rgb=True)[0]
+            _gstep["saved"] += 1
+            _PILImage.fromarray(np.asarray(rgb)[..., :3].astype("uint8")).save(
+                os.path.join(_sheet_dir, f"{_sheet_pfx}_{_gstep['saved']:02d}.png"))
+            print(f"[stills] saved {_gstep['saved']}/{STILL_N} @ step {_gstep['n']}")
+
+    # ── CRANK_ANGLES : 지정 각도들에서 정면(+X) 스틸 캡처하고 종료 ──────────────
+    #   0 → max(angle) 까지 PD position 으로 부드럽게 회전(텔레포트 X)하며, 크랭크가
+    #   각 목표 각도를 지날 때 정면 스틸 1장씩 저장. (도 단위, 양수 방향 회전)
+    if CRANK_ANGLES and frontcams:
+        os.makedirs(CRANK_ANGLES_DIR, exist_ok=True)
+        angs = [float(a) for a in CRANK_ANGLES.split(",")]
+        angs_rad = [np.radians(a) for a in angs]
+        order = sorted(range(len(angs)), key=lambda i: angs_rad[i])   # 오름차순으로 캡처
+        max_rad = max(angs_rad)
+        #  크랭크 kv 가 커서 position 램프론 느림 → velocity 제어로 확실히 회전(spin 과 동일)
+        OMEGA_CAP = np.radians(float(os.environ.get("CRANK_DEG_PER_S", "45")))
+        N_MAX = int(max_rad / OMEGA_CAP / DT) + 4000
+        print(f"[crank] velocity sweep 0 → {max(angs):.0f}° @ {np.degrees(OMEGA_CAP):.0f}°/s, "
+              f"capture at {angs}°")
+        done = [False] * len(angs)
+
+        if slidercam is not None:
+            os.makedirs(SLIDER_ANGLES_DIR, exist_ok=True)
+            # impact plate(L9) 월드좌표로 카메라 고정 조준 (slider 카리어가 아닌 plate 중심).
+            pp = None
+            for link in crusher.links:
+                if "L8_Link3_Shaft" in (link.name or ""):
+                    for g in link.geoms:
+                        if not (g.contype == 0 and g.conaffinity == 0):   # L9 plate = 충돌 활성
+                            q = g.get_pos()
+                            pp = (q.cpu().numpy() if hasattr(q, "cpu") else np.asarray(q)).reshape(-1)[:3]
+                            break
+            if pp is not None:
+                la = (float(pp[0]), float(pp[1]) + SLIDER_SHIFT_Y, float(pp[2]) + SLIDER_SHIFT_Z)
+                slidercam.set_pose(pos=(la[0] + SLIDER_DIST, la[1], la[2]), lookat=la, up=(0, 0, 1))
+                print(f"[slider] plate world pos={np.round(pp,4)}  -> lookat={np.round(la,4)}")
+
+        def _save_angle(i):
+            deg = int(round(angs[i]))
+            rgb = frontcams["X"].render(rgb=True)[0]
+            _PILImage.fromarray(np.asarray(rgb)[..., :3].astype("uint8")).save(
+                os.path.join(CRANK_ANGLES_DIR, f"crank_{deg:03d}deg.png"))
+            if slidercam is not None:                 # 슬라이더(impact plate) 포커스 뷰
+                srgb = slidercam.render(rgb=True)[0]
+                _PILImage.fromarray(np.asarray(srgb)[..., :3].astype("uint8")).save(
+                    os.path.join(SLIDER_ANGLES_DIR, f"slider_{deg:03d}deg.png"))
+            print(f"[crank] saved {angs[i]:.0f}°  (q={np.degrees(_qnow()):.1f}°)")
+            done[i] = True
+
+        def _qnow():
+            return float(crusher.get_dofs_position().cpu().numpy()[crank_dof])
+
+        for i in order:                        # 0° (및 그 이하) 는 시작 자세에서 즉시
+            if angs_rad[i] <= 1e-4:
+                _save_angle(i)
+        for step in range(N_MAX):
+            crusher.control_dofs_velocity(np.array([OMEGA_CAP]), dofs_idx_local=[crank_dof])
+            scene.step()
+            q = _qnow()
+            for i in order:
+                if not done[i] and q >= angs_rad[i] - 1.5e-3:
+                    _save_angle(i)
+            if all(done):
+                break
+        miss = [angs[i] for i in range(len(angs)) if not done[i]]
+        if miss:
+            for i in range(len(angs)):
+                if not done[i]:
+                    _save_angle(i)             # 안전망(도달 실패 시 최종 자세)
+            print(f"[crank][warn] 도달 못한 각도 최종자세로 저장: {miss}")
+        print("[crank] done"); return
+
     # ── (1) WARMUP : PD position 제어로 0 → -π/2 램프 ──────────────────────────
     #     control_dofs_position 은 다이내믹스 통한 PD 토크 → 텔레포트 없이 부드럽게.
     print(f"[warmup] PD position ramp 0 → {START_Q:+.3f} rad over {N_WARMUP} step")
@@ -258,9 +414,27 @@ def main(use_viewer: bool = True, show_collision: bool = False):
         target = START_Q * (k + 1) / N_WARMUP
         crusher.control_dofs_position(np.array([target]), dofs_idx_local=[crank_dof])
         scene.step()
+        _tick_still()
         if (k + 1) % RENDER_EVERY == 0:
             _refresh_collision()
             cam.render()
+
+    # ── FRAMING_TEST : warmup 자세에서 스틸 1장만 저장하고 종료 (fov 확인용) ────
+    if FRAMING_TEST and stillcam is not None:
+        rgb = stillcam.render(rgb=True)[0]
+        _PILImage.fromarray(np.asarray(rgb)[..., :3].astype("uint8")).save(FRAMING_PNG)
+        print(f"[framing] saved {FRAMING_PNG}  res={STILL_RES} fov={STILL_FOV}")
+        return
+
+    # ── FRONT_STILL (단독) : warmup 자세에서 정면(-Y/-X) 1장씩 저장하고 종료 ──
+    #   PRINT_STILLS 와 함께면 종료하지 않고 전체 회전 → 12장 정면 시트로 진행.
+    if FRONT_STILL and frontcams and not PRINT_STILLS:
+        for tag, c in frontcams.items():
+            rgb = c.render(rgb=True)[0]
+            p = os.path.join(OUT_DIR, f"crusher_front_{tag}.png")
+            _PILImage.fromarray(np.asarray(rgb)[..., :3].astype("uint8")).save(p)
+            print(f"[front] saved {p}  (fov={FRONT_FOV})")
+        return
 
     # ── (2) SPIN : 준정적 등속 회전 (control_dofs_velocity + force_range cap) ──
     #     PD velocity 추종 토크가 ±CRANK_TORQUE_LIM 으로 클램프 → 실 모터 모사.
@@ -273,6 +447,7 @@ def main(use_viewer: bool = True, show_collision: bool = False):
         t = (k + 1) * DT
         crusher.control_dofs_velocity(np.array([OMEGA]), dofs_idx_local=[crank_dof])
         scene.step()
+        _tick_still()
         if (k + 1) % RENDER_EVERY == 0:
             _refresh_collision()
             cam.render()
@@ -298,6 +473,7 @@ def main(use_viewer: bool = True, show_collision: bool = False):
             crusher.control_dofs_velocity(np.array([0.0]),               dofs_idx_local=[crank_dof])
             crusher.control_dofs_velocity(np.array([sign * WALL_VEL]),   dofs_idx_local=[wall_dof])
             scene.step()
+            _tick_still()
             if (k + 1) % RENDER_EVERY == 0:
                 _refresh_collision(); cam.render()
             if (k + 1) % 200 == 0:

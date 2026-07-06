@@ -1,8 +1,8 @@
 """
-Tablet Shape Viewer — 데스크탑 앱
-의존성:  pip install pyvista pyvistaqt PyQt5
+Tablet Shape Viewer — desktop app
+Dependencies:  pip install pyvista pyvistaqt PyQt5
 
-실행:    python viewer_desktop.py
+Run:    python viewer_desktop.py
 """
 
 import os
@@ -26,7 +26,7 @@ import numpy as np
 import trimesh
 
 # ────────────────────────────────────────────────────────────────
-# 스크립트 위치(Codes/) → 상위(tablets_stl/) 기준 상대경로
+# Script location (Codes/) → paths relative to parent (tablets_stl/)
 _HERE   = os.path.dirname(os.path.abspath(__file__))
 STL_DIR = os.path.normpath(os.path.join(_HERE, "..", "stl"))
 
@@ -34,21 +34,21 @@ RADII   = [4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5]
 ASPECTS = [1.0, 1.17, 1.33, 1.5, 1.67, 1.83, 2.0, 2.17, 2.33, 2.5]
 CURVS   = [0.08, 0.11, 0.14, 0.17, 0.20, 0.23, 0.26, 0.29, 0.32, 0.35]
 
-AR_DESCS = ['원형', '원에 가까운 타원', '타원', '타원형', '완만한 타원',
-            '타원 캡렛', '캡렛', '긴 캡렛', '매우 긴 캡렛', '장방형']
-CV_DESCS = ['매우 편평', '편평', '표준 편평', '표준 볼록', '표준',
-            '일반 볼록', '볼록', '강한 볼록', '매우 볼록', '구면형']
+AR_DESCS = ['Circular', 'Near-circular ellipse', 'Ellipse', 'Elliptical', 'Gentle ellipse',
+            'Elliptical caplet', 'Caplet', 'Long caplet', 'Very long caplet', 'Oblong']
+CV_DESCS = ['Very flat', 'Flat', 'Standard flat', 'Standard convex', 'Standard',
+            'Regular convex', 'Convex', 'Strong convex', 'Very convex', 'Spherical']
 
-# ── 밀도 기반 접촉 경도 상수 (crusher_tablet_sim.py 와 동기화) ──
-DENSITY_REF_SOFT    = 900.0    # kg/m³  연질 기준
-DENSITY_REF_HARD    = 1800.0   # kg/m³  경질 기준
+# ── Density-based contact hardness constants (synced with crusher_tablet_sim.py) ──
+DENSITY_REF_SOFT    = 900.0    # kg/m³  soft reference
+DENSITY_REF_HARD    = 1800.0   # kg/m³  hard reference
 SOLREF_TAU_SOFT     = 0.020    # s
 SOLREF_TAU_HARD     = 0.002    # s
 BICONVEX_VOL_FACTOR = 0.82
 
 
 def _estimate_volume_mm3(R_mm, AR, CV):
-    """biconvex 알약 부피 추정 [mm³]."""
+    """Estimate biconvex tablet volume [mm³]."""
     import math
     cd = CV * 2.0 * R_mm
     th = R_mm * 0.20 + 2.0 * cd
@@ -56,13 +56,13 @@ def _estimate_volume_mm3(R_mm, AR, CV):
 
 
 def _mass_to_density(mass_mg, R_mm, AR, CV):
-    """무게(mg) + 형상 → 밀도 [kg/m³]."""
+    """Mass (mg) + shape → density [kg/m³]."""
     vol_m3 = _estimate_volume_mm3(R_mm, AR, CV) * 1e-9
     return (mass_mg * 1e-6) / vol_m3
 
 
 def _density_to_tau(rho):
-    """밀도 → MuJoCo solref 시정수 τ [s]  (Power-law, Hertzian)."""
+    """Density → MuJoCo solref time constant τ [s]  (Power-law, Hertzian)."""
     import math
     rho   = max(DENSITY_REF_SOFT, min(DENSITY_REF_HARD, rho))
     alpha = math.log(SOLREF_TAU_HARD / SOLREF_TAU_SOFT) / \
@@ -71,19 +71,24 @@ def _density_to_tau(rho):
     return max(SOLREF_TAU_HARD, min(SOLREF_TAU_SOFT, tau))
 
 
-# ── 색상 상수 ──────────────────────────────────────────────────
+# ── Color constants (achromatic / grayscale) ──────────────────────
 C_BG     = "#0d1117"
 C_PANEL  = "#161b22"
 C_BORDER = "#21262d"
 C_TEXT   = "#e6edf3"
 C_MUTED  = "#8b949e"
-C_BLUE   = "#58a6ff"
-C_GREEN  = "#3fb950"
-C_ORANGE = "#f78166"
-C_PURPLE = "#a371f7"
+# Accent colors — grayscale replacements (formerly blue/green/orange/purple)
+C_BLUE   = "#d0d7de"   # R      accent
+C_GREEN  = "#b1bac4"   # AR     accent
+C_ORANGE = "#9aa5b1"   # CV     accent
+C_PURPLE = "#adbac7"   # generic accent
+# Buttons — neutral gray scheme
+C_BTN     = "#30363d"
+C_BTN_HOV = "#484f58"
+C_BTN_PRS = "#21262d"
 
 
-# ── 스타일 유틸 ────────────────────────────────────────────────
+# ── Style utilities ────────────────────────────────────────────
 def label(text, size=12, color=C_TEXT, bold=False):
     w = QLabel(text)
     w.setStyleSheet(
@@ -133,7 +138,7 @@ def styled_slider(accent_color):
 
 
 def dim_card(title, val_id):
-    """치수 표시 카드 → (카드 위젯, 값 QLabel)"""
+    """Dimension display card → (card widget, value QLabel)"""
     card = QWidget()
     card.setStyleSheet(
         f"background:{C_BG}; border:1px solid {C_BORDER}; border-radius:8px;"
@@ -153,21 +158,21 @@ def dim_card(title, val_id):
     return card, lbl_val
 
 
-# ── 메인 윈도우 ────────────────────────────────────────────────
+# ── Main window ────────────────────────────────────────────────
 class TabletViewer(QMainWindow):
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Tablet Shape Viewer")
         self.resize(1280, 760)
-        self._first_load    = True   # 최초 1회만 카메라 리셋
-        self._last_density  = None   # 무게 입력으로 계산된 밀도 (Crusher 전달용)
-        self._sim_proc      = None   # 실행 중인 시뮬레이션 프로세스
+        self._first_load    = True   # reset camera only once
+        self._last_density  = None   # density computed from mass input (passed to Crusher)
+        self._sim_proc      = None   # running simulation process
         self._setup_palette()
         self._build_ui()
         self._update()
 
-    # ── 팔레트 (앱 전체 다크 테마) ──────────────────────────────
+    # ── Palette (app-wide dark theme) ──────────────────────────
     def _setup_palette(self):
         pal = QPalette()
         pal.setColor(QPalette.Window,          QColor(C_BG))
@@ -184,7 +189,7 @@ class TabletViewer(QMainWindow):
         self.setPalette(pal)
         self.setStyleSheet(f"QMainWindow {{ background:{C_BG}; }}")
 
-    # ── UI 구성 ─────────────────────────────────────────────────
+    # ── UI construction ─────────────────────────────────────────
     def _build_ui(self):
         root = QWidget()
         root.setStyleSheet(f"background:{C_BG};")
@@ -194,7 +199,7 @@ class TabletViewer(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # ── 왼쪽 패널 ──────────────────────────────────────────
+        # ── Left panel ─────────────────────────────────────────
         panel = QWidget()
         panel.setFixedWidth(290)
         panel.setStyleSheet(
@@ -204,7 +209,7 @@ class TabletViewer(QMainWindow):
         pl.setContentsMargins(22, 26, 22, 26)
         pl.setSpacing(0)
 
-        # 제목
+        # Title
         pl.addWidget(label("Pharmaceutical Design", 9, C_BLUE, True))
         pl.addSpacing(4)
         title = QLabel("Tablet Shape\nViewer")
@@ -214,27 +219,27 @@ class TabletViewer(QMainWindow):
         pl.addWidget(divider())
         pl.addSpacing(18)
 
-        # ── 슬라이더 3개 ────────────────────────────────────────
+        # ── 3 sliders ───────────────────────────────────────────
         pl.addWidget(label("PARAMETERS", 9, C_MUTED, True))
         pl.addSpacing(14)
 
         sliders_info = [
-            ("R",  "단반경",  C_BLUE,   4, "val_r",  "desc_r"),
-            ("AR", "형태비",  C_GREEN,  3, "val_ar", "desc_ar"),
-            ("CV", "곡률",    C_ORANGE, 2, "val_cv", "desc_cv"),
+            ("R",  "Minor radius",  C_BLUE,   4, "val_r",  "desc_r"),
+            ("AR", "Aspect ratio",  C_GREEN,  3, "val_ar", "desc_ar"),
+            ("CV", "Curvature",     C_ORANGE, 2, "val_cv", "desc_cv"),
         ]
         self.sliders = {}
         self.val_labels = {}
         self.desc_labels = {}
 
-        for param, kor, color, default, vid, did in sliders_info:
-            # 헤더 행
+        for param, sub, color, default, vid, did in sliders_info:
+            # Header row
             row = QWidget()
             row.setStyleSheet("background:transparent;")
             rl = QHBoxLayout(row)
             rl.setContentsMargins(0, 0, 0, 0)
 
-            name_lbl = QLabel(f"{param}  <span style='color:{C_MUTED};font-weight:400;font-size:11px'>{kor}</span>")
+            name_lbl = QLabel(f"{param}  <span style='color:{C_MUTED};font-weight:400;font-size:11px'>{sub}</span>")
             name_lbl.setStyleSheet(f"color:{color}; font-size:13px; font-weight:700; background:transparent;")
             name_lbl.setTextFormat(Qt.RichText)
 
@@ -246,13 +251,13 @@ class TabletViewer(QMainWindow):
             rl.addWidget(val_lbl)
             pl.addWidget(row)
 
-            # 슬라이더
+            # Slider
             sl = styled_slider(color)
             sl.setValue(default)
             sl.valueChanged.connect(self._update)
             pl.addWidget(sl)
 
-            # 설명
+            # Description
             desc_lbl = QLabel("")
             desc_lbl.setStyleSheet(f"color:{C_MUTED}; font-size:11px; background:transparent;")
             pl.addWidget(desc_lbl)
@@ -265,7 +270,7 @@ class TabletViewer(QMainWindow):
         pl.addWidget(divider())
         pl.addSpacing(18)
 
-        # ── 치수 카드 ────────────────────────────────────────────
+        # ── Dimension cards ──────────────────────────────────────
         pl.addWidget(label("DIMENSIONS", 9, C_MUTED, True))
         pl.addSpacing(12)
 
@@ -276,8 +281,8 @@ class TabletViewer(QMainWindow):
         grid.setSpacing(8)
 
         dims = [
-            ("단축 직경", "d_minor"), ("장축 직경", "d_major"),
-            ("전체 두께", "d_thick"), ("구면 반경",  "d_rs"),
+            ("Minor diameter", "d_minor"), ("Major diameter", "d_major"),
+            ("Total thickness", "d_thick"), ("Spherical radius",  "d_rs"),
         ]
         self.dim_labels = {}
         for i, (title, key) in enumerate(dims):
@@ -290,14 +295,14 @@ class TabletViewer(QMainWindow):
         pl.addWidget(divider())
         pl.addSpacing(14)
 
-        # ── 경도 (무게 입력) ──────────────────────────────────────
-        pl.addWidget(label("HARDNESS  경도", 9, C_MUTED, True))
+        # ── Hardness (mass input) ─────────────────────────────────
+        pl.addWidget(label("HARDNESS", 9, C_MUTED, True))
         pl.addSpacing(10)
 
-        # 무게 입력 행
+        # Mass input row
         mass_row = QWidget(); mass_row.setStyleSheet("background:transparent;")
         mass_rl  = QHBoxLayout(mass_row); mass_rl.setContentsMargins(0,0,0,0); mass_rl.setSpacing(6)
-        mass_rl.addWidget(label("무게", 11, C_TEXT))
+        mass_rl.addWidget(label("Mass", 11, C_TEXT))
         self.edit_mass = QLineEdit()
         self.edit_mass.setPlaceholderText("mg")
         self.edit_mass.setMaximumWidth(80)
@@ -322,14 +327,14 @@ class TabletViewer(QMainWindow):
         pl.addWidget(mass_row)
         pl.addSpacing(6)
 
-        # 밀도 / τ 표시 행
-        self.lbl_density = label("밀도  —", 11, C_MUTED)
-        self.lbl_tau     = label("τ  —",    11, C_MUTED)
+        # Density / τ display row
+        self.lbl_density = label("Density  —", 11, C_MUTED)
+        self.lbl_tau     = label("τ  —",       11, C_MUTED)
         pl.addWidget(self.lbl_density)
         pl.addWidget(self.lbl_tau)
         pl.addSpacing(8)
 
-        # 경도 게이지 (QFrame 배경 + 내부 채움 위젯)
+        # Hardness gauge (QFrame background + inner fill widget)
         gauge_outer = QFrame()
         gauge_outer.setFixedHeight(12)
         gauge_outer.setStyleSheet(
@@ -356,7 +361,7 @@ class TabletViewer(QMainWindow):
         pl.addWidget(divider())
         pl.addSpacing(14)
 
-        # ── 파일명 / 상태 ────────────────────────────────────────
+        # ── Filename / status ────────────────────────────────────
         pl.addWidget(label("STL FILE", 9, C_MUTED, True))
         pl.addSpacing(8)
 
@@ -369,20 +374,20 @@ class TabletViewer(QMainWindow):
         self.lbl_fname.setWordWrap(True)
         pl.addWidget(self.lbl_fname)
 
-        self.lbl_status = QLabel("준비 중...")
+        self.lbl_status = QLabel("Preparing...")
         self.lbl_status.setStyleSheet(f"color:{C_MUTED}; font-size:11px; background:transparent;")
         self.lbl_status.setAlignment(Qt.AlignCenter)
         pl.addWidget(self.lbl_status)
 
         pl.addSpacing(12)
 
-        # ── MuJoCo 실행 버튼 ─────────────────────────────────────
+        # ── MuJoCo launch button ─────────────────────────────────
         from PyQt5.QtWidgets import QPushButton
-        self.btn_mujoco = QPushButton("▶  MuJoCo에서 열기")
+        self.btn_mujoco = QPushButton("▶  Open in MuJoCo")
         self.btn_mujoco.setEnabled(False)
         self.btn_mujoco.setStyleSheet(f"""
             QPushButton {{
-                background: #b45309;
+                background: {C_BTN};
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -390,14 +395,14 @@ class TabletViewer(QMainWindow):
                 font-size: 12px;
                 font-weight: 700;
             }}
-            QPushButton:hover    {{ background: #d97706; }}
-            QPushButton:pressed  {{ background: #92400e; }}
-            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+            QPushButton:hover    {{ background: {C_BTN_HOV}; }}
+            QPushButton:pressed  {{ background: {C_BTN_PRS}; }}
+            QPushButton:disabled {{ background: {C_BTN_PRS}; color: {C_MUTED}; }}
         """)
         self.btn_mujoco.clicked.connect(self._launch_mujoco)
         pl.addWidget(self.btn_mujoco)
 
-        # ── Crusher 시뮬레이션 버튼 (헤드리스 + 뷰어) ───────────
+        # ── Crusher simulation buttons (headless + viewer) ───────
         crusher_row = QWidget()
         crusher_row.setStyleSheet("background:transparent;")
         crusher_rl = QHBoxLayout(crusher_row)
@@ -408,7 +413,7 @@ class TabletViewer(QMainWindow):
         self.btn_crusher_hl.setEnabled(False)
         self.btn_crusher_hl.setStyleSheet(f"""
             QPushButton {{
-                background: #6e40c9;
+                background: {C_BTN};
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -416,9 +421,9 @@ class TabletViewer(QMainWindow):
                 font-size: 12px;
                 font-weight: 700;
             }}
-            QPushButton:hover    {{ background: #8957e5; }}
-            QPushButton:pressed  {{ background: #553098; }}
-            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+            QPushButton:hover    {{ background: {C_BTN_HOV}; }}
+            QPushButton:pressed  {{ background: {C_BTN_PRS}; }}
+            QPushButton:disabled {{ background: {C_BTN_PRS}; color: {C_MUTED}; }}
         """)
         self.btn_crusher_hl.clicked.connect(lambda: self._launch_crusher_sim("headless"))
 
@@ -426,7 +431,7 @@ class TabletViewer(QMainWindow):
         self.btn_crusher_vw.setEnabled(False)
         self.btn_crusher_vw.setStyleSheet(f"""
             QPushButton {{
-                background: #1a7f37;
+                background: {C_BTN};
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -434,9 +439,9 @@ class TabletViewer(QMainWindow):
                 font-size: 12px;
                 font-weight: 700;
             }}
-            QPushButton:hover    {{ background: #2ea043; }}
-            QPushButton:pressed  {{ background: #116329; }}
-            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+            QPushButton:hover    {{ background: {C_BTN_HOV}; }}
+            QPushButton:pressed  {{ background: {C_BTN_PRS}; }}
+            QPushButton:disabled {{ background: {C_BTN_PRS}; color: {C_MUTED}; }}
         """)
         self.btn_crusher_vw.clicked.connect(lambda: self._launch_crusher_sim("viewer"))
 
@@ -444,11 +449,11 @@ class TabletViewer(QMainWindow):
         crusher_rl.addWidget(self.btn_crusher_vw)
         pl.addWidget(crusher_row)
 
-        self.btn_stop = QPushButton("■  시뮬레이션 중지")
+        self.btn_stop = QPushButton("■  Stop simulation")
         self.btn_stop.setEnabled(False)
         self.btn_stop.setStyleSheet(f"""
             QPushButton {{
-                background: #b91c1c;
+                background: {C_BTN};
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -456,9 +461,9 @@ class TabletViewer(QMainWindow):
                 font-size: 12px;
                 font-weight: 700;
             }}
-            QPushButton:hover    {{ background: #dc2626; }}
-            QPushButton:pressed  {{ background: #991b1b; }}
-            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+            QPushButton:hover    {{ background: {C_BTN_HOV}; }}
+            QPushButton:pressed  {{ background: {C_BTN_PRS}; }}
+            QPushButton:disabled {{ background: {C_BTN_PRS}; color: {C_MUTED}; }}
         """)
         self.btn_stop.clicked.connect(self._stop_crusher_sim)
         pl.addWidget(self.btn_stop)
@@ -472,15 +477,15 @@ class TabletViewer(QMainWindow):
         pl.addWidget(divider())
         pl.addSpacing(14)
 
-        # ── 볼록 분해 섹션 ────────────────────────────────────────
+        # ── Convex decomposition section ──────────────────────────
         pl.addWidget(label("COLLISION MESH", 9, C_MUTED, True))
         pl.addSpacing(10)
 
         from PyQt5.QtWidgets import QPushButton
-        self.btn_decomp = QPushButton("볼록 분해 실행")
+        self.btn_decomp = QPushButton("Run convex decomposition")
         self.btn_decomp.setStyleSheet(f"""
             QPushButton {{
-                background: #1f6feb;
+                background: {C_BTN};
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -488,18 +493,18 @@ class TabletViewer(QMainWindow):
                 font-size: 12px;
                 font-weight: 600;
             }}
-            QPushButton:hover {{ background: #388bfd; }}
-            QPushButton:pressed {{ background: #1158c7; }}
-            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+            QPushButton:hover {{ background: {C_BTN_HOV}; }}
+            QPushButton:pressed {{ background: {C_BTN_PRS}; }}
+            QPushButton:disabled {{ background: {C_BTN_PRS}; color: {C_MUTED}; }}
         """)
         self.btn_decomp.clicked.connect(self._run_decomposition)
         pl.addWidget(self.btn_decomp)
 
-        self.btn_export = QPushButton("STL 내보내기")
+        self.btn_export = QPushButton("Export STL")
         self.btn_export.setEnabled(False)
         self.btn_export.setStyleSheet(f"""
             QPushButton {{
-                background: #238636;
+                background: {C_BTN};
                 color: white;
                 border: none;
                 border-radius: 6px;
@@ -507,47 +512,47 @@ class TabletViewer(QMainWindow):
                 font-size: 12px;
                 font-weight: 600;
             }}
-            QPushButton:hover {{ background: #2ea043; }}
-            QPushButton:pressed {{ background: #196127; }}
-            QPushButton:disabled {{ background: #21262d; color: {C_MUTED}; }}
+            QPushButton:hover {{ background: {C_BTN_HOV}; }}
+            QPushButton:pressed {{ background: {C_BTN_PRS}; }}
+            QPushButton:disabled {{ background: {C_BTN_PRS}; color: {C_MUTED}; }}
         """)
         self.btn_export.clicked.connect(self._export_hulls)
         pl.addWidget(self.btn_export)
         pl.addSpacing(8)
 
-        self.lbl_decomp = QLabel("분해 전")
+        self.lbl_decomp = QLabel("Not decomposed")
         self.lbl_decomp.setStyleSheet(f"color:{C_MUTED}; font-size:11px; background:transparent;")
         self.lbl_decomp.setAlignment(Qt.AlignCenter)
         pl.addWidget(self.lbl_decomp)
 
-        self._hulls = []       # 분해된 trimesh 목록 (내보내기용)
-        self._hull_fpath = ""  # 현재 분해된 STL 경로
+        self._hulls = []       # decomposed trimesh list (for export)
+        self._hull_fpath = ""  # current decomposed STL path
 
         pl.addSpacing(18)
         pl.addWidget(divider())
         pl.addSpacing(10)
 
-        # ── 단축키 패널 ──────────────────────────────────────────────
+        # ── Shortcuts panel ──────────────────────────────────────────
         pl.addWidget(label("SHORTCUTS", 9, C_MUTED, True))
         pl.addSpacing(8)
 
         shortcuts_data = [
             # (key_text, desc_text, is_header)
-            ("마우스",              "",                        True),
-            ("좌클릭 드래그",       "회전",                    False),
-            ("우클릭 드래그",       "팬 (이동)",               False),
-            ("스크롤",              "줌 인 / 아웃",            False),
-            ("렌더링",              "",                        True),
-            ("W",                   "★ 와이어프레임 토글",     False),
-            ("S",                   "솔리드(표면) 렌더링",     False),
-            ("카메라",              "",                        True),
-            ("R",                   "카메라 리셋",             False),
-            ("F",                   "선택 점 포커스",          False),
-            ("기타",                "",                        True),
-            ("Q",                   "뷰어 창 닫기",            False),
-            ("P",                   "점 선택 (Pick)",          False),
-            ("C",                   "원근 ↔ 평행 투영",        False),
-            ("I",                   "좌표축 표시 토글",        False),
+            ("Mouse",               "",                        True),
+            ("Left-drag",           "Rotate",                  False),
+            ("Right-drag",          "Pan",                     False),
+            ("Scroll",              "Zoom in / out",           False),
+            ("Rendering",           "",                        True),
+            ("W",                   "★ Toggle wireframe",      False),
+            ("S",                   "Solid (surface) render",  False),
+            ("Camera",              "",                        True),
+            ("R",                   "Reset camera",            False),
+            ("F",                   "Focus picked point",      False),
+            ("Other",               "",                        True),
+            ("Q",                   "Close viewer window",     False),
+            ("P",                   "Pick point",              False),
+            ("C",                   "Perspective ↔ Parallel",  False),
+            ("I",                   "Toggle axes",             False),
         ]
 
         sc_widget = QWidget()
@@ -574,8 +579,8 @@ class TabletViewer(QMainWindow):
                 row_l.setSpacing(4)
 
                 is_star = "★" in desc_txt
-                key_color  = C_ORANGE if is_star else "#f78166"
-                desc_color = C_GREEN  if is_star else C_MUTED
+                key_color  = C_ORANGE if is_star else C_MUTED
+                desc_color = C_TEXT   if is_star else C_MUTED
 
                 lbl_key = QLabel(key_txt)
                 lbl_key.setFixedWidth(90)
@@ -595,44 +600,44 @@ class TabletViewer(QMainWindow):
 
         pl.addStretch()
 
-        # ── 3D 뷰포트 ────────────────────────────────────────────
+        # ── 3D viewport ────────────────────────────────────────────
         self.plotter = QtInteractor(
             parent=root,
             auto_update=False,
         )
-        # 뷰포트 배경
-        self.plotter.set_background("#0d1117", top="#1c2333")
+        # Viewport background
+        self.plotter.set_background("#0d1117", top="#20242b")
         self.plotter.enable_anti_aliasing('ssaa')
         self.plotter.add_axes(interactive=False)
 
-        # ── 커스텀 조명 (음영 대비 강화) ─────────────────────────
-        # 기본 조명 제거 후 직접 설정
+        # ── Custom lighting (stronger shading contrast) ──────────
+        # Remove default lights, set manually
         self.plotter.remove_all_lights()
 
-        # 주 조명: 좌상단 → 강한 명암 생성
+        # Key light: upper-left → strong contrast
         key = pv.Light(position=(8, 12, 10), focal_point=(0, 0, 0),
                        intensity=1.0, color='white')
         key.positional = False
         self.plotter.add_light(key)
 
-        # 보조 조명: 반대편 → 완전한 검정 방지
+        # Fill light: opposite side → avoid pure black
         fill = pv.Light(position=(-6, -4, -5), focal_point=(0, 0, 0),
-                        intensity=0.25, color='#aac4ff')
+                        intensity=0.25, color='white')
         fill.positional = False
         self.plotter.add_light(fill)
 
-        # 림 조명: 뒤에서 → 실루엣 강조
+        # Rim light: from behind → emphasize silhouette
         rim = pv.Light(position=(0, -10, 6), focal_point=(0, 0, 0),
-                       intensity=0.2, color='#ffe8c0')
+                       intensity=0.2, color='white')
         rim.positional = False
         self.plotter.add_light(rim)
 
         root_layout.addWidget(panel)
         root_layout.addWidget(self.plotter, stretch=1)
 
-    # ── 경도 계산 (무게 입력 → 밀도 → τ) ───────────────────────
+    # ── Hardness calc (mass input → density → τ) ───────────────
     def _recalc_hardness(self):
-        """무게(mg) + 현재 슬라이더(R, AR, CV) → 밀도·τ 계산 후 UI 갱신."""
+        """Mass (mg) + current sliders (R, AR, CV) → compute density·τ and update UI."""
         ri = self.sliders["R"].value()
         ai = self.sliders["AR"].value()
         ci = self.sliders["CV"].value()
@@ -644,11 +649,11 @@ class TabletViewer(QMainWindow):
                 raise ValueError
             rho = _mass_to_density(mass_mg, R, AR, CV)
             tau = _density_to_tau(rho)
-            self._last_density = rho   # Crusher 실행 시 사용
+            self._last_density = rho   # used when launching Crusher
 
-            # 텍스트 갱신
+            # Update text
             self.lbl_density.setText(
-                f"밀도  <span style='color:{C_BLUE};font-weight:700'>"
+                f"Density  <span style='color:{C_BLUE};font-weight:700'>"
                 f"{rho:.0f} kg/m³</span>"
             )
             self.lbl_density.setTextFormat(Qt.RichText)
@@ -658,21 +663,21 @@ class TabletViewer(QMainWindow):
             )
             self.lbl_tau.setTextFormat(Qt.RichText)
 
-            # 게이지 갱신
+            # Update gauge
             ratio = (rho - DENSITY_REF_SOFT) / (DENSITY_REF_HARD - DENSITY_REF_SOFT)
             ratio = max(0.0, min(1.0, ratio))
             pct   = int(ratio * 100)
 
             if pct < 25:
-                color, txt = C_GREEN,  f"Soft  ({pct}%)"
+                color, txt = "#6e7681", f"Soft  ({pct}%)"
             elif pct < 50:
-                color, txt = "#f1c40f", f"Medium  ({pct}%)"
+                color, txt = "#8b949e", f"Medium  ({pct}%)"
             elif pct < 75:
-                color, txt = C_ORANGE, f"Hard  ({pct}%)"
+                color, txt = "#adbac7", f"Hard  ({pct}%)"
             else:
-                color, txt = "#e74c3c", f"Very Hard  ({pct}%)"
+                color, txt = "#e6edf3", f"Very Hard  ({pct}%)"
 
-            total_w = self._gauge_outer.width() - 4   # 패딩 제외
+            total_w = self._gauge_outer.width() - 4   # exclude padding
             bar_w   = max(4, int(total_w * ratio))
             self._gauge_bar.setFixedWidth(bar_w)
             self._gauge_bar.setStyleSheet(
@@ -685,18 +690,18 @@ class TabletViewer(QMainWindow):
 
         except (ValueError, ZeroDivisionError):
             self._last_density = None
-            self.lbl_density.setText("밀도  —")
+            self.lbl_density.setText("Density  —")
             self.lbl_density.setStyleSheet(f"color:{C_MUTED}; font-size:11px; background:transparent;")
             self.lbl_tau.setText("τ  —")
             self.lbl_tau.setStyleSheet(f"color:{C_MUTED}; font-size:11px; background:transparent;")
             self._gauge_bar.setFixedWidth(4)
             self._gauge_bar.setStyleSheet(f"background:{C_MUTED}; border-radius:3px;")
-            self.lbl_hardness.setText("무게를 입력하세요")
+            self.lbl_hardness.setText("Enter mass")
             self.lbl_hardness.setStyleSheet(
                 f"color:{C_MUTED}; font-size:10px; background:transparent;"
             )
 
-    # ── 모델 업데이트 ─────────────────────────────────────────
+    # ── Model update ─────────────────────────────────────────
     def _update(self):
         ri = self.sliders["R"].value()
         ai = self.sliders["AR"].value()
@@ -706,17 +711,17 @@ class TabletViewer(QMainWindow):
         AR = ASPECTS[ai]
         CV = CURVS[ci]
 
-        # 값 레이블
+        # Value labels
         self.val_labels["R"].setText(f"{R:.1f} mm")
         self.val_labels["AR"].setText(f"{AR:.2f}")
         self.val_labels["CV"].setText(f"{CV:.2f}")
 
-        # 설명
-        self.desc_labels["R"].setText(f"직경  {R*2:.1f} mm")
-        self.desc_labels["AR"].setText(f"{AR_DESCS[ai]}  —  장축 {R*2*AR:.1f} mm")
+        # Descriptions
+        self.desc_labels["R"].setText(f"Diameter  {R*2:.1f} mm")
+        self.desc_labels["AR"].setText(f"{AR_DESCS[ai]}  —  major axis {R*2*AR:.1f} mm")
         self.desc_labels["CV"].setText(CV_DESCS[ci])
 
-        # 파생 치수
+        # Derived dimensions
         cd = CV * 2 * R
         bh = R * 0.20
         th = bh + 2 * cd
@@ -727,13 +732,13 @@ class TabletViewer(QMainWindow):
         self.dim_labels["d_thick"].setText(f"{th:.2f} mm")
         self.dim_labels["d_rs"].setText(f"{Rs:.1f} mm")
 
-        # 파일 로드
+        # Load file
         fname = f"tablet_R{R:.1f}_AR{AR:.2f}_CV{CV:.2f}.stl"
         fpath = os.path.join(STL_DIR, fname)
         self.lbl_fname.setText(fname)
         self._load_mesh(fpath)
 
-        # 슬라이더 변경 시 무게가 입력돼 있으면 밀도 재계산
+        # Recompute density if mass entered when slider changes
         self._recalc_hardness()
 
     def _load_mesh(self, fpath):
@@ -741,8 +746,8 @@ class TabletViewer(QMainWindow):
         self.plotter.clear_actors()
 
         if not os.path.exists(fpath):
-            self.lbl_status.setText("✗ 파일 없음 — STL을 먼저 생성하세요")
-            self.lbl_status.setStyleSheet("color:#f85149; font-size:11px; background:transparent;")
+            self.lbl_status.setText("✗ File not found — generate the STL first")
+            self.lbl_status.setStyleSheet("color:#e6edf3; font-size:11px; background:transparent;")
             self.btn_mujoco.setEnabled(False)
             self.btn_crusher_hl.setEnabled(False)
             self.btn_crusher_vw.setEnabled(False)
@@ -752,13 +757,13 @@ class TabletViewer(QMainWindow):
         try:
             mesh = pv.read(fpath)
 
-            # 중심 정렬 (mesh.center는 tuple → 직접 분해)
+            # Center align (mesh.center is a tuple → unpack directly)
             cx, cy, cz = mesh.center
             mesh.translate((-cx, -cy, -cz), inplace=True)
 
             self.plotter.add_mesh(
                 mesh,
-                color="#dcd8ce",
+                color="#d6d6d6",
                 ambient=0.08,
                 diffuse=0.85,
                 specular=0.7,
@@ -766,22 +771,22 @@ class TabletViewer(QMainWindow):
                 smooth_shading=True,
             )
 
-            # ── 스케일 바 (10mm 기준선) ──────────────────────────
-            # 정제 아래쪽에 10mm 막대 표시 → 실제 크기 비교 가능
-            bar_y = -18.0   # 화면 하단 고정 위치 (mm)
+            # ── Scale bar (10mm reference) ──────────────────────
+            # 10mm bar below the tablet → real-size comparison
+            bar_y = -18.0   # fixed position at bottom (mm)
             bar = pv.Line((-5, bar_y, 0), (5, bar_y, 0))
-            self.plotter.add_mesh(bar, color="#58a6ff",
+            self.plotter.add_mesh(bar, color="#adbac7",
                                   line_width=3, render_lines_as_tubes=True)
             self.plotter.add_point_labels(
                 [(0, bar_y - 1.5, 0)], ["10 mm"],
-                font_size=10, text_color="#58a6ff",
+                font_size=10, text_color="#adbac7",
                 fill_shape=False, always_visible=True,
                 shape_opacity=0,
             )
 
-            # 최초 로드 시에만 카메라 위치 설정 (이후엔 고정)
+            # Set camera only on first load (fixed after)
             if self._first_load:
-                # 가장 큰 정제 기준(R=8.5, AR=2.5)으로 카메라 거리 고정
+                # Fix camera distance for the largest tablet (R=8.5, AR=2.5)
                 self.plotter.camera.position = (0, -90, 40)
                 self.plotter.camera.focal_point = (0, 0, 0)
                 self.plotter.camera.up = (0, 0, 1)
@@ -789,42 +794,42 @@ class TabletViewer(QMainWindow):
 
             self.plotter.render()
 
-            self.lbl_status.setText("✓ 로드 완료")
+            self.lbl_status.setText("✓ Loaded")
             self.lbl_status.setStyleSheet(
-                "color:#3fb950; font-size:11px; background:transparent;"
+                "color:#adbac7; font-size:11px; background:transparent;"
             )
             self.btn_mujoco.setEnabled(True)
             self.btn_crusher_hl.setEnabled(True)
             self.btn_crusher_vw.setEnabled(True)
             self.lbl_mujoco.setText("")
         except Exception as e:
-            self.lbl_status.setText(f"✗ 오류: {e}")
+            self.lbl_status.setText(f"✗ Error: {e}")
             self.lbl_status.setStyleSheet(
-                "color:#f85149; font-size:11px; background:transparent;"
+                "color:#e6edf3; font-size:11px; background:transparent;"
             )
             self.btn_mujoco.setEnabled(False)
             self.btn_crusher_hl.setEnabled(False)
             self.btn_crusher_vw.setEnabled(False)
 
-    # ── 볼록 분해 ─────────────────────────────────────────────────
+    # ── Convex decomposition ─────────────────────────────────────
     def _run_decomposition(self):
         fpath = os.path.join(STL_DIR, self.lbl_fname.text())
         if not os.path.exists(fpath):
-            self.lbl_decomp.setText("✗ STL 파일 없음")
+            self.lbl_decomp.setText("✗ STL file not found")
             return
 
         self.btn_decomp.setEnabled(False)
-        self.lbl_decomp.setText("⏳ 분해 중...")
+        self.lbl_decomp.setText("⏳ Decomposing...")
         QApplication.processEvents()
 
         try:
-            # trimesh로 원본 로드
+            # Load original with trimesh
             tm = trimesh.load(fpath, force='mesh')
 
-            # ── 볼록 분해 시도 순서 ──────────────────────────────
-            # 1순위: coacd (pip install coacd)
-            # 2순위: trimesh 내장 VHACD
-            # 3순위: 단일 볼록 껍질 (항상 가능)
+            # ── Convex decomposition attempt order ──────────────
+            # 1st: coacd (pip install coacd)
+            # 2nd: trimesh built-in VHACD
+            # 3rd: single convex hull (always works)
             hulls = []
             method = ""
 
@@ -853,31 +858,31 @@ class TabletViewer(QMainWindow):
 
             if not hulls:
                 hulls = [tm.convex_hull]
-                method = "단일 볼록 껍질"
+                method = "Single convex hull"
 
             self._hulls      = hulls
             self._hull_fpath = fpath
 
-            # ── 메모리 추정 ──────────────────────────────────────
+            # ── Memory estimate ──────────────────────────────────
             total_verts = sum(len(h.vertices) for h in hulls)
             total_faces = sum(len(h.faces)    for h in hulls)
-            # PhysX 기준: 정점당 ~48 bytes
+            # PhysX: ~48 bytes per vertex
             mem_kb = (total_verts * 48) / 1024
 
-            # ── 뷰포트에 시각화 ──────────────────────────────────
+            # ── Visualize in viewport ────────────────────────────
             self.plotter.clear_actors()
 
-            # 원본 메시 (반투명 회색 와이어프레임)
+            # Original mesh (translucent gray wireframe)
             orig = pv.read(fpath)
             cx, cy, cz = orig.center
             orig.translate((-cx, -cy, -cz), inplace=True)
             self.plotter.add_mesh(orig, color="#888888", opacity=0.15,
                                   style='wireframe')
 
-            # Hull별로 다른 색상
-            HULL_COLORS = ["#ff6b6b","#4ecdc4","#45b7d1",
-                           "#96e6a1","#ffd93d","#c77dff",
-                           "#ff9a3c","#74b9ff"]
+            # Distinct grayscale shade per hull
+            HULL_COLORS = ["#e6edf3","#c9d1d9","#adbac7",
+                           "#8b949e","#6e7681","#d0d7de",
+                           "#9aa5b1","#767d86"]
             for i, hull in enumerate(hulls):
                 pv_hull = pv.PolyData(
                     np.array(hull.vertices, dtype=np.float64),
@@ -897,26 +902,26 @@ class TabletViewer(QMainWindow):
 
             self.plotter.render()
 
-            # 통계 표시
+            # Show stats
             self.lbl_decomp.setText(
-                f"✓ {method}  |  {len(hulls)}개 hull\n"
-                f"정점 {total_verts} / 면 {total_faces}\n"
-                f"예상 메모리: ~{mem_kb:.1f} KB"
+                f"✓ {method}  |  {len(hulls)} hulls\n"
+                f"Verts {total_verts} / Faces {total_faces}\n"
+                f"Est. memory: ~{mem_kb:.1f} KB"
             )
             self.lbl_decomp.setStyleSheet(
-                f"color:#3fb950; font-size:11px; background:transparent;"
+                f"color:#adbac7; font-size:11px; background:transparent;"
             )
             self.btn_export.setEnabled(True)
 
         except Exception as e:
-            self.lbl_decomp.setText(f"✗ 오류: {e}")
+            self.lbl_decomp.setText(f"✗ Error: {e}")
             self.lbl_decomp.setStyleSheet(
-                f"color:#f85149; font-size:11px; background:transparent;"
+                f"color:#e6edf3; font-size:11px; background:transparent;"
             )
         finally:
             self.btn_decomp.setEnabled(True)
 
-    # ── Hull STL 내보내기 ──────────────────────────────────────────
+    # ── Export hull STL ──────────────────────────────────────────
     def _export_hulls(self):
         if not self._hulls:
             return
@@ -925,37 +930,37 @@ class TabletViewer(QMainWindow):
             out = f"{base}_hull{i:02d}.stl"
             hull.export(out)
         self.lbl_decomp.setText(
-            self.lbl_decomp.text() + f"\n📁 {len(self._hulls)}개 STL 저장 완료"
+            self.lbl_decomp.text() + f"\n📁 Saved {len(self._hulls)} STL files"
         )
 
-    # ── MuJoCo 뷰어 실행 ──────────────────────────────────────────
+    # ── Launch MuJoCo viewer ──────────────────────────────────────
     def _launch_mujoco(self):
         fpath = os.path.join(STL_DIR, self.lbl_fname.text())
         if not os.path.exists(fpath):
-            self.lbl_mujoco.setText("✗ STL 파일 없음")
+            self.lbl_mujoco.setText("✗ STL file not found")
             return
 
         launcher = os.path.join(_HERE, "launch_mujoco.py")
         if not os.path.exists(launcher):
-            self.lbl_mujoco.setText("✗ launch_mujoco.py 없음")
+            self.lbl_mujoco.setText("✗ launch_mujoco.py not found")
             return
 
-        # 별도 프로세스로 실행 → PyVista 뷰어 블로킹 없음
+        # Run as separate process → no PyVista viewer blocking
         import platform
         kwargs = {}
         if platform.system() == "Windows":
             kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
         subprocess.Popen([sys.executable, launcher, fpath], **kwargs)
-        self.lbl_mujoco.setText("✓ MuJoCo 뷰어 실행 중…")
+        self.lbl_mujoco.setText("✓ MuJoCo viewer running…")
         self.lbl_mujoco.setStyleSheet(
-            "color:#3fb950; font-size:10px; background:transparent;"
+            "color:#adbac7; font-size:10px; background:transparent;"
         )
 
-    # ── Crusher 시뮬레이션 실행 (velocity control) ────────────────────
+    # ── Launch Crusher simulation (velocity control) ────────────────────
     def _launch_crusher_sim(self, mode="headless"):
         fpath = os.path.join(STL_DIR, self.lbl_fname.text())
         if not os.path.exists(fpath):
-            self.lbl_mujoco.setText("✗ STL 파일 없음")
+            self.lbl_mujoco.setText("✗ STL file not found")
             return
 
         script_name = (
@@ -968,10 +973,10 @@ class TabletViewer(QMainWindow):
                          "MuJoCo_PlayGround", "20260603", script_name)
         )
         if not os.path.exists(sim_script):
-            self.lbl_mujoco.setText(f"✗ {script_name} 없음")
+            self.lbl_mujoco.setText(f"✗ {script_name} not found")
             return
 
-        # 이미 실행 중인 프로세스가 있으면 먼저 종료
+        # Stop any already-running process first
         self._stop_crusher_sim(silent=True)
 
         import platform
@@ -985,7 +990,7 @@ class TabletViewer(QMainWindow):
 
         self._sim_proc = subprocess.Popen(cmd, **kwargs)
 
-        # 실행 중 버튼 상태 갱신
+        # Update button states while running
         self.btn_crusher_hl.setEnabled(False)
         self.btn_crusher_vw.setEnabled(False)
         self.btn_stop.setEnabled(True)
@@ -997,12 +1002,12 @@ class TabletViewer(QMainWindow):
                 f"✓ [{label_mode}]  ρ={self._last_density:.0f} kg/m³  τ={tau:.4f}s"
             )
         else:
-            self.lbl_mujoco.setText(f"✓ [{label_mode}] Crusher 시뮬레이션 실행 중…")
+            self.lbl_mujoco.setText(f"✓ [{label_mode}] Crusher simulation running…")
         self.lbl_mujoco.setStyleSheet(
-            "color:#a371f7; font-size:10px; background:transparent;"
+            "color:#adbac7; font-size:10px; background:transparent;"
         )
 
-    # ── Crusher 시뮬레이션 중지 ───────────────────────────────────────
+    # ── Stop Crusher simulation ───────────────────────────────────────
     def _stop_crusher_sim(self, silent=False):
         if self._sim_proc is not None:
             try:
@@ -1011,16 +1016,16 @@ class TabletViewer(QMainWindow):
                 pass
             self._sim_proc = None
 
-        # STL 로드 여부에 따라 실행 버튼 복원
+        # Restore launch buttons based on STL load state
         stl_ok = os.path.exists(os.path.join(STL_DIR, self.lbl_fname.text()))
         self.btn_crusher_hl.setEnabled(stl_ok)
         self.btn_crusher_vw.setEnabled(stl_ok)
         self.btn_stop.setEnabled(False)
 
         if not silent:
-            self.lbl_mujoco.setText("■ 시뮬레이션 중지됨")
+            self.lbl_mujoco.setText("■ Simulation stopped")
             self.lbl_mujoco.setStyleSheet(
-                "color:#f78166; font-size:10px; background:transparent;"
+                "color:#8b949e; font-size:10px; background:transparent;"
             )
 
     def closeEvent(self, event):
@@ -1029,7 +1034,7 @@ class TabletViewer(QMainWindow):
         super().closeEvent(event)
 
 
-# ── 실행 ──────────────────────────────────────────────────────
+# ── Run ──────────────────────────────────────────────────────
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setFont(QFont("Segoe UI", 10))

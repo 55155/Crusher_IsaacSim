@@ -36,8 +36,19 @@ BOX_SIZE  = (0.03, 0.006, 0.03)
 BOX_RHO   = 300.0
 BOX_SPAWN = (0.20, 0.006, 0.575)
 
+# ── 내용물: 주황 박스 대신 흰 구(primitive Sphere) ─────────────────────────
+#   봉투 크기(W,H,D)는 원본 그대로. 구만 교체.
+SPHERE_RADIUS = 0.015          # 15 mm (박스 3cm 폭과 유사한 시각 크기)
+SPHERE_SPAWN  = BOX_SPAWN      # 동일 낙하 위치
+
+# ── Figure 스틸 (FIG_STILLS=1 일 때만) : 낙하 후 흔들리는 2 프레임 ──────────
+FIG_STILLS  = os.environ.get("FIG_STILLS") == "1"
+STILL_RES   = (2000, 1500)
+STILL_STEPS = (300, 500)       # t≈0.30s, 0.50s — 임팩트 직후 흔들림 구간
+
 _DIR = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(_DIR, "Sim_result"); os.makedirs(OUT_DIR, exist_ok=True)
+FIG_DIR  = os.path.join(OUT_DIR, "samplebag_fig")   # Figure 스틸 출력 (FIG_STILLS)
 STL_PATH = os.path.join(OUT_DIR, "samplebag_envelope.stl")
 MP4_PATH = os.path.join(OUT_DIR, "Samplebag.mp4")
 PLATE_PATH = os.path.join(_DIR, "robots/assets/aluminum_plate.stl")
@@ -108,14 +119,21 @@ def main(use_viewer: bool = True):
             bending_compliance=BENDING_COMPLIANCE,
         ),
         morph=gs.morphs.Mesh(file=STL_PATH, scale=1.0, pos=BAG_POS, euler=(90, 0, 0)),
-        surface=gs.surfaces.Default(color=(0.97, 0.97, 0.95), opacity=0.7, roughness=0.9, double_sided=True),
+        surface=gs.surfaces.Default(color=(0.97, 0.97, 0.95), opacity=0.4, roughness=0.9, double_sided=True),
     )
     box = scene.add_entity(
         material=gs.materials.Rigid(rho=BOX_RHO),
-        morph=gs.morphs.Box(size=BOX_SIZE, pos=BOX_SPAWN, fixed=False),
-        surface=gs.surfaces.Default(color=(0.85, 0.35, 0.25)),
+        morph=gs.morphs.Sphere(radius=SPHERE_RADIUS, pos=SPHERE_SPAWN, fixed=False),
+        surface=gs.surfaces.Default(color=(0.97, 0.97, 0.97), roughness=0.4),
     )
     cam = scene.add_camera(res=(960, 720), pos=CAM_POS, lookat=CAM_LOOKAT, fov=CAM_FOV, GUI=False)
+    # Figure 용 고해상도 스틸 카메라
+    stillcam = None
+    if FIG_STILLS:
+        os.makedirs(FIG_DIR, exist_ok=True)
+        stillcam = scene.add_camera(res=STILL_RES, pos=CAM_POS, lookat=CAM_LOOKAT,
+                                    fov=CAM_FOV, GUI=False)
+        print(f"[fig] hi-res still cam res={STILL_RES} → {FIG_DIR}")
     scene.build(n_envs=0)
 
     # 봉투 상단 4 코너 고정 → 형상 유지
@@ -145,6 +163,13 @@ def main(use_viewer: bool = True):
         scene.step()
         if (k + 1) % RENDER_EVERY == 0:
             cam.render()
+        if stillcam is not None and (k + 1) in STILL_STEPS:
+            from PIL import Image as _I
+            rgb = stillcam.render(rgb=True)[0]
+            idx = STILL_STEPS.index(k + 1) + 1
+            _I.fromarray(np.asarray(rgb)[..., :3].astype("uint8")).save(
+                os.path.join(FIG_DIR, f"samplebag_wobble_{idx:02d}.png"))
+            print(f"[fig] wobble still {idx} @ step {k+1} (t={(k+1)*DT:.3f}s)")
         if (k + 1) % 200 == 0:
             pos = _pos_of(bag)
             cur_len = np.linalg.norm(pos[pairs[:, 0]] - pos[pairs[:, 1]], axis=1)

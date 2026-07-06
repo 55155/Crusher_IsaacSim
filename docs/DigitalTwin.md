@@ -212,10 +212,16 @@ sim 시계열은 [`extract_sim_profile.py`](../Crusher_Genesis/FEM/extract_sim_p
 - **결론**: sim/real 반력 오차는 **파쇄 개시 *위치*(σ_I max 지점)에는 거의 영향이 없고
   *크기*만 ~5% 스케일**한다. 위치 예측(균열 핵)은 sim 구동으로도 견고하고, Weibull
   파단확률(σ 크기 민감)만 반력 캘리브레이션 정확도에 영향받는다.
-- **형태 차이 하나**: real 은 stall dwell(plateau ~1.3 s), sim(Crusher_8env)은 stall 감지 즉시
-  STRIKE 를 끊어 **짧은 스파이크(~0.25 s)**. peak 값은 비슷하나 하중 지속시간이 다르다 —
-  준정적·elastic 에선 순시 σ 만 F 에 의존하므로 필드 비교엔 무해하나, 점탄성/피로를
-  넣으면 dwell 차이가 의미를 가진다. (Crusher_8env 에 stall dwell 을 넣는 개선 여지.)
+- **형태 차이 하나 — 해소(2026-07-06).** 종전 sim(Crusher_8env)은 stall 감지 즉시 STRIKE 를
+  끊어 **짧은 스파이크(~0.25 s)** 라 real 의 stall dwell(plateau ~1 s) 사다리꼴과 형태가
+  어긋났다. `_sim_logged` 에 **stall dwell**(접촉 유지 → plateau, `STRIKE_DWELL_S=1.0 s`
+  flat + rise settle ≈4τ)과 **접촉력 1차지연**(`CONTACT_TAU=0.25 s`, rigid-wall 스텝응답
+  → 완만한 rise/fall = 정제 탄성변형 근사)을 넣어 sim F(t) 도 **천천히 상승 → dwell → 천천히
+  하강** 하는 실측형 사다리꼴이 되게 했다. **peak 캘리브값은 보존** — dwell plateau 를 stall
+  검출순간 힘 `Fpk`(= 종전 needle peak)에 고정하므로 low-pass 정상상태 과증(rigid-wall
+  674 N)로 새지 않는다. rising-edge 정렬 오버레이(`overlay_60deg_pulse.png`)에서 sim/real
+  펄스가 상승슬로프·plateau·peak(525 vs 518 N)까지 거의 겹친다. 준정적·elastic 필드
+  비교(σ∝F)엔 무영향, 점탄성/피로 확장 시 dwell 정합만 개선.
 
 **5) 결정 노트 — real vs sim, 무엇으로 FEM을 구동하나 (2026-07-04).**
 
@@ -255,6 +261,44 @@ sim 시계열은 [`extract_sim_profile.py`](../Crusher_Genesis/FEM/extract_sim_p
 
 **6) 로드맵**: θ = 0~120° 프로파일 8개를 스윕해 각도별 σ_I field → 접촉각이 파쇄
 위치·확률에 주는 영향 정량화 → Weibull 파단 모델(§7-4)과 결합.
+
+**7) 준정적 F–θ 반력 캘리브레이션 (Crusher_8env, 2026-07-06).**
+§(4)의 60° 단일 각도 필드 비교와 별개로, **여러 접촉각에 걸친 sim 벽 반력의 절대 크기**를
+실측 robust-mean에 맞추는 스칼라 보정. 준정적(8 RPM) 운전이라 각 각도의 대표값은 peak
+반력 1개로 응축되고([`Crusher_8env.py`](../Crusher_Genesis/Crusher_8env.py), MuJoCo FSM
+8-env, N_CYCLES=25 strike의 mean peak), 이를 F–θ 곡선으로 실측과 겹친다.
+
+- **보정 방식 — 원점 통과 최소자승 단일 스칼라.** 물리(각도 의존 형상)는 sim이 내고,
+  힘 게인만 한 개 상수로 맞춘다:
+  ```
+  FORCE_SCALE = Σ(F_sim·F_meas) / Σ(F_sim²)      # 원점 통과 LSQ (각도별 아님)
+  ```
+  코드에선 스트라이크마다 `Fn = F_raw · FORCE_SCALE · sf`(sf=노이즈)로 적용.
+- **105° 제외.** 실측 robust-mean이 394 N 으로 인접 각도(90°=503, 120°=563) 대비 급락 —
+  sim 대비 −31%로 다른 각도(±수%)와 성격이 다른 **이상치**라, 스케일 재적합·플롯·`ANGLES`·
+  `MEASURED`에서 모두 제거(제거 후 6점으로 재적합).
+- **결과: `FORCE_SCALE` 0.98 → 0.9453** (105° 제외 재적합). 각도별 정합:
+
+  | θ [°] | sim (보정) [N] | measured [N] | 오차 |
+  |---|---|---|---|
+  | 30 | 811 | 896 | −9.4% |
+  | 45 | 591 | 596 | −0.8% |
+  | 60 | 518 | 515 | +0.5% |
+  | 75 | 493 | 456 | +8.1% |
+  | 90 | 506 | 503 | +0.6% |
+  | 120 | 642 | 563 | +14.0% |
+
+  **평균 절대오차 5.6%.** 중간각(45–90°)은 거의 완전 정합, 양 끝(30°↓·120°↑)은 잔차가
+  남는다 — **단일 스칼라는 크기만 맞추지 곡선 *형상*은 못 고친다**(§(4)의 "위치는 견고,
+  크기만 스케일"과 같은 성질). 형상까지 맞추려면 각도별 보정이나 위상보정
+  `PHASE_OFFSET_DEG`·stall 토크 재튜닝이 필요.
+- **출력**: [`Sim_result/sim8env/F_vs_theta_sim.png`](../Crusher_Genesis/Sim_result/sim8env/F_vs_theta_sim.png)
+  (y축 0 기준 + measured ±10% 밴드 + 평균오차 주석). robust-mean·스케일은
+  [`Crusher_8env.py`](../Crusher_Genesis/Crusher_8env.py) 상단 `MEASURED`/`FORCE_SCALE`.
+- **§7-8 재료 캘리브레이션과의 관계**: 이 F–θ 보정은 **하중(반력) 스케일**을 고정하는
+  단계로, §7-8이 역보정하는 **재료 항(E·σ_t)** 보다 상류다. σ_I 절대값 = (반력 스케일)×
+  (E 스케일)이므로, 여기서 반력을 실측에 앵커해 두면 §7-8의 E·Weibull 역보정이
+  반력 불확실성과 분리된다.
 
 ---
 

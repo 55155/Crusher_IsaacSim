@@ -51,6 +51,14 @@ THETA        = "60deg"
 DT, SUBSTEPS = 1e-3, 1
 N_STEPS      = 2700
 SAMPLE_EVERY = 5
+# sim strike 앞뒤 zero-padding. 작을수록 strike 가 정규 사이클의 더 큰 비율을 차지 →
+# 상승·유지 구간이 길어짐. 0.11 → real 밴드폭(≈0.41)과 매칭 (기존 0.30 은 0.24 로 짧음).
+SIM_PAD_S    = 0.11
+# 언로딩 컴플라이언스: sim 뒷엣지(접촉 해제) 완만화. 강체 MuJoCo 접촉은 분리가 불연속
+# 이라 F 가 계단처럼 급락한다. 실제 프레임/센서 컴플라이언스를 모사해 하강 구간에만
+# 1차 지연(직렬 스프링 이완)을 걸어 real 처럼 완만하게. τ(정규위상) 단위 시상수.
+# 0 이면 비활성. 0.035 → 해제 Δτ(90→10%)≈0.08 로 real 뒷엣지(0.080)와 매칭.
+TAU_UNLOAD   = 0.035
 TARGET_FACES = 3000
 D_PROBE      = 5e-6
 D_RATE_MAX   = 0.5e-6
@@ -107,6 +115,20 @@ def resample_cycle(t_cyc, F_cyc, n_steps):
     tau = np.linspace(0, 1, n_steps + 1)
     F = np.interp(tau * T, t_cyc, F_cyc)
     return tau, F, T
+
+
+def apply_unload_compliance(F_step, tau_unload, n_steps=N_STEPS):
+    """언로딩(하강) 구간에만 1차 지연(직렬 컴플라이언스)을 적용해 뒷엣지를 완만하게.
+    상승/유지는 raw 를 즉시 추종(로딩 매칭 보존), 하강 시에만 시상수 tau_unload(τ 단위)
+    로 이완. → 강체 접촉의 계단형 해제를 실제 프레임/센서 컴플라이언스처럼 부드럽게."""
+    if tau_unload <= 0:
+        return F_step
+    dtau = 1.0 / n_steps
+    a = dtau / (tau_unload + dtau)          # 1차 IIR 계수 (Δτ/(τ_c+Δτ))
+    out = F_step.copy()
+    for i in range(1, len(out)):
+        out[i] = F_step[i] if F_step[i] >= out[i - 1] else out[i - 1] + a * (F_step[i] - out[i - 1])
+    return out
 
 
 # ── FEM 씬(전역 1회 빌드용) ──────────────────────────────────────
@@ -215,8 +237,9 @@ def main():
     tr, Fr = extract_cycle(tr, Fr, fsr)
     _, Fr_step, Tr = resample_cycle(tr, Fr, N_STEPS)
     ts, Fs, fss = load_sim_csv(SIM_CSV)
-    ts, Fs = extract_sim_cycle(ts, Fs, fss)
+    ts, Fs = extract_sim_cycle(ts, Fs, fss, pad_s=SIM_PAD_S)
     _, Fs_step, Ts = resample_cycle(ts, Fs, N_STEPS)
+    Fs_step = apply_unload_compliance(Fs_step, TAU_UNLOAD)   # 뒷엣지 컴플라이언스
     print(f"[real] peak={Fr_step.max():.1f} N  cycle={Tr:.2f} s  ({fsr:.0f} Hz)")
     print(f"[sim ] peak={Fs_step.max():.1f} N  cycle={Ts:.2f} s  ({fss:.0f} Hz)")
 
@@ -276,8 +299,8 @@ def main():
     sm = cm.ScalarMappable(norm=norm, cmap=cmap); sm.set_array([])
     fig.colorbar(sm, ax=fig.axes, fraction=0.02, pad=0.02).set_label(
         "max principal $\\sigma_I$ [MPa]")
-    fig.suptitle(f"FEM 주응력장 $\\sigma_I$ — real vs sim 반력 구동 ({THETA}, peak 순간)",
-                 fontsize=11)
+    fig.suptitle(f"FEM principal stress field $\\sigma_I$ — real vs sim reaction-driven "
+                 f"({THETA}, peak instant)", fontsize=11)
     plt.savefig(PNG_FIELDS, dpi=200, bbox_inches="tight"); plt.close()
 
     # ── Fig 2: 오차 분석 (A)(B)(C) ──
@@ -288,14 +311,14 @@ def main():
     axA = fig.add_subplot(gsr[0, 0])
     axA.plot(R["trace"][:, 0], R["trace"][:, 1], "k--", lw=1.4, label="F real")
     axA.plot(S["trace"][:, 0], S["trace"][:, 1], color="0.45", ls="-", lw=1.4, label="F sim")
-    axA.set_xlabel("정규 위상 τ (사이클=1)", fontsize=9); axA.set_ylabel("F [N]", fontsize=9)
+    axA.set_xlabel("Normalized phase τ (cycle = 1)", fontsize=9); axA.set_ylabel("F [N]", fontsize=9)
     axB2 = axA.twinx()
     axB2.plot(R["trace"][:, 0], R["trace"][:, 3] / 1e6, "b-", lw=1.2, label="$\\sigma_I^{max}$ real")
     axB2.plot(S["trace"][:, 0], S["trace"][:, 3] / 1e6, "r-", lw=1.2, label="$\\sigma_I^{max}$ sim")
     axB2.set_ylabel("$\\sigma_I^{max}$ [MPa]", fontsize=9)
     h1, l1 = axA.get_legend_handles_labels(); h2, l2 = axB2.get_legend_handles_labels()
     axA.legend(h1 + h2, l1 + l2, fontsize=7.5, loc="upper right", ncol=2)
-    axA.set_title("(A) 시간영역 — 프로파일·피크응력 (언제·얼마나)", fontsize=10)
+    axA.set_title("(A) Time domain — profile & peak stress (when & how much)", fontsize=10)
     axA.tick_params(labelsize=8); axB2.tick_params(labelsize=8)
 
     # (B) 공간 Δ 필드: σ_I,sim − σ_I,real (peak), sim peak 위치로 렌더
@@ -303,7 +326,7 @@ def main():
     normd = colors.Normalize(-dmax, dmax); cmapd = matplotlib.colormaps["PuOr_r"]
     axB = fig.add_subplot(gsr[0, 1], projection="3d")
     _cutaway(axB, S["peak"]["pos"], ps_sI - pr_sI, normd, cmapd)
-    axB.set_title(f"(B) 공간오차 Δ$\\sigma_I$=sim - real (peak, 어디서)\n"
+    axB.set_title(f"(B) Spatial error Δ$\\sigma_I$ = sim - real (peak, where)\n"
                   f"rel-L2={rel_I*100:.1f}%  RMSE={rmse_I/1e6:.1f} MPa", fontsize=10)
     smd = cm.ScalarMappable(norm=normd, cmap=cmapd); smd.set_array([])
     fig.colorbar(smd, ax=axB, fraction=0.03, pad=0.04).set_label("Δ$\\sigma_I$ [MPa]", fontsize=9)
@@ -312,16 +335,17 @@ def main():
     axC = fig.add_subplot(gsr[0, 2])
     axC.scatter(pr_sI / 1e6, ps_sI / 1e6, s=3, alpha=0.25, color="#1f77b4", ec="none")
     lim = np.array([min(pr_sI.min(), ps_sI.min()), max(pr_sI.max(), ps_sI.max())]) / 1e6
-    axC.plot(lim, lim, "k--", lw=1, label="y = x (완전일치)")
+    axC.plot(lim, lim, "k--", lw=1, label="y = x (perfect match)")
     axC.plot(lim, slope_I * lim, "r-", lw=1.2, label=f"fit: {slope_I:.3f}·x")
     axC.set_xlabel("$\\sigma_I$ real [MPa]", fontsize=9); axC.set_ylabel("$\\sigma_I$ sim [MPa]", fontsize=9)
     axC.set_aspect("equal"); axC.legend(fontsize=8, loc="upper left")
-    axC.set_title(f"(C) tet별 일치도 (전체 한 장)\n"
+    axC.set_title(f"(C) Per-tet agreement (all-in-one)\n"
                   f"slope={slope_I:.3f}  R²={r2_I:.4f}", fontsize=10)
     axC.tick_params(labelsize=8); axC.grid(True, alpha=0.3)
 
-    fig.suptitle(f"real vs sim 반력 구동 FEM 주응력장 오차 ({THETA})  —  "
-                 f"선형탄성 준정적: 필드오차 = 반력프로파일 오차 x 고정 공간응답", fontsize=11)
+    fig.suptitle(f"real vs sim reaction-driven FEM principal-stress-field error ({THETA})  —  "
+                 f"linear-elastic quasi-static: field error = reaction-profile error × fixed spatial response",
+                 fontsize=11)
     plt.savefig(PNG_ERROR, dpi=200, bbox_inches="tight"); plt.close()
 
     print(f"\n[saved] fields : {PNG_FIELDS}")

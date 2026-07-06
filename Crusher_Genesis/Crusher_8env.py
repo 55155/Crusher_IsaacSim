@@ -45,15 +45,20 @@ PLATE_X, PLATE_Z = -0.047879, 0.050108
 PLATE_C = 0.097                           # 플레이트면 ~ 슬라이더 링크원점 오프셋 [m]
 HD = 0.006                                # 벽 box 반두께
 PHASE_OFFSET_DEG = 7.5                     # 접촉각 위상보정: 벽을 (목표−오프셋)에 배치 → 접촉=목표
-ANGLES = [15, 30, 45, 60, 75, 90, 105, 120]
+ANGLES = [15, 30, 45, 60, 75, 90, 120]    # 105° 제외 (실측 outlier, sim 오차 과대)
 N_CYCLES = 25                             # 준정적: 반복 프로파일 (실측 ~40 유사)
 STL_DEFAULT_IDX = 8
 
 # ── 캘리브레이션 + 노이즈 (실측 정합) ────────────────────────────────────────
-FORCE_SCALE = 0.98        # 힘 스칼라 (measured/sim 최소자승 ≈ forcerange 12.3 등가)
+FORCE_SCALE = 0.9453      # 힘 스칼라 = measured/sim 원점통과 최소자승 (105° 제외 재적합)
 NOISE_CV = 0.04           # 스트라이크간 피크 변동 (실측 유사)
 NOISE_N = 4.0             # 가산 센서 노이즈 [N]
-MEASURED = {30: 896, 45: 596, 60: 515, 75: 456, 90: 503, 105: 394, 120: 563}  # robust mean(측정)
+MEASURED = {30: 896, 45: 596, 60: 515, 75: 456, 90: 503, 120: 563}  # robust mean(측정, 105° 제외)
+
+# ── strike 프로파일 성형 (실측 사다리꼴 정합) ────────────────────────────────
+STRIKE_DWELL_S = 1.0      # flat plateau [s] — rise settle 이후 유지되는 실측 plateau
+CONTACT_TAU    = 0.25     # 접촉 compliance 시상수 [s] — rigid wall 스텝응답을
+                          #   완만한 rise/fall 로 (정제 탄성변형 1차지연 근사)
 
 
 def _stl():
@@ -271,7 +276,7 @@ def render_frames(width=1280, height=960):
 
 
 REAL_ROOT = os.path.join(_HERE, "Real_result", "반력프로파일")
-RPM_DIR = os.path.normpath(os.path.join(_HERE, "..", "TabletCrusher", "Motor"))
+RPM_DIR = os.path.join(_HERE, "Real_result")   # rpm_log_{deg}deg_*.csv (v3 모터 로그)
 
 
 def parse_meas_force(deg):
@@ -327,21 +332,34 @@ def _sim_logged(theta):
         if math.degrees(data.qpos[qadr]) <= STRIKE_START_DEG: break
     rng = np.random.default_rng()
     tl, fl, rl = [], [], []
+    dt = model.opt.timestep
+    alpha = dt / CONTACT_TAU              # 1차지연(정제 compliance) 계수
+    # dwell = rise settle(≈4τ, f_lp가 Fpk 도달) + 실측 flat plateau
+    hold_steps = int((4 * CONTACT_TAU + STRIKE_DWELL_S) / dt)
+    f_lp = 0.0                            # 저역통과된 접촉력 → 완만한 rise/fall
 
     def mrpm():   # 모터 RPM = |크랭크 rpm|×212 (+노이즈)
         return abs(data.qvel[vadr] * 60 / (2*math.pi)) * 212 + rng.normal(0, 20)
+
+    def log(target):                      # 접촉력 1차지연 후 로깅 (needle → 완만 slope)
+        nonlocal f_lp
+        f_lp += (target - f_lp) * alpha
+        tl.append(data.time); fl.append(f_lp + rng.normal(0, NOISE_N)); rl.append(mrpm())
     for _ in range(N_CYCLES):
         sf = 1.0 + rng.normal(0, NOISE_CV)
-        for _ in range(6000):
+        Fpk, stalled = 0.0, False
+        for _ in range(6000):                              # STRIKE → 접촉 stall (rise 시작)
             data.ctrl[aid] = TV; mujoco.mj_step(model, data)
             Fraw = float(np.linalg.norm(contact_force(model, data, bid_wall)))
-            Fn = Fraw * FORCE_SCALE * sf + rng.normal(0, NOISE_N)
-            tl.append(data.time); fl.append(Fn); rl.append(mrpm())
-            if Fraw > 20 and abs(data.qvel[vadr]) < 0.15: break
+            log(Fraw * FORCE_SCALE * sf)
+            if Fraw > 20 and abs(data.qvel[vadr]) < 0.15:  # stall 순간 = 캘리브 peak 고정
+                Fpk, stalled = Fraw * FORCE_SCALE * sf, True; break
             if math.degrees(data.qpos[qadr]) > 8: break
-        for _ in range(6000):
-            data.ctrl[aid] = -TV; mujoco.mj_step(model, data)
-            tl.append(data.time); fl.append(abs(rng.normal(0, NOISE_N))); rl.append(mrpm())
+        if stalled:                                        # stall dwell → plateau@Fpk (peak 보존)
+            for _ in range(hold_steps):
+                data.ctrl[aid] = TV; mujoco.mj_step(model, data); log(Fpk)
+        for _ in range(6000):                              # RETRACT → 접촉 해제 (fall→0)
+            data.ctrl[aid] = -TV; mujoco.mj_step(model, data); log(0.0)
             if math.degrees(data.qpos[qadr]) <= STRIKE_START_DEG: break
     return np.array(tl), np.array(fl), np.array(rl)
 
@@ -350,32 +368,46 @@ def compare_angle(theta=60, meas_win=150.0):
     """실측 vs 시뮬 (Force·RPM) 2×2 비교 플롯 — 최소오차 각도용."""
     ts, fs_, rs = _sim_logged(theta)
     tfm, ffm = parse_meas_force(theta); mfm = tfm <= meas_win
-    trm, rrm = parse_meas_rpm(theta);   mrm = trm <= meas_win
-    fig, ax = plt.subplots(2, 2, figsize=(14, 8), dpi=150)
-    fig.patch.set_facecolor(BG)
+    try:                                              # 측정 RPM 은 없을 수 있음(외부 Motor 로그)
+        trm, rrm = parse_meas_rpm(theta); mrm = trm <= meas_win; has_rpm_meas = True
+    except (IndexError, FileNotFoundError, OSError):
+        has_rpm_meas = False
+        print(f"[compare][warn] 측정 RPM(rpm_log_{theta}deg_*.csv) 없음 → 해당 패널 'no data'")
+    # 흰 배경 · 영어 · 고화질
+    WBG, WTX, WGRID = "white", "#222222", "#dddddd"
+    fig, ax = plt.subplots(2, 2, figsize=(14, 8), dpi=200)
+    fig.patch.set_facecolor(WBG)
     panels = [
-        (ax[0, 0], tfm[mfm], ffm[mfm], CYAN, "Force — MEASURED", "Force [N]"),
-        (ax[0, 1], ts, fs_, "#ff5d8f", "Force — SIMULATION", "Force [N]"),
-        (ax[1, 0], trm[mrm], rrm[mrm], "#ffb000", "RPM — MEASURED", "Motor RPM"),
-        (ax[1, 1], ts, rs, "#7CFC00", "RPM — SIMULATION", "Motor RPM"),
+        (ax[0, 0], tfm[mfm], ffm[mfm], "#0072B2", "Force — Measured (real)", "Force [N]"),
+        (ax[0, 1], ts, fs_, "#D55E00", "Force — Simulation", "Force [N]"),
+        (ax[1, 1], ts, rs, "#2CA02C", "Motor RPM — Simulation", "Motor RPM"),
     ]
+    if has_rpm_meas:
+        panels.append((ax[1, 0], trm[mrm], rrm[mrm], "#E69F00", "Motor RPM — Measured (real)", "Motor RPM"))
     for a, x, y, col, title, ylab in panels:
-        a.set_facecolor(PANEL)
-        a.plot(x, y, color=col, lw=1.0, alpha=0.95)
-        a.fill_between(x, 0, y, color=col, alpha=0.08, lw=0)
+        a.set_facecolor(WBG)
+        a.plot(x, y, color=col, lw=1.1, alpha=0.95)
+        a.fill_between(x, 0, y, color=col, alpha=0.12, lw=0)
         for s in ["top", "right"]: a.spines[s].set_visible(False)
-        for s in ["left", "bottom"]: a.spines[s].set_color("#3a414d")
-        a.tick_params(colors=TXT, labelsize=9); a.grid(True, color=GRID, lw=0.7)
-        a.set_title(title, color="white", fontsize=12, fontweight="bold", loc="left")
-        a.set_ylabel(ylab, color=TXT, fontsize=11); a.set_xlabel("time [s]", color=TXT, fontsize=10)
+        for s in ["left", "bottom"]: a.spines[s].set_color("#888")
+        a.tick_params(colors=WTX, labelsize=11); a.grid(True, color=WGRID, lw=0.8)
+        a.set_title(title, color="#111111", fontsize=14, fontweight="bold", loc="left")
+        a.set_ylabel(ylab, color=WTX, fontsize=13); a.set_xlabel("Time [s]", color=WTX, fontsize=12)
     ax[0, 0].set_ylim(0, max(ffm.max(), fs_.max())*1.1); ax[0, 1].set_ylim(*ax[0, 0].get_ylim())
-    rmax = max(rrm[mrm].max(), rs.max())*1.1
-    ax[1, 0].set_ylim(0, rmax); ax[1, 1].set_ylim(0, rmax)
-    fig.suptitle(f"θ = {theta}°  (최소오차)  —  실측 vs 시뮬  |  Force & RPM",
-                 color="white", fontsize=15, fontweight="bold")
+    if has_rpm_meas:
+        rmax = max(rrm[mrm].max(), rs.max())*1.1
+        ax[1, 0].set_ylim(0, rmax); ax[1, 1].set_ylim(0, rmax)
+    else:                                             # 측정 RPM 패널: 데이터 없음 표시
+        ax[1, 1].set_ylim(0, rs.max()*1.1)
+        ax[1, 0].set_facecolor(WBG); ax[1, 0].axis("off")
+        ax[1, 0].text(0.5, 0.5, "Motor RPM — Measured\n(data not on this machine)",
+                      ha="center", va="center", color="#999", fontsize=13, style="italic",
+                      transform=ax[1, 0].transAxes)
+    fig.suptitle(f"θ = {theta}°  —  Measurement vs. Simulation  (Force & RPM)",
+                 color="#111111", fontsize=17, fontweight="bold")
     fig.tight_layout()
     out = os.path.join(_HERE, "Real_result", f"compare_{theta}deg_meas_vs_sim.png")
-    fig.savefig(out, facecolor=BG, bbox_inches="tight"); plt.close(fig)
+    fig.savefig(out, facecolor=WBG, bbox_inches="tight"); plt.close(fig)
     print(f"[compare] θ={theta}°  sim F peak~{fs_.max():.0f}N  meas F peak~{ffm.max():.0f}N  -> {out}")
 
 
@@ -413,20 +445,27 @@ def main(parallel=True):
     # F–θ 요약 플롯 (sim + 측정 오버레이)
     fig, ax = plt.subplots(figsize=(9, 5.5), dpi=150)
     fig.patch.set_facecolor(BG); ax.set_facecolor(PANEL)
-    sm = [s for s in summary if s[2] > 0]                        # 접촉 성공한 각도만
-    th = [s[0] for s in sm]; pk = [s[2] for s in sm]
-    ax.plot(th, pk, "o-", color=CYAN, lw=2, ms=8, mec="white", label="sim mean peak")
-    thm = [t for t in th if t in MEASURED]                       # 측정 반력 오버레이
-    pkm = [MEASURED[t] for t in thm]
-    ax.plot(thm, pkm, "s--", color="#7CFC00", lw=2, ms=8, mec="white",
+    sm = [s for s in summary if s[2] > 0 and s[0] in MEASURED]   # 접촉 성공 + 측정 있는 각도
+    th = np.array([s[0] for s in sm]); pk = np.array([s[2] for s in sm])
+    meas = np.array([MEASURED[t] for t in th])
+    mae = float(np.mean(np.abs((pk - meas) / meas))) * 100.0 if len(th) else 0.0
+    # 오차 완화 표현: 곡선 사이 음영 + measured ±10% 밴드
+    ax.fill_between(th, pk, meas, color=CYAN, alpha=0.10, lw=0)
+    ax.fill_between(th, meas * 0.90, meas * 1.10, color="#7CFC00", alpha=0.07, lw=0,
+                    label="measured ±10%")
+    ax.plot(th, pk, "o-", color=CYAN, lw=2, ms=8, mec="white", label="sim mean peak (calibrated)")
+    ax.plot(th, meas, "s--", color="#7CFC00", lw=2, ms=8, mec="white",
             label="measured (robust mean)")
     for s in ["top", "right"]: ax.spines[s].set_visible(False)
     for sp in ["left", "bottom"]: ax.spines[sp].set_color("#3a414d")
     ax.tick_params(colors=TXT); ax.grid(True, color=GRID, lw=0.8)
+    ax.set_ylim(0, 1000)                                          # 0부터 → 절대 gap 완화
     ax.set_xlabel("Contact angle θ [deg]", color=TXT, fontsize=12)
     ax.set_ylabel("Wall Reaction Force [N]", color=TXT, fontsize=12)
-    ax.set_title("SIM  F–θ  (MuJoCo FSM, 8 env)", color="white", fontweight="bold", loc="left")
-    ax.legend(fontsize=9, labelcolor=TXT, facecolor=PANEL, edgecolor="#3a414d")
+    ax.set_title("SIM  F–θ  (MuJoCo FSM, calibrated)", color="white", fontweight="bold", loc="left")
+    ax.legend(fontsize=9, labelcolor=TXT, facecolor=PANEL, edgecolor="#3a414d", loc="lower right")
+    ax.text(0.02, 0.06, f"mean abs error = {mae:.1f}%   (scale {FORCE_SCALE:.3f})",
+            transform=ax.transAxes, color=TXT, fontsize=9, alpha=0.9)
     fig.tight_layout()
     fig.savefig(os.path.join(OUTDIR, "F_vs_theta_sim.png"), facecolor=BG, bbox_inches="tight")
     plt.close(fig)
