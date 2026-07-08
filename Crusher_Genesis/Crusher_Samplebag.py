@@ -101,14 +101,19 @@ WALL_LEFT_MESH    = "L2_Left_Wall1_1"
 LEFTWALL_BODY_POS = (-0.017802, 0.286278, 0.016542)
 LEFTWALL_GEOM_POS = (-0.286278, -0.016542, 0.017802)
 
-# ── 경로 ────────────────────────────────────────────────────────────────────
-_DIR = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(_DIR, "Sim_result"); os.makedirs(OUT_DIR, exist_ok=True)
+# ── 경로: config.json + paths.py (중앙 해석) — 위치 독립 부트스트랩 ──────────
+_r = os.path.dirname(os.path.abspath(__file__))
+while _r != os.path.dirname(_r) and not os.path.exists(os.path.join(_r, "config.json")):
+    _r = os.path.dirname(_r)
+sys.path.insert(0, _r)
+import paths
+
+OUT_DIR = paths.SIM_RESULT
 STL_PATH = os.path.join(OUT_DIR, "crusher_samplebag_open.stl")
 _TS      = datetime.now().strftime("%Y%m%d_%H%M%S")
 MP4_SIDE = os.path.join(OUT_DIR, f"Crusher_Samplebag_{_TS}_side_xz.mp4")
 MP4_TOP  = os.path.join(OUT_DIR, f"Crusher_Samplebag_{_TS}_top_xy.mp4")
-CRUSHER_SRC_XML = os.path.join(_DIR, "MJCF", "Crusher_IsaacSim_colored.xml")
+CRUSHER_SRC_XML = paths.MJCF_MAIN
 
 # ── Crusher MJCF 패치 옵션 ──────────────────────────────────────────────────
 WALL_GEOMS_TO_ENABLE = {"base_link", "L1_Wall1_1", "L1_Wall2_1", "L2_Wall3_1"}
@@ -201,7 +206,7 @@ def crusher_mesh_world_aabb(mesh_name, body_pos=(0., 0., 0.), geom_pos=(0., 0., 
     R_e = np.array([[np.cos(yaw), -np.sin(yaw), 0.],
                     [np.sin(yaw),  np.cos(yaw), 0.],
                     [0., 0., 1.]])
-    v = tm.load(os.path.join(_DIR, "MJCF", f"{mesh_name}.stl")).vertices * 0.001
+    v = tm.load(os.path.join(paths.MJCF_DIR, f"{mesh_name}.stl")).vertices * 0.001
     local      = np.asarray(geom_pos) + v
     in_crusher = np.asarray(body_pos) + (_R_GEOM_HALF @ local.T).T
     w          = np.array(CRUSHER_POS) + (R_e @ in_crusher.T).T
@@ -234,7 +239,7 @@ def main(use_viewer: bool = True):
     scene = gs.Scene(**scene_kwargs)
 
     # 알루미늄 plate 2×2 그리드 (작업면)
-    PLATE_PATH = os.path.join(_DIR, "robots/assets/aluminum_plate.stl")
+    PLATE_PATH = paths.ALUMINUM_PLATE
     for p in [(0.5, -0.5, 0), (0.5, 0.5, 0), (-0.5, -0.5, 0), (-0.5, 0.5, 0)]:
         scene.add_entity(
             gs.morphs.Mesh(file=PLATE_PATH, fixed=True, pos=p),

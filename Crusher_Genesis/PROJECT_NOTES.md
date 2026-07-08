@@ -51,7 +51,38 @@ Set-Location C:\Crusher_isaacsim\Crusher_Genesis
 
 **사용자 정책**: 임시/디버그용 스크립트를 새로 만들지 않는다. 위 6+1 파일 안에서 수정·재실행하며 검증한다. 정말 새 파일이 필요할 땐 사용자 허락을 받는다. (`memory/feedback_consolidate_test_files.md`)
 
-기타 파일(`medicine_envelope_*.py`, `pbd_bag_test.py`, `vinyl_bag_model.py` 등)은 이전 세션의 잔재이며 현 작업과 직접 관련 없음 (사용자 미요청으로 보존).
+### 디렉토리 구조 + 경로 규약 (2026-07-08 재편)
+
+```
+Crusher_Genesis/
+  config.json          ← 경로 원장 (루트 기준 상대경로, 유일한 경로 정의처)
+  paths.py             ← config.json 로더 → 절대경로 상수 (MJCF_MAIN, ROBOT_M0609_RG2, …)
+  assets/
+    MJCF/              ← Crusher MJCF + STL (구 MJCF/)
+    robots/            ← m0609_rg2.xml, rg2/, aluminum_plate 등 (구 robots/)
+  Sim_result/          ← 시뮬 산출물 (mp4/png/csv)
+  Real_result/         ← 실기 측정
+  FEM/                 ← FEM/IPC 검증 스크립트
+  legacy/              ← 이전 세션 잔재 (참고용, 실행 보장 없음)
+  20260603/            ← 날짜 아카이브
+  <정식 6+1 스크립트>  ← 루트
+```
+
+**경로 규약**: 스크립트는 asset 경로를 `__file__` 로 직접 계산하지 않는다.
+상단에 아래 부트스트랩(위치 독립: config.json 을 상향 탐색)을 넣고 `paths.*` 를 쓴다:
+
+```python
+_r = os.path.dirname(os.path.abspath(__file__))
+while _r != os.path.dirname(_r) and not os.path.exists(os.path.join(_r, "config.json")):
+    _r = os.path.dirname(_r)
+sys.path.insert(0, _r)
+import paths   # paths.MJCF_MAIN, paths.ROBOT_M0609_RG2, paths.ALUMINUM_PLATE,
+               # paths.SIM_RESULT, paths.REAL_RESULT, paths.TABLETS_STL, paths.asset(...)
+```
+
+새 asset 을 추가하면 `config.json` 에 항목을 넣고 `paths.py` 에 상수를 추가한다.
+
+이전 세션의 잔재(`medicine_envelope_*.py`, `pbd_bag_test.py`, `vinyl_bag_model.py`)는 현 작업과 직접 관련 없어 **`legacy/` 폴더로 격리**함 (2026-07-08). 삭제 아님, git rename 으로 히스토리 보존. 이 스크립트들은 `__file__` 상대경로가 루트 기준이라 지금 위치에선 그대로 실행되지 않음(참고용 보존).
 
 ---
 
@@ -61,11 +92,11 @@ Set-Location C:\Crusher_isaacsim\Crusher_Genesis
 4장을 2×2 그리드로 배치 (총 2m × 2m 작업면):
 ```python
 for p in [(0.5, -0.5, 0), (0.5, 0.5, 0), (-0.5, -0.5, 0), (-0.5, 0.5, 0)]:
-    scene.add_entity(gs.morphs.Mesh(file="robots/assets/aluminum_plate.stl", fixed=True, pos=p), ...)
+    scene.add_entity(gs.morphs.Mesh(file=paths.ALUMINUM_PLATE, fixed=True, pos=p), ...)
 ```
 플레이트 빠지면 박스 등 rigid 가 z=-∞로 자유낙하해 시뮬 폭주.
 
-### Crusher (`MJCF/Crusher_IsaacSim_colored.xml`)
+### Crusher (`assets/MJCF/Crusher_IsaacSim_colored.xml` = `paths.MJCF_MAIN`)
 - `pos=(0.55, 0, 0)`, `euler=(0, 0, 90°)` — 매니퓰레이터 정면, 바닥 위
 - 런타임 패치 (`patch_crusher_mjcf`) 필수:
   - `<equality><joint name="lock_crank" polycoef=...>` 제거 (Genesis 1.1.0 미지원)
@@ -90,7 +121,7 @@ Genesis 가 worldbody 정적 mesh geom 들을 link 당 1개로 "병합" → `lin
 scale=1e-3) + 엔티티 변환(`CRUSHER_POS`, yaw)을 손으로 적용해 월드 AABB 계산.
 함수: `crusher_mesh_world_aabb(mesh_name, body_pos, geom_pos)` 참조 (`Crusher_Samplebag.py`).
 
-### M0609 + RG2 (`robots/m0609_rg2.xml`)
+### M0609 + RG2 (`assets/robots/m0609_rg2.xml` = `paths.ROBOT_M0609_RG2`)
 - 6 DOF arm + 2 DOF 프리즈매틱 핑거 (Panda 식 독립 prismatic, `Twin.md` §1 참조)
 - 핑거 link y offset ±0.017 m → DOF=0 (최대 닫힘) 시 finger gap **34 mm**
   → **34 mm 미만 객체는 RG2 로 grip 불가** (구조적 한계)
@@ -294,3 +325,21 @@ ls Sim_result\*.mp4 | Sort-Object LastWriteTime -Descending | Select-Object -Fir
 - 영상은 timestamp (`Crusher_Samplebag_YYYYMMDD_HHMMSS.mp4`) 로 저장해 이전 결과와 나란히 보존.
 - `Twin.md` 의 평행 그리퍼 (4절 링크 → 독립 prismatic + equality) 모델링 패턴 우선 참조.
 - 권한 allowlist: `.claude/settings.json` 에 git read / grep / find / WebFetch(github,raw.gh) 등록됨.
+
+---
+
+## 9. 인용 (Citation)
+
+본 프로젝트는 **Genesis** 물리 엔진 위에서 개발되었다. 논문·보고서에서 인용 시
+Genesis 공식 저장소가 제공하는 BibTeX 를 사용한다 (개별 저자 대신 단체 저자
+`{Genesis Authors}` 표기가 공식):
+
+```bibtex
+@software{Genesis,
+  author  = {Genesis Authors},
+  title   = {Genesis: A Universal and Generative Physics Engine for Robotics and Beyond},
+  month   = {December},
+  year    = {2024},
+  url     = {https://github.com/Genesis-Embodied-AI/Genesis}
+}
+```

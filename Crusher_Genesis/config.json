@@ -1,0 +1,12 @@
+{
+  "_comment": "경로 원장. 모든 경로는 이 파일이 있는 프로젝트 루트(Crusher_Genesis/) 기준 상대경로. paths.py 가 읽어 절대경로로 변환한다.",
+  "assets_dir": "assets",
+  "mjcf_dir": "assets/MJCF",
+  "mjcf_main": "assets/MJCF/Crusher_IsaacSim_colored.xml",
+  "robots_dir": "assets/robots",
+  "robot_m0609_rg2": "assets/robots/m0609_rg2.xml",
+  "aluminum_plate": "assets/robots/assets/aluminum_plate.stl",
+  "tablets_stl": "../tablets_stl/stl",
+  "sim_result": "Sim_result",
+  "real_result": "Real_result"
+}
