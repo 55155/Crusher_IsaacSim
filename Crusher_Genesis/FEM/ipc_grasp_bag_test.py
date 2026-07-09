@@ -72,12 +72,13 @@ else:
     Q_LIFT  = np.array([0, -0.11, 0.60, 0, 2.41, 0], float)
     # pad-gap = 1mm + 2q (finger.obj 팁 안쪽면 실측). q=0.001 → 3mm < 봉투 6mm
     FING_OPEN, FING_CLOSE = 0.040, 0.001
-    # 봉투는 "스텝 중 평형" 패드 중점에 맞춰 배치 (FK_PROBE=1 실측, 2026-07-08).
-    # 주의: two_way_soft_constraint 아래에서 teleport 자세와 실제 평형이
-    #       8.5cm 어긋난다 (원인 미규명 — strength 100 으로도 동일). franka
-    #       경로가 검증되면 M0609 커플링은 별도 이슈로 추적.
-    FINGER_MID = np.array([0.3239, 0.0063, 0.5283])
-    CAM_POS, CAM_LOOK = (0.85, -0.55, 0.75), (0.324, 0.0, 0.528)
+    # 봉투는 "순수 FK" 패드 중점에 배치 (FK_PROBE=1 의 probe:ipc 실측, 2026-07-09).
+    # 핵심: IPC 세계의 ABD 핑거는 teleport 명령 자세(순수 FK)를 정확히 추종한다.
+    #       post-step gs 링크 좌표는 커플링 반력에 떠밀린 일시 상태라 접촉 위치가
+    #       아니다 — 절대 gs 읽기값으로 봉투를 놓지 말 것. (finger_z 로그도 동일
+    #       이유로 어긋나 보이지만 무해)
+    FINGER_MID = np.array([0.2064, 0.0062, 0.4242])
+    CAM_POS, CAM_LOOK = (0.75, -0.55, 0.65), (0.206, 0.0, 0.424)
 
 BAG_POS    = tuple(FINGER_MID)        # 봉투 중심 = 파지점
 BAG_EULER  = (90, 0, 0)               # 두께(6mm)를 y(핑거 닫힘축)로, 높이(8cm)를 z 로
@@ -142,6 +143,16 @@ def _prepare_robot_mjcf():
             if g.get("mesh") == "rg2_finger":
                 g.attrib.pop("contype", None)
                 g.attrib.pop("conaffinity", None)
+        # XML <position kp> 액추에이터의 ctrl 기본값 0 이 매 스텝 teleport 사이에
+        # 팔을 q=0 쪽으로 끌어당겨 8.5cm 평형 오프셋을 만든다 (§4.6 과 동일 이슈,
+        # franka 대조군은 오프셋 ~1mm). damping/frictionloss 도 함께 제거.
+        for j in wb.iter("joint"):
+            j.attrib.pop("damping", None)
+            j.attrib.pop("frictionloss", None)
+    for tag in ("actuator", "equality"):
+        el = root.find(tag)
+        if el is not None:
+            root.remove(el)
     tree.write(dst)
     return dst
 
@@ -289,10 +300,28 @@ def main(use_viewer: bool = False):
 
         robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN, FING_OPEN]]))
         _pads("set0")                       # 스텝 없이 순수 FK
+        nq = len(q_grasp) + 2
         for _ in range(5):
             robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN, FING_OPEN]]))
+            robot.set_dofs_velocity(np.zeros(nq))   # 커플링 반력의 속도 누적 차단
             scene.step()
         mid = _pads("step5")                # 매 스텝 teleport 유지 후 (본 시퀀스와 동일)
+        # ── IPC 세계 쪽 ABD 핑거 실좌표 (접촉은 여기서 일어난다) ──
+        coupler = scene.sim.coupler
+        pads_ipc = {}
+        for nm, loc in (("rg2_left", (0.101, -0.0107, 0.0)),
+                        ("rg2_right", (0.101, +0.0107, 0.0))):
+            lk = robot.get_link(nm)
+            entry = coupler._abd_data_by_link.get(lk)
+            if entry is None:
+                print(f"[probe:ipc] {nm}: ABD 데이터 없음 (IPC 미등록?)")
+                continue
+            T = np.asarray(entry[0].transform, dtype=float)
+            pads_ipc[nm] = T[:3, :3] @ np.asarray(loc) + T[:3, 3]
+            print(f"[probe:ipc] {nm}: origin={np.round(T[:3,3],4)} pad={np.round(pads_ipc[nm],4)}")
+        if len(pads_ipc) == 2:
+            mid_ipc = (pads_ipc["rg2_left"] + pads_ipc["rg2_right"]) / 2
+            print(f"[probe:ipc] IPC pad_mid = {np.round(mid_ipc,4)}  (gs pad_mid={np.round(mid,4)})")
         print(f"[probe] 현재 FINGER_MID={FINGER_MID}")
         out = cam.render()
         rgb = out[0] if isinstance(out, (tuple, list)) else out
