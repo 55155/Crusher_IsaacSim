@@ -140,7 +140,11 @@
       "Bash(\"/c/Users/simuser/miniconda3/envs/crusher_genesis/python.exe\" FEM/ipc_grasp_bag_test.py)",
       "Bash(FK_PROBE=1 \"/c/Users/simuser/miniconda3/envs/crusher_genesis/python.exe\" FEM/ipc_grasp_bag_test.py)",
       "Bash(\"/c/Users/simuser/miniconda3/envs/crusher_genesis/python.exe\" /c/Crusher_isaacsim/Crusher_Genesis/FEM/ipc_grasp_bag_test.py)",
-      "Bash(git -C /c/Crusher_isaacsim status --short)"
+      "Bash(git -C /c/Crusher_isaacsim status --short)",
+      "PowerShell($d = Get-Content \"C:\\\\Users\\\\simuser\\\\.claude\\\\projects\\\\C--Crusher-isaacsim\\\\b358c643-568f-4ed5-9809-11cde71d24ec\\\\tool-results\\\\toolu_01XR6LJfjZeWWCZ6t9ve3FgV.json\" -Raw | ConvertFrom-Json; $t = $d[0].text; $t.Substring\\(2000, 14000\\))",
+      "PowerShell($d = Get-Content \"C:\\\\Users\\\\simuser\\\\.claude\\\\projects\\\\C--Crusher-isaacsim\\\\b358c643-568f-4ed5-9809-11cde71d24ec\\\\tool-results\\\\toolu_01XR6LJfjZeWWCZ6t9ve3FgV.json\" -Raw | ConvertFrom-Json; $t = $d[0].text; $t.Substring\\(16000, 12000\\))",
+      "Bash(\"/c/Users/simuser/miniconda3/envs/crusher_genesis/python.exe\" -m py_compile /c/Crusher_isaacsim/Crusher_Genesis/FEM/ipc_grasp_bag_test.py)",
+      "Bash(IPC_ROBOT=franka \"/c/Users/simuser/miniconda3/envs/crusher_genesis/python.exe\" /c/Crusher_isaacsim/Crusher_Genesis/FEM/ipc_grasp_bag_test.py)"
     ]
   }
 }

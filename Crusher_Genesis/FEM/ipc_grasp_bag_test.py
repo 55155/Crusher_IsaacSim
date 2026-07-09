@@ -51,18 +51,35 @@ CLOTH_E, CLOTH_NU, CLOTH_RHO = 1.0e5, 0.499, 200.0
 CLOTH_THICK, CLOTH_BEND = 1.0e-3, 50.0
 CLOTH_FRICTION = 0.8
 
-# ── 로봇 자세 (FK probe 로 확인: 이 자세에서 핑거 중점 ≈ (0.18,0.006,0.52)) ──
-Q_GRASP = np.array([0, -0.40, 1.30, 0, 2.00, 0], float)
-Q_LIFT  = np.array([0, -0.11, 0.60, 0, 2.41, 0], float)   # arm 을 올려 봉투 들어올림
-# pad-gap = 1mm + 2q (finger.obj 팁 안쪽면 실측). q=0.001 → 3mm < 봉투 6mm = 압착
-FING_OPEN, FING_CLOSE = 0.040, 0.001
+# ── 로봇 선택: IPC_ROBOT=franka | m0609 (기본) ───────────────────────────────
+#   franka: Genesis 공식 IPC grasp 예제와 동일 엔드이펙터 (충돌 geom 정상,
+#           IK 동작) — M0609+RG2 커플링 문제와 분리해 파지 물리만 검증.
+ROBOT = os.environ.get("IPC_ROBOT", "m0609").lower()
 
-# 봉투는 "스텝 중 평형" 패드 중점에 맞춰 배치 (FK_PROBE=1 실측, 2026-07-08).
-# 주의: IPC two_way_soft_constraint 는 양방향이라 teleport 자세를 IPC 가 되밀어
-#       순수 FK 와 다른 평형 자세에 정착한다 (링크 원점 0.522 → 0.608, +8.5cm).
-#       반드시 스텝 유지 상태의 실측값을 쓴다.
-FINGER_MID = np.array([0.3239, 0.0063, 0.5283])
-BAG_POS    = tuple(FINGER_MID)        # 봉투 중심 = 패드 중점 (실측 평형)
+if ROBOT == "franka":
+    FINGER_LINKS = ("left_finger", "right_finger")
+    # panda 핑거 pad 는 평면 마주보기, gap = 2q. q=0.002 → 4mm < 봉투 6mm = 압착
+    FING_OPEN, FING_CLOSE = 0.030, 0.002
+    FINGER_MID = np.array([0.65, 0.0, 0.25])      # 파지 목표점 (IK 로 도달)
+    Q_HOME = np.array([0, -0.785, 0, -2.356, 0, 1.571, 0.785], float)
+    HAND_ABOVE_GRIP = 0.105     # hand 링크 원점 → 핑거 pad 중심 수직 오프셋
+    LIFT_DZ = 0.10
+    CAM_POS, CAM_LOOK = (1.25, -0.60, 0.55), (0.65, 0.0, 0.25)
+else:
+    FINGER_LINKS = ("rg2_left", "rg2_right")
+    # ── 로봇 자세 (FK probe: 스텝 평형에서 pad_mid=(0.324,0.006,0.528)) ──
+    Q_GRASP = np.array([0, -0.40, 1.30, 0, 2.00, 0], float)
+    Q_LIFT  = np.array([0, -0.11, 0.60, 0, 2.41, 0], float)
+    # pad-gap = 1mm + 2q (finger.obj 팁 안쪽면 실측). q=0.001 → 3mm < 봉투 6mm
+    FING_OPEN, FING_CLOSE = 0.040, 0.001
+    # 봉투는 "스텝 중 평형" 패드 중점에 맞춰 배치 (FK_PROBE=1 실측, 2026-07-08).
+    # 주의: two_way_soft_constraint 아래에서 teleport 자세와 실제 평형이
+    #       8.5cm 어긋난다 (원인 미규명 — strength 100 으로도 동일). franka
+    #       경로가 검증되면 M0609 커플링은 별도 이슈로 추적.
+    FINGER_MID = np.array([0.3239, 0.0063, 0.5283])
+    CAM_POS, CAM_LOOK = (0.85, -0.55, 0.75), (0.324, 0.0, 0.528)
+
+BAG_POS    = tuple(FINGER_MID)        # 봉투 중심 = 파지점
 BAG_EULER  = (90, 0, 0)               # 두께(6mm)를 y(핑거 닫힘축)로, 높이(8cm)를 z 로
 
 # 봉투 받침 선반: 봉투 바닥(중심-4cm) 1.5mm 아래에 top. settle 동안 봉투가 얹혀
@@ -185,13 +202,15 @@ def main(use_viewer: bool = False):
     )
 
     # 로봇: 핑거만 IPC 접촉 (two_way_soft_constraint)
-    #   원본 XML 은 핑거가 visual-only → 패치본으로 collision geom 생성 필수
-    robot_xml = _prepare_robot_mjcf()
+    #   m0609: 원본 XML 핑거가 visual-only → 패치본으로 collision geom 생성 필수
+    #   franka: Genesis 번들 panda.xml (공식 IPC 예제와 동일, 패치 불필요)
+    robot_xml = ("xml/franka_emika_panda/panda.xml" if ROBOT == "franka"
+                 else _prepare_robot_mjcf())
     robot = scene.add_entity(
         gs.morphs.MJCF(file=robot_xml, decimate=False),
         material=gs.materials.Rigid(
             coup_type="two_way_soft_constraint",
-            coup_links=("rg2_left", "rg2_right"),
+            coup_links=FINGER_LINKS,
             coup_friction=CLOTH_FRICTION,
         ),
     )
@@ -208,14 +227,32 @@ def main(use_viewer: bool = False):
                                     roughness=0.9, double_sided=True),
     )
 
-    cam = scene.add_camera(res=(960, 720), pos=(0.55, -0.55, 0.62),
-                           lookat=(0.18, 0.0, 0.50), fov=42, GUI=False)
+    cam = scene.add_camera(res=(960, 720), pos=CAM_POS,
+                           lookat=CAM_LOOK, fov=42, GUI=False)
 
     scene.build(n_envs=0)
 
+    # ── 파지/리프트 자세 결정 ──
+    if ROBOT == "franka":
+        # franka 는 IK 정상 (§4.4) → 목표점에서 직접 관절해 계산
+        robot.set_qpos(np.concatenate([Q_HOME, [FING_OPEN, FING_OPEN]]))
+        hand = robot.get_link("hand")
+        down = np.array([0, 1, 0, 0], float)          # 그리퍼 수직 하향
+        qg = _npy(robot.inverse_kinematics(
+            link=hand, pos=FINGER_MID + np.array([0, 0, HAND_ABOVE_GRIP]),
+            quat=down)).squeeze()
+        ql = _npy(robot.inverse_kinematics(
+            link=hand, pos=FINGER_MID + np.array([0, 0, HAND_ABOVE_GRIP + LIFT_DZ]),
+            quat=down)).squeeze()
+        q_grasp, q_lift = qg[:7], ql[:7]
+        print(f"[ik] q_grasp={np.round(q_grasp, 3)}")
+        print(f"[ik] q_lift ={np.round(q_lift, 3)}")
+    else:
+        q_grasp, q_lift = Q_GRASP, Q_LIFT
+
     # ── 시작 자세 (핑거 열림) ──
-    robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
-    left_link = robot.get_link("rg2_left")
+    robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN, FING_OPEN]]))
+    left_link = robot.get_link(FINGER_LINKS[0])
     grip_link_idx = left_link.idx
 
     # ── 봉투 정점 위치로 top edge / grip strip 선정 ──
@@ -250,10 +287,10 @@ def main(use_viewer: bool = False):
             print(f"[probe:{tag}] pad_mid = {np.round(mid, 4)}")
             return mid
 
-        robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
+        robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN, FING_OPEN]]))
         _pads("set0")                       # 스텝 없이 순수 FK
         for _ in range(5):
-            robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
+            robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN, FING_OPEN]]))
             scene.step()
         mid = _pads("step5")                # 매 스텝 teleport 유지 후 (본 시퀀스와 동일)
         print(f"[probe] 현재 FINGER_MID={FINGER_MID}")
@@ -296,16 +333,16 @@ def main(use_viewer: bool = False):
         return vpn
 
     # 1) settle: 봉투가 선반 위에 얹혀 안정화 (핑거 열림)
-    run("settle", Q_GRASP, Q_GRASP, FING_OPEN, FING_OPEN, N_SETTLE)
+    run("settle", q_grasp, q_grasp, FING_OPEN, FING_OPEN, N_SETTLE)
     # 2) close: 핑거 pad-gap 3mm 까지 닫아 봉투 압착
-    run("close",  Q_GRASP, Q_GRASP, FING_OPEN, FING_CLOSE, N_CLOSE)
+    run("close",  q_grasp, q_grasp, FING_OPEN, FING_CLOSE, N_CLOSE)
     # 3) grasp: 압착 유지 안정화
-    vp_pre = run("grasp", Q_GRASP, Q_GRASP, FING_CLOSE, FING_CLOSE, N_GRASP)
+    vp_pre = run("grasp", q_grasp, q_grasp, FING_CLOSE, FING_CLOSE, N_GRASP)
     fz_pre = _finger_z()
     # 4) lift: arm 상승 — 봉투가 선반을 떠나 따라오는가?
-    run("lift",   Q_GRASP, Q_LIFT, FING_CLOSE, FING_CLOSE, N_LIFT)
+    run("lift",   q_grasp, q_lift, FING_CLOSE, FING_CLOSE, N_LIFT)
     # 5) hold: 들린 채 유지 (slip 관찰)
-    vp_post = run("hold", Q_LIFT, Q_LIFT, FING_CLOSE, FING_CLOSE, N_HOLD)
+    vp_post = run("hold", q_lift, q_lift, FING_CLOSE, FING_CLOSE, N_HOLD)
     fz_post = _finger_z()
 
     # 파지 판정: lift 동안 핑거 상승분 vs 봉투 grip strip 상승분
