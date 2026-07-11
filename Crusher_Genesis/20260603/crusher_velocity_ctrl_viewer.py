@@ -29,7 +29,7 @@ import mujoco.viewer
 
 # ── Paths ─────────────────────────────────────────────────────────────
 _HERE     = os.path.dirname(os.path.abspath(__file__))
-MJCF_PATH = os.path.normpath(os.path.join(_HERE, "..", "MJCF", "Crusher_IsaacSim_colored.xml"))
+MJCF_PATH = os.path.normpath(os.path.join(_HERE, "..", "assets", "MJCF", "Crusher_IsaacSim_colored.xml"))
 MJCF_DIR  = os.path.dirname(MJCF_PATH)
 STL_DIR   = os.path.normpath(os.path.join(_HERE, "..", "..", "tablets_stl", "stl"))
 _SIM_RESULT = os.path.normpath(os.path.join(_HERE, "..", "Sim_result"))

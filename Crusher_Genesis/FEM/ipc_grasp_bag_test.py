@@ -7,22 +7,24 @@ Crushing.py 전체를 FEM+IPC 로 포팅하기 전, 다음을 *격리*해서 검
   1. GPU(gs.cuda) + IPCCouplerOptions 에서 M0609+RG2 (articulated rigid) 와
      FEM.Cloth 봉투가 공존하며 crash(cudaErrorInvalidDevice) 없이 build·step 되는가.
   2. IPC 접촉: RG2 핑거를 닫을 때 rigid↔FEM-cloth 접촉으로 천이 눌리는가.
-  3. 파지 유지: 참조 예제(examples/IPC_Solver/ipc_robot_grasp_cube.py) 패턴
-       robot = Rigid(coup_type='two_way_soft_constraint',
-                     coup_links=('rg2_left','rg2_right'), coup_friction=..)
-     + FEM set_vertex_constraints(strip, link=finger) 로 봉투를 핑거에 구속 →
-     top 구속 해제 후 arm 을 올리면 봉투가 그리퍼를 따라오는가.
+  3. 마찰 파지: 중력 ON 에서 봉투를 선반(shelf) 위에 두고, 핑거를 pad-gap 3mm
+     까지 닫아(봉투 6mm 압착) arm 을 올린다. 봉투가 선반을 떠나 그리퍼를
+     따라오면 성공 — vertex-pin 없는 순수 IPC contact+friction 파지.
 
-PBD 버전(Crushing.py)과의 대응
-------------------------------
-  bag.fix_particles(idx)              → bag.set_vertex_constraints(idx)                (제자리 고정)
-  bag.fix_particles_to_link(link,idx) → bag.set_vertex_constraints(idx, link=finger)   (링크 구속)
-  bag.release_particle(idx)           → bag.remove_vertex_constraints(idx)
-  bag.get_particles_pos()             → bag.get_state().pos
+핵심 발견 (2026-07-08)
+----------------------
+  · IPC 커플러에는 FEM vertex constraint 경로가 없다 (1.1.0):
+    set_vertex_constraints 는 fem_entity.py 에서 IPC 시 예외,
+    _add_fem_entities_to_ipc() 도 재질만 등록 (SoftPositionConstraint 미배선).
+    → PBD 의 fix_particles_to_link 등가물이 없어 "마찰 파지"가 유일한 길.
+  · RG2 "34mm 최소 gap" 은 링크 원점 간 거리였고, finger.obj 패드 안쪽 면은
+    원점에서 안으로 뻗어 있어 실제 pad-gap = 1mm + 2q. q=0.001 → 3mm.
+    6mm 봉투 압착 가능. (기존 FING_CLOSE=0.006 은 gap 13mm → 스침만 발생)
 
 주의: IPC 는 PBD 를 못 본다(커플러가 fem_solver+rigid_solver 만 등록). 그래서 봉투는
       반드시 FEM.Cloth. contact_d_hat 은 봉투 두께(6mm)보다 작게(1mm) 잡아 초기 barrier
-      위반을 피한다.
+      위반을 피한다. IPC world 의 중력은 build 시 sim_options 에서 박제되어
+      런타임 set_gravity 로 못 바꾼다 (ipc_coupler/utils.py).
 """
 import os, sys, shutil, tempfile
 import xml.etree.ElementTree as ET
@@ -44,70 +46,67 @@ DT = 5e-3
 IPC_D_HAT = 1.0e-3                    # 1mm < 봉투 두께 6mm → 초기 barrier off
 RENDER_EVERY = 4
 
-# ── FEM cloth 강성 (cloth teleop 예제 참고: 순수 IPC 접촉+마찰 파지) ──────────
-CLOTH_E, CLOTH_NU, CLOTH_RHO = 6.0e4, 0.49, 200.0
-CLOTH_THICK, CLOTH_BEND = 1.0e-3, 10.0
-CLOTH_FRICTION = 0.5      # friction_mu (예제와 동일) — 접촉 마찰이 파지력의 핵심
+# ── FEM cloth 강성 (grasp 예제 참고: E=1e5, nu=0.499, thin shell) ─────────────
+CLOTH_E, CLOTH_NU, CLOTH_RHO = 1.0e5, 0.499, 200.0
+CLOTH_THICK, CLOTH_BEND = 1.0e-3, 50.0
+CLOTH_FRICTION = 0.8
 
-# ── 로봇 자세 ────────────────────────────────────────────────────────────────
-Q_GRASP = np.array([0, -0.40, 1.30, 0, 2.00, 0], float)
-Q_LIFT  = np.array([0, -0.11, 0.60, 0, 2.41, 0], float)   # arm 올려 봉투 들어올림
-FING_OPEN  = 0.040
-FING_CLOSE = -0.020       # PD 목표를 관절범위 아래로 → 천을 강하게 squeeze (예제 -0.03 방식)
+# ── 로봇 선택: IPC_ROBOT=franka | m0609 (기본) ───────────────────────────────
+#   franka: Genesis 공식 IPC grasp 예제와 동일 엔드이펙터 (충돌 geom 정상,
+#           IK 동작) — M0609+RG2 커플링 문제와 분리해 파지 물리만 검증.
+ROBOT = os.environ.get("IPC_ROBOT", "m0609").lower()
 
-# 봉투 = 커플러 하 "실제" 핑거 패드 존 중심에 배치.
-#   중요: two_way_soft_constraint 에서 팔이 set_dofs 목표(=probe FK)를 안 따라가고
-#   커플러 아티큘레이션 솔버 기준 다른 자세로 정착 → probe FK(0.192,..,0.478) 무효.
-#   빌드된 커플 씬에서 직접 측정한 pad center (결정적, strength 무관):
-PAD_ZONE = np.array([0.2880, 0.0063, 0.5735])
-BAG_POS  = tuple(PAD_ZONE)
-BAG_EULER = (90, 0, 0)                # 두께(6mm)를 y(핑거 닫힘축)로, 높이(8cm)를 z 로
+if ROBOT == "franka":
+    FINGER_LINKS = ("left_finger", "right_finger")
+    # panda 핑거 pad 는 평면 마주보기, gap = 2q. q=0.002 → 4mm < 봉투 6mm = 압착
+    FING_OPEN, FING_CLOSE = 0.030, 0.002
+    FINGER_MID = np.array([0.65, 0.0, 0.25])      # 파지 목표점 (IK 로 도달)
+    Q_HOME = np.array([0, -0.785, 0, -2.356, 0, 1.571, 0.785], float)
+    HAND_ABOVE_GRIP = 0.105     # hand 링크 원점 → 핑거 pad 중심 수직 오프셋
+    LIFT_DZ = 0.10
+    CAM_POS, CAM_LOOK = (1.25, -0.60, 0.55), (0.65, 0.0, 0.25)
+else:
+    FINGER_LINKS = ("rg2_left", "rg2_right")
+    # ── 로봇 자세 (FK probe: 스텝 평형에서 pad_mid=(0.324,0.006,0.528)) ──
+    Q_GRASP = np.array([0, -0.40, 1.30, 0, 2.00, 0], float)
+    Q_LIFT  = np.array([0, -0.11, 0.60, 0, 2.41, 0], float)
+    # pad-gap = 1mm + 2q (finger.obj 팁 안쪽면 실측). q=0.001 → 3mm < 봉투 6mm
+    FING_OPEN, FING_CLOSE = 0.040, 0.001
+    # 봉투는 "순수 FK" 패드 중점에 배치 (FK_PROBE=1 의 probe:ipc 실측, 2026-07-09).
+    # 핵심: IPC 세계의 ABD 핑거는 teleport 명령 자세(순수 FK)를 정확히 추종한다.
+    #       post-step gs 링크 좌표는 커플링 반력에 떠밀린 일시 상태라 접촉 위치가
+    #       아니다 — 절대 gs 읽기값으로 봉투를 놓지 말 것. (finger_z 로그도 동일
+    #       이유로 어긋나 보이지만 무해)
+    FINGER_MID = np.array([0.2064, 0.0062, 0.4242])
+    CAM_POS, CAM_LOOK = (0.75, -0.55, 0.65), (0.206, 0.0, 0.424)
+
+BAG_POS    = tuple(FINGER_MID)        # 봉투 중심 = 파지점
+BAG_EULER  = (90, 0, 0)               # 두께(6mm)를 y(핑거 닫힘축)로, 높이(8cm)를 z 로
+
+# 봉투 받침 선반: 봉투 바닥(중심-4cm) 1.5mm 아래에 top. settle 동안 봉투가 얹혀
+# 낙하를 막고, lift 시 봉투가 선반을 떠나는지가 파지 성공의 자명한 판정이 된다.
+SHELF_TOP  = float(FINGER_MID[2]) - 0.04 - 0.0015
+SHELF_SIZE = (0.12, 0.12, 0.02)
+SHELF_POS  = (float(FINGER_MID[0]), float(FINGER_MID[1]), SHELF_TOP - SHELF_SIZE[2] / 2)
 
 # ── 페이즈 스텝 ──────────────────────────────────────────────────────────────
-N_SETTLE, N_CLOSE, N_GRASP, N_LIFT, N_HOLD = 100, 120, 60, 200, 80
+N_SETTLE, N_CLOSE, N_GRASP, N_LIFT, N_HOLD = 120, 80, 40, 200, 100
 
-# ── 경로 ────────────────────────────────────────────────────────────────────
-_DIR = os.path.dirname(os.path.abspath(__file__))
-_ROBOT_DIR = os.path.join(os.path.dirname(_DIR), "robots")   # Crusher_Genesis/robots
-ROBOT_MJCF = os.path.join(_ROBOT_DIR, "m0609_rg2.xml")
-OUT_DIR = os.path.join(os.path.dirname(_DIR), "Sim_result"); os.makedirs(OUT_DIR, exist_ok=True)
+# ── 경로: config.json + paths.py (중앙 해석) — 위치 독립 부트스트랩 ──────────
+_r = os.path.dirname(os.path.abspath(__file__))
+while _r != os.path.dirname(_r) and not os.path.exists(os.path.join(_r, "config.json")):
+    _r = os.path.dirname(_r)
+sys.path.insert(0, _r)
+import paths
+
+ROBOT_MJCF = paths.ROBOT_M0609_RG2
+OUT_DIR = paths.SIM_RESULT
 STL_PATH = os.path.join(OUT_DIR, "_ipc_test_bag.stl")
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
 MP4 = os.path.join(OUT_DIR, f"ipc_grasp_bag_{_TS}.mp4")
 
 
 def _npy(x): return x.cpu().numpy() if hasattr(x, "cpu") else np.asarray(x)
-
-
-# RG2 핑거/손은 원본 MJCF 에서 contype=0 → 충돌 geom 없음 → IPC 커플러가 핑거
-# 접촉 형상을 못 받음(link.geoms 비어 있음). 런타임 패치로 contype/conaffinity 제거
-# → default 0xFFFF(충돌 ON). (Crushing.patch_robot_mjcf 와 동일 취지)
-RG2_GEOMS_TO_ENABLE = {"rg2_finger", "rg2_hand"}
-
-
-def _prepare_robot_mjcf():
-    """robots/ 전체 복사 + RG2 핑거 충돌 활성화 패치본 생성 → 패치 xml 경로 반환."""
-    src_dir = _ROBOT_DIR
-    tmp_dir = tempfile.mkdtemp(prefix="ipc_m0609_")
-    for root_dir, _, files in os.walk(src_dir):
-        rel = os.path.relpath(root_dir, src_dir)
-        dst_dir = os.path.join(tmp_dir, rel) if rel != "." else tmp_dir
-        os.makedirs(dst_dir, exist_ok=True)
-        for f in files:
-            shutil.copy2(os.path.join(root_dir, f), os.path.join(dst_dir, f))
-    tree = ET.parse(ROBOT_MJCF); root = tree.getroot()
-    wb = root.find("worldbody")
-    n = 0
-    if wb is not None:
-        for g in wb.iter("geom"):
-            if g.get("mesh") in RG2_GEOMS_TO_ENABLE:
-                g.attrib.pop("contype", None)
-                g.attrib.pop("conaffinity", None)
-                n += 1
-    dst = os.path.join(tmp_dir, "m0609_rg2_ipc.xml")
-    tree.write(dst)
-    print(f"[robot] RG2 collision enabled on {n} geoms → {dst}")
-    return dst
 
 
 def _panel(fn, nu, nv):
@@ -118,6 +117,44 @@ def _panel(fn, nu, nv):
             c, d = fn((i+1)/nu, (j+1)/nv), fn(i/nu, (j+1)/nv)
             t += [[a, b, c], [a, c, d]]
     return t
+
+
+def _prepare_robot_mjcf():
+    """m0609_rg2.xml 사본 + RG2 핑거 geom 의 contype=0/conaffinity=0 제거.
+
+    원본 XML 은 핑거 mesh 가 visual-only 라 Genesis 가 collision geom 을 만들지
+    않고, IPC 커플러도 link.geoms 만 등록한다 → 원본 그대로면 핑거가 IPC 에
+    존재하지 않아 cloth 와 접촉 자체가 불가능 (2026-07-08 GRASP FAIL 원인).
+    Crushing.py 의 patch_robot_mjcf 와 동일 패턴.
+    """
+    src_dir = os.path.dirname(ROBOT_MJCF)
+    tmp_dir = tempfile.mkdtemp(prefix="m0609_ipc_")
+    for root_dir, _, files in os.walk(src_dir):
+        rel = os.path.relpath(root_dir, src_dir)
+        dst_dir = os.path.join(tmp_dir, rel) if rel != "." else tmp_dir
+        os.makedirs(dst_dir, exist_ok=True)
+        for f in files:
+            shutil.copy2(os.path.join(root_dir, f), os.path.join(dst_dir, f))
+    dst = os.path.join(tmp_dir, "m0609_rg2_patched.xml")
+    tree = ET.parse(ROBOT_MJCF); root = tree.getroot()
+    wb = root.find("worldbody")
+    if wb is not None:
+        for g in wb.iter("geom"):
+            if g.get("mesh") == "rg2_finger":
+                g.attrib.pop("contype", None)
+                g.attrib.pop("conaffinity", None)
+        # XML <position kp> 액추에이터의 ctrl 기본값 0 이 매 스텝 teleport 사이에
+        # 팔을 q=0 쪽으로 끌어당겨 8.5cm 평형 오프셋을 만든다 (§4.6 과 동일 이슈,
+        # franka 대조군은 오프셋 ~1mm). damping/frictionloss 도 함께 제거.
+        for j in wb.iter("joint"):
+            j.attrib.pop("damping", None)
+            j.attrib.pop("frictionloss", None)
+    for tag in ("actuator", "equality"):
+        el = root.find(tag)
+        if el is not None:
+            root.remove(el)
+    tree.write(dst)
+    return dst
 
 
 def make_bag():
@@ -146,16 +183,18 @@ def main(use_viewer: bool = False):
     gs.init(backend=gs.gpu, logging_level="info", precision="32")
 
     scene = gs.Scene(
-        # 중력 OFF: 봉투를 핑거 높이에 띄워 두고 순수 IPC 접촉만 관찰
-        # (얇은 봉투는 RG2 gap(~46mm) 로 pinch 불가 → vertex-pin 없이 접촉 변형만 검증)
-        sim_options=gs.options.SimOptions(dt=DT, gravity=(0, 0, 0)),
+        # 중력 ON: 봉투는 선반 위에서 settle → pinch → lift. IPC world 중력은
+        # build 시 박제라 런타임 토글 불가 → 처음부터 켠다.
+        sim_options=gs.options.SimOptions(dt=DT, gravity=(0, 0, -9.81)),
         coupler_options=gs.options.IPCCouplerOptions(
             contact_d_hat=IPC_D_HAT,
             contact_friction_enable=True,
             two_way_coupling=True,
             enable_rigid_rigid_contact=False,     # 로봇 self / plate 끼리 불필요
             enable_rigid_ground_contact=False,    # ground↔rigid 불필요 (봉투만 관심)
-            constraint_strength_translation=100.0,   # ↑ 팔이 set_dofs 목표를 더 밀착 추종
+            # 기본값 100. 10 으로 낮추면 IPC ABD 핑거가 aim(gs 자세)을 못 따라가
+            # ~8.5cm 처진 평형 → 렌더(gs)와 접촉(IPC)이 서로 다른 곳에 있게 됨.
+            constraint_strength_translation=100.0,
             constraint_strength_rotation=100.0,
         ),
         vis_options=gs.options.VisOptions(background_color=(0.93, 0.94, 0.96)),
@@ -166,13 +205,23 @@ def main(use_viewer: bool = False):
     scene.add_entity(gs.morphs.Plane(),
                      material=gs.materials.Rigid(coup_type="ipc_only"))
 
-    # 로봇: 핑거만 IPC 접촉 (two_way_soft_constraint). 핑거 충돌 활성화 패치본 사용.
-    robot_xml = _prepare_robot_mjcf()
+    # 봉투 받침 선반 (정적 rigid, IPC 접촉만)
+    scene.add_entity(
+        gs.morphs.Box(size=SHELF_SIZE, pos=SHELF_POS, fixed=True),
+        material=gs.materials.Rigid(coup_type="ipc_only", coup_friction=0.3),
+        surface=gs.surfaces.Default(color=(0.75, 0.78, 0.82)),
+    )
+
+    # 로봇: 핑거만 IPC 접촉 (two_way_soft_constraint)
+    #   m0609: 원본 XML 핑거가 visual-only → 패치본으로 collision geom 생성 필수
+    #   franka: Genesis 번들 panda.xml (공식 IPC 예제와 동일, 패치 불필요)
+    robot_xml = ("xml/franka_emika_panda/panda.xml" if ROBOT == "franka"
+                 else _prepare_robot_mjcf())
     robot = scene.add_entity(
         gs.morphs.MJCF(file=robot_xml, decimate=False),
         material=gs.materials.Rigid(
             coup_type="two_way_soft_constraint",
-            coup_links=("rg2_left", "rg2_right"),
+            coup_links=FINGER_LINKS,
             coup_friction=CLOTH_FRICTION,
         ),
     )
@@ -189,46 +238,97 @@ def main(use_viewer: bool = False):
                                     roughness=0.9, double_sided=True),
     )
 
-    cam = scene.add_camera(res=(960, 720), pos=(0.55, -0.55, 0.62),
-                           lookat=(0.18, 0.0, 0.50), fov=42, GUI=False)
+    cam = scene.add_camera(res=(960, 720), pos=CAM_POS,
+                           lookat=CAM_LOOK, fov=42, GUI=False)
 
     scene.build(n_envs=0)
 
-    left_link  = robot.get_link("rg2_left")
-    right_link = robot.get_link("rg2_right")
+    # ── 파지/리프트 자세 결정 ──
+    if ROBOT == "franka":
+        # franka 는 IK 정상 (§4.4) → 목표점에서 직접 관절해 계산
+        robot.set_qpos(np.concatenate([Q_HOME, [FING_OPEN, FING_OPEN]]))
+        hand = robot.get_link("hand")
+        down = np.array([0, 1, 0, 0], float)          # 그리퍼 수직 하향
+        qg = _npy(robot.inverse_kinematics(
+            link=hand, pos=FINGER_MID + np.array([0, 0, HAND_ABOVE_GRIP]),
+            quat=down)).squeeze()
+        ql = _npy(robot.inverse_kinematics(
+            link=hand, pos=FINGER_MID + np.array([0, 0, HAND_ABOVE_GRIP + LIFT_DZ]),
+            quat=down)).squeeze()
+        q_grasp, q_lift = qg[:7], ql[:7]
+        print(f"[ik] q_grasp={np.round(q_grasp, 3)}")
+        print(f"[ik] q_lift ={np.round(q_lift, 3)}")
+    else:
+        q_grasp, q_lift = Q_GRASP, Q_LIFT
+
+    # ── 시작 자세 (핑거 열림) ──
+    robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN, FING_OPEN]]))
+    left_link = robot.get_link(FINGER_LINKS[0])
     grip_link_idx = left_link.idx
 
-    def _pad_center():
-        """현재 상태에서 두 핑거 vgeom AABB 로 실제 '패드 존' 월드 중심 계산."""
-        pts = []
-        for L in (left_link, right_link):
-            a = _npy(L.vgeoms[0].get_vAABB()).reshape(-1, 3)
-            pts += [a.min(0), a.max(0)]
-        pts = np.array(pts)
-        return pts.mean(0)
-
-    # ── 로봇 Q_GRASP(핑거 열림) 정착 후, 실제 pad center 와 봉투 위치 정렬 검증 ──
-    #   (set_position 은 IPC-managed cloth 에 안 먹혀서 봉투는 빌드 시 BAG_POS=실측 pad
-    #    center 로 이미 배치됨. 여기선 실제 정렬 오차만 확인.)
-    for _ in range(40):
-        robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN, FING_OPEN]]))
-        scene.step()
-    pad_c = _pad_center()
+    # ── 봉투 정점 위치로 top edge / grip strip 선정 ──
     vp = _npy(bag.get_state().pos).squeeze()
-    com_now = vp.mean(axis=0)
-    print(f"[align] 실제 pad center={np.round(pad_c,4)}  bag com={np.round(com_now,4)}  "
-          f"align err={np.linalg.norm(com_now-pad_c)*1e3:.1f}mm")
-    print(f"[bag] verts z={vp[:,2].min():.3f}~{vp[:,2].max():.3f}  "
-          f"y={vp[:,1].min():.3f}~{vp[:,1].max():.3f}")
-    grip_idx = np.where(np.linalg.norm(vp - pad_c, axis=1) < 0.020)[0].astype(int)
-    # NOTE: weld 없음. 예제(ipc_robot_cloth_teleop)처럼 핑거 close → IPC 접촉+마찰로만 파지.
+    print(f"[bag] built verts={vp.shape}  z={vp[:,2].min():.3f}~{vp[:,2].max():.3f}  "
+          f"x={vp[:,0].min():.3f}~{vp[:,0].max():.3f}  y={vp[:,1].min():.3f}~{vp[:,1].max():.3f}")
+    # grip strip: 핑거 중점 근처 (파지 추적용 진단 인덱스)
+    d_to_mid = np.linalg.norm(vp - FINGER_MID, axis=1)
+    grip_idx = np.where(d_to_mid < 0.020)[0].astype(int)
+    print(f"[bag] grip_strip verts near finger_mid={len(grip_idx)}")
+    # NOTE: IPC 커플러엔 FEM vertex constraint 가 없다 (헤더 참조) →
+    #       vertex-pin 없이 순수 contact+friction 파지로 검증한다.
 
-    # 핑거는 PD 힘 제어로 세게 squeeze (set_dofs_position 은 soft-constraint 하에서
-    # 천을 못 누름 → 예제처럼 kp 큰 control_dofs_position + 강한 close 명령).
-    ARM_DOFS  = list(range(6))
-    FING_DOFS = [6, 7]
-    robot.set_dofs_kp(np.array([500.0, 500.0]), dofs_idx_local=FING_DOFS)
-    robot.set_dofs_kv(np.array([50.0, 50.0]),  dofs_idx_local=FING_DOFS)
+    # ── FK probe 모드: Q_GRASP 에서 실제 패드 중심 월드좌표 실측 (FK_PROBE=1) ──
+    #    pad 중심 (link local): finger.obj 팁 x=80~122mm, 안쪽면 y=-16.5~-5mm 실측
+    #    → left (0.101, -0.0107, 0) / right 는 geom euler 180°x 반전 → (0.101, +0.0107, 0)
+    if os.environ.get("FK_PROBE") == "1":
+        import genesis.utils.geom as gu
+
+        def _pads(tag):
+            pads = {}
+            for nm, loc in (("rg2_left", (0.101, -0.0107, 0.0)),
+                            ("rg2_right", (0.101, +0.0107, 0.0))):
+                lk = robot.get_link(nm)
+                p = _npy(lk.get_pos()).squeeze(); q = _npy(lk.get_quat()).squeeze()
+                T = np.asarray(gu.trans_quat_to_T(p, q))
+                pads[nm] = T[:3, :3] @ np.asarray(loc) + T[:3, 3]
+                ax = T[:3, :3] @ np.array([0.0, 1.0, 0.0])   # 닫힘축(로컬 y)
+                print(f"[probe:{tag}] {nm}: origin={np.round(p,4)} pad={np.round(pads[nm],4)} "
+                      f"close_axis={np.round(ax,3)}")
+            mid = (pads["rg2_left"] + pads["rg2_right"]) / 2
+            print(f"[probe:{tag}] pad_mid = {np.round(mid, 4)}")
+            return mid
+
+        robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN, FING_OPEN]]))
+        _pads("set0")                       # 스텝 없이 순수 FK
+        nq = len(q_grasp) + 2
+        for _ in range(5):
+            robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN, FING_OPEN]]))
+            robot.set_dofs_velocity(np.zeros(nq))   # 커플링 반력의 속도 누적 차단
+            scene.step()
+        mid = _pads("step5")                # 매 스텝 teleport 유지 후 (본 시퀀스와 동일)
+        # ── IPC 세계 쪽 ABD 핑거 실좌표 (접촉은 여기서 일어난다) ──
+        coupler = scene.sim.coupler
+        pads_ipc = {}
+        for nm, loc in (("rg2_left", (0.101, -0.0107, 0.0)),
+                        ("rg2_right", (0.101, +0.0107, 0.0))):
+            lk = robot.get_link(nm)
+            entry = coupler._abd_data_by_link.get(lk)
+            if entry is None:
+                print(f"[probe:ipc] {nm}: ABD 데이터 없음 (IPC 미등록?)")
+                continue
+            T = np.asarray(entry[0].transform, dtype=float)
+            pads_ipc[nm] = T[:3, :3] @ np.asarray(loc) + T[:3, 3]
+            print(f"[probe:ipc] {nm}: origin={np.round(T[:3,3],4)} pad={np.round(pads_ipc[nm],4)}")
+        if len(pads_ipc) == 2:
+            mid_ipc = (pads_ipc["rg2_left"] + pads_ipc["rg2_right"]) / 2
+            print(f"[probe:ipc] IPC pad_mid = {np.round(mid_ipc,4)}  (gs pad_mid={np.round(mid,4)})")
+        print(f"[probe] 현재 FINGER_MID={FINGER_MID}")
+        out = cam.render()
+        rgb = out[0] if isinstance(out, (tuple, list)) else out
+        rgb = _npy(rgb); rgb = rgb[0] if rgb.ndim == 4 else rgb
+        Image.fromarray(rgb[..., :3].astype("uint8")).save(
+            os.path.join(OUT_DIR, "ipc_grasp_bag_probe.png"))
+        return
 
     frames = []
     cam.start_recording()
@@ -241,46 +341,47 @@ def main(use_viewer: bool = False):
         Image.fromarray(rgb[..., :3].astype("uint8")).save(
             os.path.join(OUT_DIR, f"ipc_grasp_bag_{name}.png"))
 
-    def _bag_com(): return _npy(bag.get_state().pos).squeeze().mean(axis=0)
-    def _finger():  return _npy(left_link.get_pos()).squeeze()
+    def _finger_z():
+        p = _npy(left_link.get_pos()).squeeze()
+        return float(p[2])
 
     def run(name, q0, q1, f0, f1, n):
         for k in range(n):
             s = (k + 1) / n
             q = q0 + (q1 - q0) * s
             f = f0 + (f1 - f0) * s
-            robot.set_dofs_position(q, dofs_idx_local=ARM_DOFS)          # 팔: kinematic 목표
-            robot.control_dofs_position(np.array([f, f]), dofs_idx_local=FING_DOFS)  # 핑거: PD squeeze
+            robot.set_dofs_position(np.concatenate([q, [f, f]]))
             scene.step()
             if k % RENDER_EVERY == 0:
                 cam.render()
         _shot(name)
-        bc, fp = _bag_com(), _finger()
-        print(f"[phase] {name:8s} @done  bag_com=({bc[0]:.3f},{bc[1]:.3f},{bc[2]:.3f})  "
-              f"finger=({fp[0]:.3f},{fp[1]:.3f},{fp[2]:.3f})")
+        vpn = _npy(bag.get_state().pos).squeeze()
+        print(f"[phase] {name:8s} @done  bag_com=({vpn[:,0].mean():.3f},"
+              f"{vpn[:,1].mean():.3f},{vpn[:,2].mean():.3f})  "
+              f"grip_com_z={vpn[grip_idx,2].mean():.3f}  finger_z={_finger_z():.3f}")
+        return vpn
 
-    com0 = _bag_com()
-    # 1) settle: 봉투 띄운 채 안정화 (핑거 열림)
-    run("settle", Q_GRASP, Q_GRASP, FING_OPEN, FING_OPEN, N_SETTLE)
-    # 2) close: 핑거 꽉 닫음 → IPC 접촉+마찰로 천 pinch (weld 없음, 예제와 동일 방식)
-    run("close",  Q_GRASP, Q_GRASP, FING_OPEN, FING_CLOSE, N_CLOSE)
-    com_grasp = _bag_com(); fing_grasp = _finger()
-    max_disp = float(np.linalg.norm(_npy(bag.get_state().pos).squeeze() - vp, axis=1).max())
-    print(f"\n[contact-check] close 후 max vertex disp = {max_disp*1e3:.2f} mm  "
-          f"→ {'CONTACT' if max_disp>1e-4 else 'NO contact'}")
-    # 3) lift: arm 올림 → 봉투가 그리퍼를 따라오면 파지 성립
-    run("lift",   Q_GRASP, Q_LIFT,  FING_CLOSE, FING_CLOSE, N_LIFT)
-    run("hold",   Q_LIFT,  Q_LIFT,  FING_CLOSE, FING_CLOSE, N_HOLD)
+    # 1) settle: 봉투가 선반 위에 얹혀 안정화 (핑거 열림)
+    run("settle", q_grasp, q_grasp, FING_OPEN, FING_OPEN, N_SETTLE)
+    # 2) close: 핑거 pad-gap 3mm 까지 닫아 봉투 압착
+    run("close",  q_grasp, q_grasp, FING_OPEN, FING_CLOSE, N_CLOSE)
+    # 3) grasp: 압착 유지 안정화
+    vp_pre = run("grasp", q_grasp, q_grasp, FING_CLOSE, FING_CLOSE, N_GRASP)
+    fz_pre = _finger_z()
+    # 4) lift: arm 상승 — 봉투가 선반을 떠나 따라오는가?
+    run("lift",   q_grasp, q_lift, FING_CLOSE, FING_CLOSE, N_LIFT)
+    # 5) hold: 들린 채 유지 (slip 관찰)
+    vp_post = run("hold", q_lift, q_lift, FING_CLOSE, FING_CLOSE, N_HOLD)
+    fz_post = _finger_z()
 
-    # ── 파지 판정: lift 동안 봉투 com 변위 vs 핑거 변위 (비율≈1 이면 따라온 것) ──
-    com_end, fing_end = _bag_com(), _finger()
-    d_bag  = com_end  - com_grasp
-    d_fing = fing_end - fing_grasp
-    ratio  = (np.linalg.norm(d_bag) / np.linalg.norm(d_fing)) if np.linalg.norm(d_fing) > 1e-6 else 0.0
-    print(f"\n[grasp-check] lift 동안 finger Δ={np.round(d_fing*1e3,1)}mm (|{np.linalg.norm(d_fing)*1e3:.1f}|)")
-    print(f"[grasp-check]              bag Δ={np.round(d_bag*1e3,1)}mm (|{np.linalg.norm(d_bag)*1e3:.1f}|)")
-    print(f"[grasp-check] follow ratio = {ratio:.2f}  → "
-          f"{'GRASP HELD (봉투가 그리퍼 따라옴)' if ratio > 0.6 else 'SLIPPED/DROPPED (파지 실패)'}")
+    # 파지 판정: lift 동안 핑거 상승분 vs 봉투 grip strip 상승분
+    dz_f = fz_post - fz_pre
+    dz_b = float(vp_post[grip_idx, 2].mean() - vp_pre[grip_idx, 2].mean())
+    slip = dz_f - dz_b
+    ok = dz_f > 0.02 and dz_b > 0.5 * dz_f
+    print(f"\n[grasp-check] finger Δz = {dz_f*1e3:+.1f} mm,  bag grip Δz = {dz_b*1e3:+.1f} mm,"
+          f"  slip = {slip*1e3:+.1f} mm")
+    print(f"[grasp-check] → {'GRASP OK (bag follows gripper)' if ok else 'GRASP FAIL (bag left behind / slipped)'}")
 
     cam.stop_recording(save_to_filename=MP4, fps=30)
     print(f"\n[saved video] {MP4}")

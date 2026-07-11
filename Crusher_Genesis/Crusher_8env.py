@@ -17,7 +17,7 @@ FSM (Crusher.md §12-3, keyboardcontrol_v3.py와 동일):
 
 출력: Sim_result/sim8env/{θ}deg_sim.png (다크) + csv, 그리고 F-vs-θ 요약.
 """
-import os, math, csv, time, re, glob
+import os, sys, math, csv, time, re, glob
 import multiprocessing as mp
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -30,11 +30,17 @@ matplotlib.rcParams["font.family"] = "Malgun Gothic"
 matplotlib.rcParams["axes.unicode_minus"] = False
 from matplotlib.ticker import AutoMinorLocator
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-MJCF_PATH = os.path.join(_HERE, "MJCF", "Crusher_IsaacSim_colored.xml")
-MJCF_DIR = os.path.dirname(MJCF_PATH)
-STL_DIR = os.path.normpath(os.path.join(_HERE, "..", "tablets_stl", "stl"))
-OUTDIR = os.path.join(_HERE, "Sim_result", "sim8env")
+# ── 경로: config.json + paths.py (중앙 해석) — 위치 독립 부트스트랩 ──────────
+_r = os.path.dirname(os.path.abspath(__file__))
+while _r != os.path.dirname(_r) and not os.path.exists(os.path.join(_r, "config.json")):
+    _r = os.path.dirname(_r)
+sys.path.insert(0, _r)
+import paths
+
+MJCF_PATH = paths.MJCF_MAIN
+MJCF_DIR = paths.MJCF_DIR
+STL_DIR = paths.TABLETS_STL
+OUTDIR = os.path.join(paths.SIM_RESULT, "sim8env")
 
 CRANK = "L3_Bevel_GearBox_1_L4_Shaft_1"
 ARMATURE = 72e-7 * 212**2                 # 0.324 kg·m²
@@ -275,8 +281,8 @@ def render_frames(width=1280, height=960):
     print(f"[frames] {outdir}")
 
 
-REAL_ROOT = os.path.join(_HERE, "Real_result", "반력프로파일")
-RPM_DIR = os.path.join(_HERE, "Real_result")   # rpm_log_{deg}deg_*.csv (v3 모터 로그)
+REAL_ROOT = os.path.join(paths.REAL_RESULT, "반력프로파일")
+RPM_DIR = paths.REAL_RESULT   # rpm_log_{deg}deg_*.csv (v3 모터 로그)
 
 
 def parse_meas_force(deg):
@@ -406,7 +412,7 @@ def compare_angle(theta=60, meas_win=150.0):
     fig.suptitle(f"θ = {theta}°  —  Measurement vs. Simulation  (Force & RPM)",
                  color="#111111", fontsize=17, fontweight="bold")
     fig.tight_layout()
-    out = os.path.join(_HERE, "Real_result", f"compare_{theta}deg_meas_vs_sim.png")
+    out = os.path.join(paths.REAL_RESULT, f"compare_{theta}deg_meas_vs_sim.png")
     fig.savefig(out, facecolor=WBG, bbox_inches="tight"); plt.close(fig)
     print(f"[compare] θ={theta}°  sim F peak~{fs_.max():.0f}N  meas F peak~{ffm.max():.0f}N  -> {out}")
 

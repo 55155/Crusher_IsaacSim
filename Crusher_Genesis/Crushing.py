@@ -18,7 +18,7 @@ Crushing.py — 시스템 전체 통합 시뮬레이션.
 출력:
   Sim_result/Crushing.mp4 + 페이즈별 키프레임 PNG
 """
-import os, shutil, tempfile
+import os, sys, shutil, tempfile
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import numpy as np
@@ -95,16 +95,21 @@ APPROACH_DZ       =  0.12            # APPROACH 는 최종보다 이만큼 더 �
 # 슬롯의 얇은 x-gap 에 정렬(현재 봉투 두께는 y 방향 → 회전 후 x 방향).
 J6_PLACE          =  np.pi / 2.0     # +90° (정렬 안 맞으면 -np.pi/2 로 부호 반전)
 
-# ── 경로 ────────────────────────────────────────────────────────────────────
-_DIR = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(_DIR, "Sim_result"); os.makedirs(OUT_DIR, exist_ok=True)
+# ── 경로: config.json + paths.py (중앙 해석) — 위치 독립 부트스트랩 ──────────
+_r = os.path.dirname(os.path.abspath(__file__))
+while _r != os.path.dirname(_r) and not os.path.exists(os.path.join(_r, "config.json")):
+    _r = os.path.dirname(_r)
+sys.path.insert(0, _r)
+import paths
+
+OUT_DIR = paths.SIM_RESULT
 STL_PATH = os.path.join(OUT_DIR, "medicine_envelope_open.stl")
 # 타임스탬프로 mp4 분리 저장 (이전 결과 비교용)
 _TS      = datetime.now().strftime("%Y%m%d_%H%M%S")
 MP4_PATH = os.path.join(OUT_DIR, f"Crushing_{_TS}.mp4")
-PLATE_PATH = os.path.join(_DIR, "robots/assets/aluminum_plate.stl")
-ROBOT_MJCF = "robots/m0609_rg2.xml"
-CRUSHER_SRC_XML = os.path.join(_DIR, "MJCF", "Crusher_IsaacSim_colored.xml")
+PLATE_PATH = paths.ALUMINUM_PLATE
+ROBOT_MJCF = paths.ROBOT_M0609_RG2
+CRUSHER_SRC_XML = paths.MJCF_MAIN
 
 
 # ─────────────────────────────── helpers ────────────────────────────────────
@@ -205,7 +210,7 @@ def patch_robot_mjcf(src, dst):
 
 def _prepare_robot_mjcf():
     """robots/m0609_rg2.xml 디렉터리 복사 + 패치본 생성."""
-    src_xml = os.path.join(_DIR, ROBOT_MJCF)
+    src_xml = ROBOT_MJCF
     src_dir = os.path.dirname(src_xml)
     tmp_dir = tempfile.mkdtemp(prefix="m0609_mjcf_")
     # robots/ 하위 전체 복사 (m0609/assets/*, rg2/assets/* 등 mesh 의존)
@@ -246,7 +251,7 @@ def wall_geom_world_aabb(mesh_name):
     R_e = np.array([[np.cos(yaw), -np.sin(yaw), 0.],
                     [np.sin(yaw),  np.cos(yaw), 0.],
                     [0., 0., 1.]])
-    v = tm.load(os.path.join(_DIR, "MJCF", f"{mesh_name}.stl")).vertices * 0.001
+    v = tm.load(os.path.join(paths.MJCF_DIR, f"{mesh_name}.stl")).vertices * 0.001
     w = np.array(CRUSHER_POS) + (R_e @ (_R_GEOM_HALF @ v.T)).T
     return w.min(axis=0), w.max(axis=0)
 

@@ -24,7 +24,7 @@ Crusher_only.py — Crusher_IsaacSim 단독 시각화 + Motor1 크랭크 준정�
 출력 (use_viewer=False 일 때):
   Sim_result/Crusher_only.mp4
 """
-import os, shutil, tempfile
+import os, sys, shutil, tempfile
 import xml.etree.ElementTree as ET
 import numpy as np
 
@@ -65,9 +65,15 @@ WALL_KV        = 500.0
 N_WALL_FWD     = 2000      # 1.0 s 전진 (→ +3cm 이동 기대)
 N_WALL_BACK    = 2000      # 1.0 s 후진 (→ 0cm 복귀 기대)
 
-_DIR = os.path.dirname(os.path.abspath(__file__))
-SRC_XML = os.path.join(_DIR, "MJCF", "Crusher_IsaacSim_colored.xml")
-OUT_DIR = os.path.join(_DIR, "Sim_result"); os.makedirs(OUT_DIR, exist_ok=True)
+# ── 경로: config.json + paths.py (중앙 해석) — 위치 독립 부트스트랩 ──────────
+_r = os.path.dirname(os.path.abspath(__file__))
+while _r != os.path.dirname(_r) and not os.path.exists(os.path.join(_r, "config.json")):
+    _r = os.path.dirname(_r)
+sys.path.insert(0, _r)
+import paths
+
+SRC_XML = paths.MJCF_MAIN
+OUT_DIR = paths.SIM_RESULT
 MP4_PATH = os.path.join(OUT_DIR, "Crusher_only.mp4")
 
 CAM_POS    = (0.45, -0.45, 0.40)
