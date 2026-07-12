@@ -1,0 +1,85 @@
+parsing switches
+success
+Delaunizing vertices...
+Delaunay seconds:  0.001
+Creating surface mesh ...
+Surface mesh seconds:  0
+Recovering boundaries...
+Boundary recovery seconds:  0
+Removing exterior tetrahedra ...
+Exterior tets removal seconds:  0
+Recovering Delaunayness...
+Delaunay recovery seconds:  0
+Refining mesh...
+Refinement seconds:  0
+Smoothing vertices...
+Mesh smoothing seconds:  0.001
+Improving mesh...
+Mesh improvement seconds:  0
+
+Writing nodes.
+Writing elements.
+
+Writing faces.
+Writing edges.
+
+Output seconds:  0
+Total running seconds:  0.002
+Statistics:
+
+  Input points: 27
+  Input facets: 50
+  Input segments: 75
+  Input holes: 0
+  Input regions: 0
+
+  Mesh points: 28
+  Mesh tetrahedra: 68
+  Mesh faces: 161
+  Mesh faces on exterior boundary: 50
+  Mesh faces on input facets: 50
+  Mesh edges on input segments: 75
+  Steiner points inside domain: 1
+
+C:\Users\user\AppData\Local\Programs\Python\Python311\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\fem_uniaxial_compression.py:273: UserWarning: Glyph 51221 (\N{HANGUL SYLLABLE JEONG}) missing from font(s) DejaVu Sans.
+  plt.tight_layout()
+C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\fem_uniaxial_compression.py:273: UserWarning: Glyph 51228 (\N{HANGUL SYLLABLE JE}) missing from font(s) DejaVu Sans.
+  plt.tight_layout()
+C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\fem_uniaxial_compression.py:273: UserWarning: Glyph 54028 (\N{HANGUL SYLLABLE PA}) missing from font(s) DejaVu Sans.
+  plt.tight_layout()
+C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\fem_uniaxial_compression.py:273: UserWarning: Glyph 45800 (\N{HANGUL SYLLABLE DAN}) missing from font(s) DejaVu Sans.
+  plt.tight_layout()
+C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\fem_uniaxial_compression.py:274: UserWarning: Glyph 51221 (\N{HANGUL SYLLABLE JEONG}) missing from font(s) DejaVu Sans.
+  plt.savefig(PNG, dpi=120, bbox_inches='tight')
+C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\fem_uniaxial_compression.py:274: UserWarning: Glyph 51228 (\N{HANGUL SYLLABLE JE}) missing from font(s) DejaVu Sans.
+  plt.savefig(PNG, dpi=120, bbox_inches='tight')
+C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\fem_uniaxial_compression.py:274: UserWarning: Glyph 54028 (\N{HANGUL SYLLABLE PA}) missing from font(s) DejaVu Sans.
+  plt.savefig(PNG, dpi=120, bbox_inches='tight')
+C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\fem_uniaxial_compression.py:274: UserWarning: Glyph 45800 (\N{HANGUL SYLLABLE DAN}) missing from font(s) DejaVu Sans.
+  plt.savefig(PNG, dpi=120, bbox_inches='tight')
+============================================================
+ FEM Uniaxial Compression  (viewer=False)
+============================================================
+  E=2.0 GPa  ν=0.25  ρ=1300.0 kg/m³
+  v_plate=0.04 mm/s  duration=0.30 s
+  STL = tablet_R4.0_AR1.00_CV0.20.stl
+[stl] decimate 3256 → 50 faces  → C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\..\Sim_result\_tablet_decimated_50.stl
+[stl] bbox  x=[-4.05,4.13]  y=[-4.14,3.94]  z=[-2.04,2.04] mm
+[stl] z thickness = 4.08 mm
+[plate] gap = 6.08 mm  (margin 1.00 mm each side)
+[cam]  side-view  pos=(0.02, -0.2, 0.0030383812945921967)  lookat=(np.float64(0.0), np.float64(0.0), np.float64(0.0030383812945921967))  fov=6
+
+[tablet] nodes=70  z=[1.00, 5.08] mm
+[bc]     top nodes=1, bot nodes=2  (band=0.41 mm)
+[bc]     hard Dirichlet (implicit)
+
+[run] stepping...
+  t=   0.0 ms  d=0.0000 mm  top_z=5.0768mm  tablet_h=3.9361mm
+  t= 150.0 ms  d=0.0060 mm  top_z=5.0708mm  tablet_h=3.9301mm
+
+[saved video] C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\..\Sim_result\fem_uniaxial_20260626_194955.mp4
+[saved plot]  C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\FEM\..\Sim_result\fem_uniaxial_20260626_194955.png
+
+[summary] d_max=0.0119mm  ΔH_max=0.0119mm  ε_max=0.302%  σ_max=6.036 MPa

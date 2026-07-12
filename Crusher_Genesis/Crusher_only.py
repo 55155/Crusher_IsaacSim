@@ -28,6 +28,13 @@ import os, sys, shutil, tempfile
 import xml.etree.ElementTree as ET
 import numpy as np
 
+# Windows cp949 한글 깨짐 방지
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 DT, SUBSTEPS = 5e-4, 10     # substep_dt=5e-5 → min_timeconst=1e-4 (weld 0.2ms 까지 안전)
 RENDER_EVERY = 40
 N_WARMUP = 1000             # 0.5 s, crank 0 → -π/2 PD position 램프
@@ -80,6 +87,12 @@ CAM_POS    = (0.45, -0.45, 0.40)
 CAM_LOOKAT = (-0.10, 0.18, 0.07)
 CAM_FOV    = 42
 
+# 정면(+X, crusher_front_X.png 로 확인된 진짜 정면) 에서 위로 45도 올려본 앵글 —
+# frontcams["X"] 와 동일 거리/lookat 을 유지한 채 수평·수직으로 절반씩(cos45=sin45) 분배.
+FRONT45_DIST = 0.62
+FRONT45_FOV  = 30
+MP4_FRONT45  = os.path.join(OUT_DIR, "Crusher_only_front45.mp4")
+
 # ── 인쇄용 고해상도 스틸 (환경변수로 켬) ────────────────────────────────────
 #   PRINT_STILLS=1 : 시뮬 도중 12장을 고해상도·타이트 프레이밍으로 별도 저장
 #   FRAMING_TEST=1 : warmup 만 돌리고 1장만 저장 → fov/프레이밍 빠른 확인용
@@ -112,6 +125,7 @@ SLIDER_DIST      = float(os.environ.get("SLIDER_DIST", "0.42"))
 SLIDER_FOV       = float(os.environ.get("SLIDER_FOV", "22"))     # plate stroke 가 보이도록 살짝 당김
 SLIDER_SHIFT_Y   = float(os.environ.get("SLIDER_SHIFT_Y", "-0.02"))
 SLIDER_SHIFT_Z   = float(os.environ.get("SLIDER_SHIFT_Z", "0.0"))
+MP4_SLIDER_FRONT = os.path.join(OUT_DIR, "Crusher_only_slider_front.mp4")   # 슬라이더 정면 고정 구동 영상
 
 
 WALL_GEOMS_TO_ENABLE = {"L1_Wall1_1", "L1_Wall2_1", "L2_Wall3_1"}
@@ -241,6 +255,17 @@ def main(use_viewer: bool = True, show_collision: bool = False):
         surface=gs.surfaces.Default(smooth=False),
     )
     cam = scene.add_camera(res=(960, 720), pos=CAM_POS, lookat=CAM_LOOKAT, fov=CAM_FOV, GUI=False)
+    # 정면(+X) 에서 45도 위로 올려본 앵글 (구동 장면 녹화용)
+    lx, ly, lz = CAM_LOOKAT
+    _f45 = FRONT45_DIST / np.sqrt(2)
+    cam45 = scene.add_camera(res=(960, 720), pos=(lx + _f45, ly, lz + _f45),
+                             lookat=CAM_LOOKAT, up=(0, 0, 1), fov=FRONT45_FOV, GUI=False)
+    print(f"[front45] cam pos={(lx + _f45, ly, lz + _f45)}  lookat={CAM_LOOKAT}  "
+          f"dist={FRONT45_DIST} fov={FRONT45_FOV}  → {MP4_FRONT45}")
+    # 슬라이더(impact plate) 정면 고정 카메라 — pose 는 build 후 plate 실좌표로 재설정
+    camslider = scene.add_camera(res=(960, 720),
+                                 pos=(SLIDER_LOOKAT[0] + SLIDER_DIST, SLIDER_LOOKAT[1], SLIDER_LOOKAT[2]),
+                                 lookat=SLIDER_LOOKAT, up=(0, 0, 1), fov=SLIDER_FOV, GUI=False)
     # 인쇄용 고해상도 스틸 전용 카메라 (프레임을 꽉 채우도록 fov 를 당김)
     stillcam = None
     if PRINT_STILLS or FRAMING_TEST:
@@ -302,6 +327,24 @@ def main(use_viewer: bool = True, show_collision: bool = False):
     print(f"[ctrl] crank torque clip: ±{CRANK_TORQUE_LIM:.2f} N·m  "
           f"(준정적 8 RPM, slider F ≈ τ/(r·sin θ) → 625 N @ θ=90°)")
 
+    # ── 슬라이더(impact plate, L9) 정면 고정 카메라 pose 확정 ─────────────────
+    #   crank=0 인 초기 자세에서 plate 월드좌표를 구해 카메라를 그 정면(+X)에 고정.
+    _pp = None
+    for link in crusher.links:
+        if "L8_Link3_Shaft" in (link.name or ""):
+            for g in link.geoms:
+                if not (g.contype == 0 and g.conaffinity == 0):   # L9 plate = 충돌 활성
+                    q = g.get_pos()
+                    _pp = (q.cpu().numpy() if hasattr(q, "cpu") else np.asarray(q)).reshape(-1)[:3]
+                    break
+    if _pp is not None:
+        _la = (float(_pp[0]), float(_pp[1]) + SLIDER_SHIFT_Y, float(_pp[2]) + SLIDER_SHIFT_Z)
+        camslider.set_pose(pos=(_la[0] + SLIDER_DIST, _la[1], _la[2]), lookat=_la, up=(0, 0, 1))
+        print(f"[slider-front] plate world pos={np.round(_pp, 4)}  -> cam lookat={np.round(_la, 4)}  "
+              f"dist={SLIDER_DIST} fov={SLIDER_FOV}  → {MP4_SLIDER_FRONT}")
+    else:
+        print("[slider-front][WARN] L9 plate geom 을 못 찾음 — placeholder SLIDER_LOOKAT 유지")
+
     # 충돌 mesh 오버레이 (viewer + show_collision 일 때만)
     coll_geoms, coll_objs = [], []
     if use_viewer and show_collision:
@@ -318,6 +361,8 @@ def main(use_viewer: bool = True, show_collision: bool = False):
             scene.update_debug_objects(coll_objs, Ts)
 
     cam.start_recording()
+    cam45.start_recording()
+    camslider.start_recording()
 
     # ── 인쇄용 스틸 캡처 스케줄 (warmup 이후 전 구간에 균등 12장) ───────────────
     #   FRONT_STILL + PRINT_STILLS : 정면(+X) 카메라로 12장 (회전하는 정면 컨택트시트)
@@ -423,7 +468,7 @@ def main(use_viewer: bool = True, show_collision: bool = False):
         _tick_still()
         if (k + 1) % RENDER_EVERY == 0:
             _refresh_collision()
-            cam.render()
+            cam.render(); cam45.render(); camslider.render()
 
     # ── FRAMING_TEST : warmup 자세에서 스틸 1장만 저장하고 종료 (fov 확인용) ────
     if FRAMING_TEST and stillcam is not None:
@@ -456,7 +501,7 @@ def main(use_viewer: bool = True, show_collision: bool = False):
         _tick_still()
         if (k + 1) % RENDER_EVERY == 0:
             _refresh_collision()
-            cam.render()
+            cam.render(); cam45.render(); camslider.render()
         if (k + 1) % 200 == 0:
             q   = crusher.get_dofs_position().cpu().numpy()
             tau = crusher.get_dofs_control_force().cpu().numpy()
@@ -481,7 +526,7 @@ def main(use_viewer: bool = True, show_collision: bool = False):
             scene.step()
             _tick_still()
             if (k + 1) % RENDER_EVERY == 0:
-                _refresh_collision(); cam.render()
+                _refresh_collision(); cam.render(); cam45.render(); camslider.render()
             if (k + 1) % 200 == 0:
                 q = crusher.get_dofs_position().cpu().numpy()
                 wpos = float(q[wall_dof])
@@ -490,6 +535,10 @@ def main(use_viewer: bool = True, show_collision: bool = False):
 
     cam.stop_recording(save_to_filename=MP4_PATH, fps=30)
     print(f"[saved] {MP4_PATH}")
+    cam45.stop_recording(save_to_filename=MP4_FRONT45, fps=30)
+    print(f"[saved] {MP4_FRONT45}")
+    camslider.stop_recording(save_to_filename=MP4_SLIDER_FRONT, fps=30)
+    print(f"[saved] {MP4_SLIDER_FRONT}")
 
     if wlog:
         fwd = np.array([r[2] for r in wlog if r[0] == "fwd"])

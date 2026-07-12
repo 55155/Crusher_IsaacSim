@@ -5,11 +5,12 @@ Crusher_Samplebag.py — Crusher + Samplebag(내부 박스) 단독 삽입+클램
 gap 위에서 시작 → 천천히 하강 → 목표(=Wall_back ↔ Left_Wall 사이) 도달.
 이후 Motor2 가 Left_Wall 을 닫고, Motor1 크랭크가 동작해 박스를 타격.
 
-시퀀스:
-  1. openwall : Left_Wall 0 → -7mm 개방. 완전히 열릴 때까지 다른 동작 정지(봉투 매단 채 대기)
-  2. bagsettle: 매달린 봉투 안정화 (박스 옆에 대기)
-  3. dropbox  : 박스를 mouth 위로 옮겨 매달린 봉투 안으로 낙하
-  4. descend  : carrier 가 봉투(+박스)를 start_pos → target_pos(슬롯) 로 선형 하강
+시퀀스 (박스 먼저 삽입):
+  1. dropbox  : 박스를 매달린 봉투 mouth 위에서 자유낙하 (다른 동작 이전에 먼저 삽입)
+  2. openwall : Left_Wall 0 → -7mm 개방 + 크랭크 홈 램프. 봉투/박스는 carrier 에 매달린 채 정지
+  3. bagsettle: 박스가 들어간 봉투 안정화
+  4. descend  : carrier 가 봉투(+박스)를 start_pos → target_pos(슬롯) 로 선형 하강.
+                완전히 내리지 않고 Crusher 벽 포켓 깊이의 중간쯤에서 정지
   5. warmup   : Motor1 크랭크 0 → -π/2 (start angle) 까지 PD position 램프
   6. clamp    : Motor2 Left_Wall +5 mm/s 슬라이드 (back wall 쪽으로 닫힘)
   7. crank    : Motor1 +π rad/s 등속 회전 (분쇄)
@@ -36,12 +37,12 @@ RENDER_EVERY = 15
 
 # ── 샘플백 (PBD cloth) ──────────────────────────────────────────────────────
 # 원래 medicine envelope 스케일 (80×120 mm). D 만 PBD 안정성 위해 6 mm 유지
-# (원본 10 mm → 6 mm; 2·particle_size=5.66 mm 보다 큼).
+# (원본 10 mm → 6 mm; 2·particle_size 는 D 보다 작아야 함 — 아래서 검증).
 W, H, D = 0.08, 0.12, 0.006     # 80 × 120 × 6 mm
-NW, NH, ND = 16, 24, 2
-PARTICLE_SIZE = 2.83e-3
-STRETCH_COMPLIANCE = 1e-3
-BENDING_COMPLIANCE = 1e-3
+NW, NH, ND = 32, 48, 2           # 입자 밀도 2배 (기존 16×24 → 32×48)
+PARTICLE_SIZE = 1.0e-3           # 입자간 최소 결합/충돌 간격 최소화 (기존 2.83mm → 1.0mm; 2·size=2mm < D=6mm)
+STRETCH_COMPLIANCE = 1e-5        # 봉투 강성 100배 증가 (기존 1e-3)
+BENDING_COMPLIANCE = 1e-5        # 봉투 강성 100배 증가 (기존 1e-3)
 
 # ── 박스 (봉투 내용물) ──────────────────────────────────────────────────────
 BOX_SIZE = (0.015, 0.004, 0.015)
@@ -57,7 +58,8 @@ SLOT_DZ_START  =  0.20    # target 보다 20 cm 위에서 시작
 SLOT_DZ_FINAL  =  0.00    # 봉투 mouth 이 wall_top 과 같은 높이
 # 봉투를 슬롯에 완전히 앉히면 120mm 봉투가 crumple 되어 파티클이 gap 을 메워 슬라이더가
 # 끝까지 못 닫힘. target_z 위 이만큼에서 정지(부분 삽입) → 물려있는 재료를 줄여 클램프.
-DESCEND_STOP_ABOVE = float(os.environ.get("DESCEND_STOP_ABOVE", "0.10"))  # m (0=완전 하강)
+# 미지정(env 없음) 시 main() 에서 벽 포켓 깊이의 중간까지만 삽입되도록 자동 계산됨.
+DESCEND_STOP_ABOVE_ENV = os.environ.get("DESCEND_STOP_ABOVE")  # m (지정 시 이 값 우선, 0=완전 하강)
 
 # ── 크랭크 / 벽 PD 게인 + 동작 파라미터 ─────────────────────────────────────
 CRANK_KP, CRANK_KV = 2000.0, 100.0
@@ -327,13 +329,12 @@ def main(use_viewer: bool = True):
         morph=gs.morphs.Mesh(file=STL_PATH, scale=1.0, pos=bag_pos_init, euler=(90, 0, 90)),
         surface=gs.surfaces.Default(color=(0.97, 0.97, 0.95), opacity=0.7, roughness=0.9, double_sided=True),
     )
-    # 박스 — 봉투가 슬롯에 안정화될 때까지 옆에 파킹(set_pos 로 hold), 이후 mouth 위로
-    #   옮겨 낙하시킨다. dynamic(fixed=False) 이라 매 step set_pos 로 붙들어 둠.
-    box_park   = (target_x, target_y - 0.20, target_z + 0.10)   # 슬롯에서 y 로 비켜둔 대기 위치
+    # 박스 — 다른 동작(openwall/bagsettle/descend)보다 먼저, mouth 바로 위에서 시작해
+    #   자유낙하로 봉투 안에 삽입한다. dynamic(fixed=False).
     box_drop_p = (start_x, start_y, start_z + 0.03)             # 매달린 봉투 mouth 바로 위
     box = scene.add_entity(
         material=gs.materials.Rigid(rho=BOX_RHO),
-        morph=gs.morphs.Box(size=BOX_SIZE, pos=box_park, fixed=False),
+        morph=gs.morphs.Box(size=BOX_SIZE, pos=box_drop_p, fixed=False),
         surface=gs.surfaces.Default(color=(0.85, 0.35, 0.25)),
     )
     # carrier — 봉투 corners 가 부착될 invisible kinematic rigid.
@@ -429,12 +430,16 @@ def main(use_viewer: bool = True):
 
     start_p = np.array([start_x,  start_y,  start_z])
     final_p = np.array([target_x, target_y, target_z])
-    # 부분 삽입 정지 위치 (완전 하강 대신 target 위 DESCEND_STOP_ABOVE 에서 멈춤)
+    # 부분 삽입 정지 위치: 완전 하강(target_z, 벽 포켓을 뚫고 지나감) 대신
+    # 봉투 하단이 벽 포켓(depth=wall_depth) 의 세로 중앙에 오는 높이에서 멈춘다.
+    if DESCEND_STOP_ABOVE_ENV is not None:
+        DESCEND_STOP_ABOVE = float(DESCEND_STOP_ABOVE_ENV)
+    else:
+        DESCEND_STOP_ABOVE = H - wall_depth / 2.0
     stop_p  = np.array([target_x, target_y, target_z + DESCEND_STOP_ABOVE])
-    box_park_p = np.array(box_park)
     print(f"[descend] stop_z={stop_p[2]:.4f} (target {target_z:.4f} +{DESCEND_STOP_ABOVE*1000:.0f}mm)  "
           f"→ bag_bottom≈{stop_p[2]-H:.4f} vs wall_top {wall_top_z:.4f} "
-          f"(slot 삽입 {(wall_top_z-(stop_p[2]-H))*1000:+.0f}mm)")
+          f"(slot 삽입 {(wall_top_z-(stop_p[2]-H))*1000:+.0f}mm, 벽 포켓 깊이 {wall_depth*1000:.0f}mm 중 절반 목표)")
 
     # ── (진단) CRANK_SWEEP=1 : 크랭크 각도별 L8 크러싱헤드 world 위치 측정 → 후퇴각 탐색 ──
     if os.environ.get("CRANK_SWEEP") == "1":
@@ -448,23 +453,35 @@ def main(use_viewer: bool = True):
             for _ in range(120):
                 crusher.control_dofs_position(np.array([q]), dofs_idx_local=[crank_dof])
                 crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
-                carrier.set_pos(start_p, zero_velocity=True); box.set_pos(box_park_p, zero_velocity=True)
+                carrier.set_pos(start_p, zero_velocity=True)
                 scene.step()
             p = _npy(l8_link.get_pos()) if l8_link is not None else np.array([np.nan]*3)
             print(f"[sweep] crank={q:+.3f}rad ({-deg:+4d}°)  L8=({p[0]:.4f},{p[1]:.4f},{p[2]:.4f})  "
                   f"dx_slot={p[0]-gap_cx:+.4f}  dy_slot={p[1]-gap_cy:+.4f}")
         print("[sweep] done — 크랭크 각도별 L8 위치 위 참조"); return
 
-    # ── Phase 1: openwall (Left_Wall 0 → -7mm 개방, 완전히 열릴 때까지 대기) ──
-    #   봉투는 carrier 가 start 위치에 매달아 둠, 박스는 옆에 hold → 벽만 움직인다.
-    print(f"\n[phase] 1/7 openwall ({N_OPENWALL*DT:.1f} s) — Left_Wall {WALL_OFFSET*1000:+.0f}mm 개방 "
+    # ── Phase 1: dropbox (다른 동작보다 먼저 박스를 매달린 봉투 안으로 낙하) ──
+    #   박스는 이미 mouth 바로 위(box_drop_p)에서 스폰되어 자유낙하 중. carrier 는 start 위치 고정,
+    #   벽은 이미 개방 상태(위 set_dofs_position 스냅) 유지, 크랭크는 초기위치(0) 유지.
+    print(f"\n[phase] 1/7 dropbox ({N_DROPBOX*DT:.1f} s) — 박스를 mouth 위에서 자유낙하 (선삽입)")
+    for _ in range(N_DROPBOX):
+        crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+        crusher.control_dofs_position(np.array([0.0]), dofs_idx_local=[crank_dof])   # 크랭크 초기위치 유지
+        carrier.set_pos(start_p, zero_velocity=True)            # 봉투 매단 채 정지
+        scene.step(); step[0] += 1
+        render_tick()
+    bp = _npy(box.get_pos()); bc = bag_com()
+    print(f"  [dropbox] box=({bp[0]:.3f},{bp[1]:.3f},{bp[2]:.3f})  bag_com_z={bc[2]:.4f}")
+
+    # ── Phase 2: openwall (Left_Wall 0 → -7mm 개방 유지 + 크랭크 홈 램프) ──
+    #   봉투(+박스)는 carrier 가 start 위치에 매달아 둔 채 벽/크랭크만 움직인다.
+    print(f"[phase] 2/7 openwall ({N_OPENWALL*DT:.1f} s) — Left_Wall {WALL_OFFSET*1000:+.0f}mm 개방 "
           f"+ 크랭크 0 → {CRANK_START_Q:+.3f}rad(-180°) 후퇴 램프")
     for k in range(N_OPENWALL):
         s = (k + 1) / N_OPENWALL
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
         crusher.control_dofs_position(np.array([CRANK_START_Q * s]), dofs_idx_local=[crank_dof])  # 0→-180° 램프
         carrier.set_pos(start_p, zero_velocity=True)           # 봉투 매단 채 정지
-        box.set_pos(box_park_p, zero_velocity=True)            # 박스 대기
         scene.step(); step[0] += 1
         render_tick()
     cq = _npy(crusher.get_dofs_position())[crank_dof]
@@ -473,29 +490,16 @@ def main(use_viewer: bool = True):
     print(f"  [openwall] wall q={wq*1000:+.2f}mm (open, hold)  link_x={_lw_x():.4f}  "
           f"eff gap≈{(gap_width+wq)*1000:.1f}mm  (bag {D*1000:.0f}mm 여유 {(gap_width+wq-D)*1000:+.1f}mm)")
 
-    # ── Phase 2: bagsettle (매달린 봉투 안정화, 벽 개방 유지) ──
-    print(f"[phase] 2/7 bagsettle ({N_BAGSETTLE*DT:.1f} s) — 매달린 봉투 안정화")
+    # ── Phase 3: bagsettle (박스가 들어간 봉투 안정화, 벽 개방 유지) ──
+    print(f"[phase] 3/7 bagsettle ({N_BAGSETTLE*DT:.1f} s) — 박스 포함 봉투 안정화")
     for _ in range(N_BAGSETTLE):
         crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
         crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])  # 홈(-180°) 유지
         carrier.set_pos(start_p, zero_velocity=True)
-        box.set_pos(box_park_p, zero_velocity=True)
         scene.step(); step[0] += 1
         render_tick()
-    bc = bag_com()
-    print(f"  [bagsettle] bag_com=({bc[0]:.3f},{bc[1]:.3f},{bc[2]:.3f})")
-
-    # ── Phase 3: dropbox (매달린 봉투 안으로 박스 낙하) ──
-    print(f"[phase] 3/7 dropbox ({N_DROPBOX*DT:.1f} s) — 박스를 mouth 위로 옮겨 낙하")
-    box.set_pos(np.array(box_drop_p), zero_velocity=True)      # mouth 위로 1회 이동 후 자유낙하
-    for _ in range(N_DROPBOX):
-        crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
-        crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])  # 홈(-180°) 유지
-        carrier.set_pos(start_p, zero_velocity=True)           # 봉투 매단 채 정지
-        scene.step(); step[0] += 1
-        render_tick()
-    bp = _npy(box.get_pos()); bc = bag_com()
-    print(f"  [dropbox] box=({bp[0]:.3f},{bp[1]:.3f},{bp[2]:.3f})  bag_com_z={bc[2]:.4f}")
+    bc = bag_com(); bp = _npy(box.get_pos())
+    print(f"  [bagsettle] bag_com=({bc[0]:.3f},{bc[1]:.3f},{bc[2]:.3f})  box=({bp[0]:.3f},{bp[1]:.3f},{bp[2]:.3f})")
 
     # ── Phase 4: descend (봉투+박스를 슬롯 안으로 하강) ──
     #   크랭크 홈 -180° 유지 → L8 크러싱헤드 완전 후퇴(슬롯 밖). Left_Wall 도 개방 유지.
