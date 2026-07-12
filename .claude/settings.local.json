@@ -148,7 +148,11 @@
       "Bash(git -C /c/Crusher_isaacsim commit -m ' *)",
       "Bash(git -C /c/Crusher_isaacsim push)",
       "PowerShell(git checkout --theirs -- Crusher_Genesis/FEM/ipc_grasp_bag_test.py Crusher_Genesis/Sim_result/ipc_grasp_bag_close.png Crusher_Genesis/Sim_result/ipc_grasp_bag_hold.png Crusher_Genesis/Sim_result/ipc_grasp_bag_lift.png Crusher_Genesis/Sim_result/ipc_grasp_bag_settle.png)",
-      "PowerShell(git add .claude/settings.local.json Crusher_Genesis/FEM/ipc_grasp_bag_test.py Crusher_Genesis/Sim_result/ipc_grasp_bag_close.png Crusher_Genesis/Sim_result/ipc_grasp_bag_hold.png Crusher_Genesis/Sim_result/ipc_grasp_bag_lift.png Crusher_Genesis/Sim_result/ipc_grasp_bag_settle.png)"
+      "PowerShell(git add .claude/settings.local.json Crusher_Genesis/FEM/ipc_grasp_bag_test.py Crusher_Genesis/Sim_result/ipc_grasp_bag_close.png Crusher_Genesis/Sim_result/ipc_grasp_bag_hold.png Crusher_Genesis/Sim_result/ipc_grasp_bag_lift.png Crusher_Genesis/Sim_result/ipc_grasp_bag_settle.png)",
+      "PowerShell(Get-ChildItem \"$env:APPDATA\\\\Autodesk\\\\Autodesk Fusion 360\\\\API\" -Directory -ErrorAction SilentlyContinue | Select-Object FullName)",
+      "PowerShell($dst = \"$env:APPDATA\\\\Autodesk\\\\Autodesk Fusion 360\\\\API\\\\Scripts\\\\fusion_sample_bag_surface\"; New-Item -ItemType Directory -Force $dst | Out-Null; Copy-Item C:\\\\Crusher_isaacsim\\\\CODES\\\\fusion_sample_bag_surface.py \"$dst\\\\fusion_sample_bag_surface.py\"; New-Item -ItemType Directory -Force C:\\\\Crusher_isaacsim\\\\utills | Out-Null; Copy-Item C:\\\\Crusher_isaacsim\\\\CODES\\\\fusion_sample_bag_surface.py C:\\\\Crusher_isaacsim\\\\utills\\\\fusion_sample_bag_surface.py; Remove-Item C:\\\\Crusher_isaacsim\\\\CODES\\\\fusion_sample_bag_surface.py -Confirm:$false)",
+      "PowerShell(Get-ChildItem \"$env:APPDATA\\\\Autodesk\\\\Autodesk Fusion 360\\\\API\\\\Scripts\\\\fusion_sample_bag_surface\", C:\\\\Crusher_isaacsim\\\\utills | Select-Object FullName, Length)",
+      "Bash(python -c \"import json; json.load\\(open\\(r'.claude/settings.local.json', encoding='utf-8-sig'\\)\\)\")"
     ]
   }
 }
