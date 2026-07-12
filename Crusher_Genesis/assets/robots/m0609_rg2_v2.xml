@@ -1,0 +1,222 @@
+<mujoco model="m0609_rg2_v2">
+  <!--
+    m0609 + OnRobot RG2 — 실물 충실 버전 (reference candidate, 프로덕션 미연결).
+
+    RG2 지오메트리/질량은 커뮤니티 ROS 패키지(inria-paris-robotics-lab/onrobot_ros,
+    원본 ikalevatykh/onrobot_ros, MIT license)의 rg2_v1.yaml + STL(OnRobot 공식
+    형상)에서 가져옴 — assets/robots/rg2/reference_onrobot_ros/ 참고.
+    body 질량 0.65kg 은 OnRobot RG2 공식 데이터시트(Datasheet v1.4) 무게 스펙과
+    정확히 일치 → 지오메트리/질량 값은 신뢰할 만함.
+
+    관절 range: 원래 커뮤니티 yaml 그대로 [0, 1.3] rad 사용 — 이게 맞았다.
+    (한때 flex_finger "몸체 원점"(피벗) 기준으로 gap 을 재보고 [0.8229, 1.8751]로
+    "재교정"한 적이 있었는데, 그 기준점 자체가 틀렸다. flex_finger.stl 의 실제
+    패드 mesh 중심은 몸체원점에서 로컬 -X 로 27mm 더 안쪽 — 이 오프셋을 반영해
+    <equality> 를 mj_step 으로 실제로 풀며(mj_forward 단독 스냅샷이 아니라
+    velocity actuator 로 q=0→1.3 을 물리스텝으로 구동) 다시 측정하니, [0,1.3] 전
+    구간에서 pad_gap 이 112.10mm(q=0, 열림) → 1.30mm(q=1.3, 닫힘) 까지 단조감소.
+    112mm 는 OnRobot 데이터시트 Total stroke 0-110mm 스펙과 거의 정확히 일치.
+    → q=0 열림, q=1.3 닫힘이 맞고, 재교정판 [0.8229,1.8751] 은 비단조 구간이라
+    오히려 잘못된 값이었다.
+
+    effort/velocity 는 OnRobot 이 공개하지 않는 내부 모터 스펙 대신, 데이터시트의
+    Cartesian 스펙(gripping force 3-40N, speed 55-184mm/s)을 레버암으로 환산한
+    근사치 (레버암은 q 에 따라 크게 변함 — 닫힘 근처는 기계적 이득이 커짐).
+
+    이 관절은 폐루프(4-bar) 를 실제로 풀지 않는다 — URDF 의 mimic 방식과 동일하게
+    moment_arm(=gripper_joint, 유일한 능동 관절)만 구동하고, truss_arm/finger_tip/
+    finger2 쪽 3개 관절은 <equality><joint> 로 1:1 동기화한다. 단, Genesis 1.1.0 은
+    이 <equality><joint> 를 제대로 안 지키므로(PROJECT_NOTES.md §4.5) Genesis 에서
+    쓸 때는 6개 gripper DOF 를 매 스텝 전부 동일 값으로 set_dofs_position 해야 한다
+    (M0609_RG2/grasp_box_test.py 참고). 네이티브 MuJoCo 는 mj_step 으로 정상 동작.
+
+    초기 qpos=0 은 range 안(=열림, 정상)이므로 별도 초기화 불필요.
+  -->
+
+  <compiler angle="radian" meshdir="."/>
+  <!-- gripper_joint 의 5개 <equality><joint> mimic 이 velocity actuator 와 결합되면
+       기본 Euler 적분기에서 수치발산(qacc 폭주)함 — implicitfast 로 stiff 제약을
+       안정적으로 처리 (질량/관성이 매우 작은 finger 링크들과 결합된 stiff 시스템). -->
+  <option integrator="implicitfast"/>
+
+  <asset>
+    <mesh name="MF0609_0_0" file="m0609/assets/MF0609_0_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_1_0" file="m0609/assets/MF0609_1_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_0" file="m0609/assets/MF0609_2_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_1" file="m0609/assets/MF0609_2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_2" file="m0609/assets/MF0609_2_2.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_3_0" file="m0609/assets/MF0609_3_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_4_0" file="m0609/assets/MF0609_4_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_4_1" file="m0609/assets/MF0609_4_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_5_0" file="m0609/assets/MF0609_5_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_6_0" file="m0609/assets/MF0609_6_0.stl" scale="0.001 0.001 0.001"/>
+
+    <!-- OnRobot RG2 공식 STL (m 단위, 스케일 변환 불필요 — body.stl 높이 118mm 실측 확인) -->
+    <mesh name="rg2_body"        file="rg2/reference_onrobot_ros/meshes/rg2_v1/visual/body.stl"/>
+    <mesh name="rg2_bracket"     file="rg2/reference_onrobot_ros/meshes/rg2_v1/visual/single_bracket.stl"/>
+    <mesh name="rg2_moment_arm"  file="rg2/reference_onrobot_ros/meshes/rg2_v1/visual/moment_arm.stl"/>
+    <mesh name="rg2_truss_arm"   file="rg2/reference_onrobot_ros/meshes/rg2_v1/visual/truss_arm.stl"/>
+    <mesh name="rg2_finger_tip"  file="rg2/reference_onrobot_ros/meshes/rg2_v1/visual/finger_tip.stl"/>
+    <mesh name="rg2_flex_finger" file="rg2/reference_onrobot_ros/meshes/rg2_v1/visual/flex_finger.stl"/>
+
+    <mesh name="rg2_body_col"        file="rg2/reference_onrobot_ros/meshes/rg2_v1/collision/body.stl"/>
+    <mesh name="rg2_bracket_col"     file="rg2/reference_onrobot_ros/meshes/rg2_v1/collision/single_bracket.stl"/>
+    <mesh name="rg2_moment_arm_col"  file="rg2/reference_onrobot_ros/meshes/rg2_v1/collision/moment_arm.stl"/>
+    <mesh name="rg2_truss_arm_col"   file="rg2/reference_onrobot_ros/meshes/rg2_v1/collision/truss_arm.stl"/>
+    <mesh name="rg2_finger_tip_col"  file="rg2/reference_onrobot_ros/meshes/rg2_v1/collision/finger_tip.stl"/>
+    <mesh name="rg2_flex_finger_col" file="rg2/reference_onrobot_ros/meshes/rg2_v1/collision/flex_finger.stl"/>
+
+    <material name="white" rgba="0.9 0.9 0.9 1"/>
+    <material name="metal" rgba="0.65 0.65 0.65 1"/>
+    <material name="rg2_grey" rgba="0.75 0.75 0.77 1"/>
+    <material name="rg2_dark" rgba="0.15 0.15 0.17 1"/>
+  </asset>
+
+  <worldbody>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_0_0" material="metal"/>
+    <body name="link_1" pos="0 0 0.1345">
+      <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+      <joint name="joint_1" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-400 400" damping="400" frictionloss="1"/>
+      <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_1_0" material="white"/>
+      <body name="link_2" pos="0 0.0062 0" quat="0.499898 -0.500102 -0.5 -0.5">
+        <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+        <joint name="joint_2" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-300 300" damping="400" frictionloss="1"/>
+        <geom type="mesh" mesh="MF0609_2_0"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_0" material="white"/>
+        <geom type="mesh" mesh="MF0609_2_1"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_1" material="metal"/>
+        <geom type="mesh" mesh="MF0609_2_2"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_2" material="white"/>
+        <body name="link_3" pos="0.411 0 0" quat="0.707035 0 0 0.707179">
+          <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+          <joint name="joint_3" pos="0 0 0" axis="0 0 1" range="-2.618 2.618" actuatorfrcrange="-300 300" damping="400" frictionloss="1"/>
+          <geom type="mesh" mesh="MF0609_3_0"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_3_0" material="white"/>
+          <body name="link_4" pos="0 -0.368 0" quat="0.707035 0.707179 0 0">
+            <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+            <joint name="joint_4" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-200 200" damping="400" frictionloss="1"/>
+            <geom type="mesh" mesh="MF0609_4_0"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_4_0" material="white"/>
+            <geom type="mesh" mesh="MF0609_4_1"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_4_1" material="white"/>
+            <body name="link_5" quat="0.707035 -0.707179 0 0">
+              <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
+              <joint name="joint_5" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-220 220" damping="300" frictionloss="1"/>
+              <geom type="mesh" mesh="MF0609_5_0"/>
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_5_0" material="white"/>
+              <body name="link_6" pos="0 -0.121 0" quat="0.707035 0.707179 0 0">
+                <inertial pos="-3e-05 -4.5e-05 -0.0539" quat="0.963897 0.266271 -0.00109467 0.000577053" mass="1.16" diaginertia="0.00802262 0.00540366 0.00538672"/>
+                <joint name="joint_6" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-50 50" damping="200" frictionloss="1"/>
+                <geom type="mesh" mesh="MF0609_6_0"/>
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_6_0" material="metal"/>
+
+                <!-- ===== OnRobot RG2 (공식 STL, moment_arm/truss_arm mimic 구조) =====
+                     link_6 local +Z = 플랜지 접근축(기존 rg2_hand 의 euler -90y 보정에서
+                     역산). RG2 자체 좌표계도 grasp_frame=(0,0,0.14) 로 +Z 가 접근축이라
+                     별도 회전 없이 그대로 부착. -->
+                <body name="gripper_bracket" pos="0 0 0" euler="0 0 0">
+                  <inertial pos="0 0 0.03" mass="0.09" diaginertia="1e-4 1e-4 1e-4"/>
+                  <geom type="mesh" mesh="rg2_bracket" material="rg2_grey" contype="0" conaffinity="0"/>
+                  <geom type="mesh" mesh="rg2_bracket_col" contype="0" conaffinity="0" group="3"/>
+
+                  <body name="gripper_body" pos="0 0 0.05" euler="0 0 0">
+                    <inertial pos="0 0 0.06" mass="0.65" diaginertia="1e-3 1e-3 1e-3"/>
+                    <geom type="mesh" mesh="rg2_body" material="rg2_grey" contype="0" conaffinity="0"/>
+                    <geom type="mesh" mesh="rg2_body_col" contype="0" conaffinity="0" group="3"/>
+                    <site name="grasp_frame" pos="0 0 0.14" size="0.004"/>
+
+                    <!-- ==== finger 1 (master, moment_arm 이 유일한 능동 관절) ==== -->
+                    <body name="f1_moment_arm" pos="-0.017 0 0.055" euler="0 -0.772 0">
+                      <inertial pos="0.02 0 0.03" mass="0.001" diaginertia="1e-4 1e-4 1e-4"/>
+                      <joint name="gripper_joint" type="hinge" axis="0 1 0"
+                             range="0 1.3" damping="0.17" frictionloss="0.02"/>
+                      <geom type="mesh" mesh="rg2_moment_arm" material="rg2_grey" contype="0" conaffinity="0"/>
+                    </body>
+                    <body name="f1_truss_arm" pos="-0.0075 0 0.0715" euler="0 -0.772 0">
+                      <inertial pos="0.015 0 0.03" mass="0.001" diaginertia="1e-4 1e-4 1e-4"/>
+                      <joint name="f1_truss_arm_joint" type="hinge" axis="0 1 0" range="-3.1416 3.1416"/>
+                      <geom type="mesh" mesh="rg2_truss_arm" material="rg2_grey" contype="0" conaffinity="0"/>
+                      <geom type="mesh" mesh="rg2_truss_arm_col" contype="0" conaffinity="0" group="3"/>
+                      <body name="f1_finger_tip" pos="-0.0256 0 0.04868" euler="0 0.772 0">
+                        <inertial pos="0 0 0.01" mass="0.001" diaginertia="1e-4 1e-4 1e-4"/>
+                        <joint name="f1_finger_tip_joint" type="hinge" axis="0 -1 0" range="-3.1416 3.1416"/>
+                        <geom type="mesh" mesh="rg2_finger_tip" material="rg2_grey" contype="0" conaffinity="0"/>
+                        <geom type="mesh" mesh="rg2_finger_tip_col" contype="0" conaffinity="0" group="3"/>
+                        <body name="f1_flex_finger" pos="0.03059 0 0.0172" euler="0 0 0">
+                          <inertial pos="0 0 0.01" mass="0.001" diaginertia="1e-4 1e-4 1e-4"/>
+                          <geom type="mesh" mesh="rg2_flex_finger" material="rg2_dark" contype="0" conaffinity="0"/>
+                          <geom type="mesh" mesh="rg2_flex_finger_col" contype="0" conaffinity="0" group="3"/>
+                          <site name="f1_pad" pos="0 0 0" size="0.003"/>
+                        </body>
+                      </body>
+                    </body>
+
+                    <!-- ==== finger 2: f2_origin 을 Z축 180도로 미러링한 뒤, 그 안에서는
+                         finger 1 과 완전히 동일한 로컬 수치를 재사용 (xacro 의
+                         origin_joint rpy="0 0 pi" 미러 방식과 동일. rg2_calib.xml 로
+                         mj_forward 검증 완료 — 별도 geom 보정 불필요, 부모 프레임의
+                         180도 회전이 하위 mesh 에 그대로 전파됨). ==== -->
+                    <body name="f2_origin" pos="0 0 0" euler="0 0 3.14159265">
+                      <body name="f2_moment_arm" pos="-0.017 0 0.055" euler="0 -0.772 0">
+                        <inertial pos="0.02 0 0.03" mass="0.001" diaginertia="1e-4 1e-4 1e-4"/>
+                        <joint name="gripper_mirror_joint" type="hinge" axis="0 1 0" range="-3.1416 3.1416"/>
+                        <geom type="mesh" mesh="rg2_moment_arm" material="rg2_grey" contype="0" conaffinity="0"/>
+                      </body>
+                      <body name="f2_truss_arm" pos="-0.0075 0 0.0715" euler="0 -0.772 0">
+                        <inertial pos="0.015 0 0.03" mass="0.001" diaginertia="1e-4 1e-4 1e-4"/>
+                        <joint name="f2_truss_arm_joint" type="hinge" axis="0 1 0" range="-3.1416 3.1416"/>
+                        <geom type="mesh" mesh="rg2_truss_arm" material="rg2_grey" contype="0" conaffinity="0"/>
+                        <geom type="mesh" mesh="rg2_truss_arm_col" contype="0" conaffinity="0" group="3"/>
+                        <body name="f2_finger_tip" pos="-0.0256 0 0.04868" euler="0 0.772 0">
+                          <inertial pos="0 0 0.01" mass="0.001" diaginertia="1e-4 1e-4 1e-4"/>
+                          <joint name="f2_finger_tip_joint" type="hinge" axis="0 -1 0" range="-3.1416 3.1416"/>
+                          <geom type="mesh" mesh="rg2_finger_tip" material="rg2_grey" contype="0" conaffinity="0"/>
+                          <geom type="mesh" mesh="rg2_finger_tip_col" contype="0" conaffinity="0" group="3"/>
+                          <body name="f2_flex_finger" pos="0.03059 0 0.0172" euler="0 0 0">
+                            <inertial pos="0 0 0.01" mass="0.001" diaginertia="1e-4 1e-4 1e-4"/>
+                            <geom type="mesh" mesh="rg2_flex_finger" material="rg2_dark" contype="0" conaffinity="0"/>
+                            <geom type="mesh" mesh="rg2_flex_finger_col" contype="0" conaffinity="0" group="3"/>
+                            <site name="f2_pad" pos="0 0 0" size="0.003"/>
+                          </body>
+                        </body>
+                      </body>
+                    </body>
+
+                  </body>
+                </body>
+
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <position joint="joint_1" kp="2000" kv="100" ctrlrange="-6.2832 6.2832"/>
+    <position joint="joint_2" kp="2000" kv="100" ctrlrange="-6.2832 6.2832"/>
+    <position joint="joint_3" kp="2000" kv="100" ctrlrange="-2.618 2.618"/>
+    <position joint="joint_4" kp="1000" kv="50"  ctrlrange="-6.2832 6.2832"/>
+    <position joint="joint_5" kp="1000" kv="50"  ctrlrange="-6.2832 6.2832"/>
+    <position joint="joint_6" kp="500"  kv="25"  ctrlrange="-6.2832 6.2832"/>
+
+    <!-- OnRobot 데이터시트: gripping force 3-40N, speed 55-184mm/s (Cartesian).
+         range [0,1.3] 전체가 열림(q=0,112mm)→닫힘(q=1.3,~0mm) 단조 구간(velocity
+         actuator + mj_step 으로 검증, M0609_RG2/rg2_velocity_check.py).
+         torque 2.0Nm ≈ 40N x 레버암(mid-open ~50mm) 근사. -->
+    <position joint="gripper_joint" kp="30" kv="1.5" ctrlrange="0 1.3" forcerange="-2.0 2.0"/>
+  </actuator>
+
+  <!-- 폐루프를 직접 풀지 않고 mimic 으로 대체 (URDF onrobot_rg.urdf.xacro 와 동일한
+       multiplier=1 offset=0 관계). 평행링크(parallelogram)라는 가정 하의 근사 —
+       실제 moment_arm 길이를 독립 검증할 데이터가 없어 "정확한 해"라고 단정할 수는
+       없지만, mimic 이 표현 가능한 선형 관계 중 최선의 근사다. -->
+  <equality>
+    <joint joint1="f1_truss_arm_joint"   joint2="gripper_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="f1_finger_tip_joint"  joint2="gripper_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="gripper_mirror_joint" joint2="gripper_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="f2_truss_arm_joint"   joint2="gripper_joint" polycoef="0 1 0 0 0"/>
+    <joint joint1="f2_finger_tip_joint"  joint2="gripper_joint" polycoef="0 1 0 0 0"/>
+  </equality>
+</mujoco>
