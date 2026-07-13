@@ -118,6 +118,24 @@
 > 과거 SAP 결과(`fem_uniaxial_20260629_*` 등)는 Genesis 0.2.1 + Taichi 산물이라
 > 새 환경 결과와 직접 비교 시 백엔드 차이 고려 필요.
 
+### 5-2. 실링부 마찰 파지 — *해결됨* (2026-07-13)
+
+M0609+RG2 로 봉투 옆면 실링부(~1cm)를 순수 접촉+마찰로 파지(weld 없이).
+
+- **PBD.Cloth + 핑거 mesh 접촉 → 즉시 폭발.** 5-1의 우려가 실제로 발생(자기충돌
+  제약과 손가락 침투 해석이 충돌). → **IPC 커플러**로 전환(`gs.options.IPCCouplerOptions`).
+  단, IPC는 PBD를 못 보므로 봉투 재질을 **`gs.materials.FEM.Cloth`** 로 교체.
+- 실측 STL(옆면·바닥이 두께 0으로 핀치된 실링선 포함)을 그대로 넣으면 IPC
+  self-intersection sanity check에서 계속 실패. 클리핑/데시메이션 다 시도해도
+  실패 지속. **진짜 원인은 위상이 아니라 로그를 올려야 보이는 네이티브 에러**:
+  `Geometry(0) in cloth_0_0 is too close (distance=1.2mm, thickness=2mm) to
+  Geometry(0) in cloth_0_0` — front/back 패널 간격이 material thickness 대비
+  너무 얇아서 생긴 **자기충돌**. 이미 검증된 procedural 5-panel 프록시(간격 6mm)
+  로 교체하니 즉시 해결.
+- 그리퍼는 6DOF mimic(m0609_rg2_v2.xml) 대신 **단순 2DOF(m0609_rg2.xml)** +
+  `set_dofs_position` 텔레포트 사용(IPC의 `two_way_soft_constraint` 가 반력을
+  자체 처리, PD 불필요). 결과: `M0609_RG2/grasp_bag_ipc_test.py`, 봉투 Δz +125.8mm.
+
 ---
 
 ## 6. Tablet
@@ -612,6 +630,11 @@ N_f·필요토크·균열패턴을 예측한다.
 - 실제 운용 속도와 맞을지는 의문.
 - 파지할 때 마찰과 파지력으로 집는 것이 아님 → **weld**.
 - 샘플백의 파라미터를 튜닝하는 일이 필요.
+- **[미해결] implicit FEM 솔버가 정지 상태(v=0)에서 중력을 무시하고 얼어붙음**
+  (`FEM/fem_tablet_drop.py`, 2026-07-13 격리 확인). 초기 속도 킥으로 우회
+  시도했지만 형상에 따라 필요한 킥 크기가 다르고, 통하는 경우도 비물리적
+  거동(찌그러졌다가 중력 반대로 상승)을 보임. Rigid 엔티티가 씬에 있으면
+  킥을 줘도 다시 얼어붙음 — 원인 미상, Genesis 쪽 확인 필요.
 
 ---
 
