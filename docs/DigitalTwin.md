@@ -789,6 +789,72 @@ N_f·필요토크·균열패턴을 예측한다.
     지표(proxy)였던 것으로 보인다. Box가 두 버그 모두에서 예외적으로
     안정적이었던 이유도 이걸로 설명된다(sliver가 없는 형상이라서).
 
+- **[해결(가설)] Rigid(정제, MJCF capsule geom=SDF) + FEM.Cloth(봉투) + IPC
+  조합 접촉 시 발산 — `coup_type` 자동선택 문제로 특정(2026-07-14/15)**
+  (`FEM/rigid_capsule_tablet_bag_ipc_test.py`): §6-1에서 제안한 "정제를
+  sliver 없는 tet mesh 대신 Rigid MJCF capsule(네이티브 SDF primitive)로
+  넣으면 어떨까"를 실제로 시도한 첫 버전은 접촉 순간 위치가 수 미터로
+  튕겨나가는 발산을 보였다(`constraint_strength` 100→0.5로 낮추면 발산은
+  막히지만 감쇠 없는 바운스가 지속 — 원인 미상으로 보류됨, git 3fca8c8).
+  **재조사 결과**: `genesis/engine/couplers/ipc_coupler/coupler.py`
+  `_setup_coupling_config`(L206-215)의 `coup_type` 자동선택 규칙은
+  `entity.n_joints > 0`(관절 있음)이면 `two_way_soft_constraint`(Genesis
+  rigid solver의 PD/제어 결과를 IPC가 soft constraint로 따라가게 하는
+  방식 — **제어 대상(로봇 팔 등)을 위한 경로**), `n_joints == 0`(무관절
+  단일 바디)이면 `ipc_only`(IPC가 중력·동역학을 전부 담당하는 one-way
+  경로 — Plane/Shelf가 쓰는 경로)를 쓴다. 이전 시도는 캡슐을 MJCF
+  `<freejoint/>` 바디로 만들었으므로 `n_joints=1`→자동으로
+  `two_way_soft_constraint`를 탔을 것으로 추정된다. 이 정제는 PD로
+  구동되는 제어 대상이 아니라 **순수 낙하하는 수동체**이므로 의미상
+  맞지 않는 경로였다는 가설.
+  **검증**: 동일한 MJCF capsule(freejoint 유지, `n_joints`는 그대로
+  1)에 `material=gs.materials.Rigid(coup_type="ipc_only", ...)`로
+  자동선택을 **명시적으로 override** — Plane/Shelf에 이미 검증된 경로를
+  강제 적용. 결과: **발산 없이(300 스텝 끝까지 `|pos|<1m` 유지) 정제가
+  봉투 입구(105mm)에서 낙하해 봉투 바닥 근처(≈15.9mm)까지 자연스럽게
+  안착**(`net_fall=101.28mm`, xy는 봉투 중심 근방 유지) — 영상으로도
+  좌굴/폭발 없이 봉투 안에 담기는 모습 확인
+  (`rigid_capsule_tablet_bag_ipc_ipc_only_20260714_202712.mp4`).
+  **주의**: 이건 "재현 1회 성공"이며 근본 원인이 100% 확정된 건 아니다
+  (`two_way_soft_constraint` 자체가 원리적으로 왜 무제어 낙하체에서
+  발산하는지는 아직 코드 레벨로 추적 안 됨 — 후속 조사 항목으로 유지).
+  다만 실용적으로는 **무관절/무제어 Rigid 낙하체는 `coup_type="ipc_only"`
+  를 항상 명시하라**는 지침으로 채택할 만하다.
+
+- **[성공 + 신규 한계 발견] FEM(정제, sliver-free v2 캡슐) + FEM.Cloth(봉투)
+  강성 상향 스윕 — 200x(E=1e7)까지 안정, 2000x(E=1e8)에서 새로운 "중력
+  무시" 현상 재현(2026-07-15, `FEM/fem_tablet_drop_stiff.py`)**: 위 Rigid
+  캡슐 경로는 정제를 강체로 근사해 압축·변형 거동을 볼 수 없다는 한계가
+  있어, **FEM(정제)+FEM(봉투)** 조합을 유지한 채 fem_tablet_drop.py의
+  "안정성 우선으로 낮춘 E=5e4"보다 강성을 올려 재도전했다.
+  **dt 스케일링**: explicit FEM의 안정 dt는 파동속도 c=√(E/ρ)에 반비례하므로
+  `dt_new = dt_base·√(E_base/E_new)`로 스케일링(기준: E=5e4, dt=5ms → 검증됨)
+  하고, 물리 시간(1.5s)이 유지되도록 스텝 수도 같이 늘렸다.
+  - **E=1e6(20x, dt=1.12ms, 1342 스텝)**: 발산 없음. 정제가 봉투 바닥
+    근처(z≈19mm)까지 정상 낙하·안착. 형상 유지 양호(z_span 4.438→4.509mm,
+    거의 불변 — 무른 재질(E=5e4)보다 훨씬 "딱딱한 정제"다운 거동).
+  - **E=1e7(200x, dt=0.354ms, 4243 스텝)**: 마찬가지로 발산 없음, 더 나은
+    형상 유지(z_span 4.639→4.675mm). 영상으로 봉투 안 안착 확인
+    (`fem_tablet_bag_drop_stiff_E1e+07_*.mp4`).
+  - **E=1e8(2000x, dt=0.112ms, 13416 스텝)**: **정제가 사실상 전혀
+    낙하하지 않음**(1.5초 시뮬 동안 net_fall=0.007mm, 봉투 입구조차 통과
+    못함) — §8 위쪽에 이미 기록된 "[미해결] implicit FEM 솔버가 정지
+    상태에서 중력을 무시하고 얼어붙음" 버그와 증상은 동일하지만, 이번엔
+    `fem_options`를 전혀 건드리지 않은 **기본(explicit) 솔버**에서
+    재현됐다는 점이 다르다 — 즉 원인이 "implicit 솔버 특정"이 아니라
+    더 일반적일 가능성. **가설**: 이 정제(mm 스케일, 부피 ~수 mm³)의
+    중력(F=mg)은 애초에 극히 작은 값(~1e-7N 수준)인데, E=1e8처럼 강성이
+    극단적으로 크면 부동소수점 잔차 수준의 미세한 변형만으로도 이를
+    상쇄하는 내부 탄성력이 발생해, 매 스텝 중력이 수치적으로 묻혀버리는
+    "강성-질량 불균형" 수치 문제로 추정(코드 레벨 확정은 안 됨, 후속
+    조사 필요).
+  - **결론**: 이 dt 스케일링 방식으로는 **200x(E=1e7)가 실용적 상한**으로
+    보인다 — 문헌값 실제 정제(E~2GPa, 40000x)는 이 스케일링을 적용하면
+    dt가 25μs까지 줄어 스텝 수가 비현실적으로 커질뿐더러, 그 전에
+    1e8 근방에서 이미 별개의 수치 버그를 만난다(§grasp_bag_tablet_ipc_test.py
+    에서도 실측 E=2GPa가 explicit·dt=5e-3 조합에서 발산한다고 별도 보고됨 —
+    같은 결론으로 수렴).
+
 ---
 
 ## 9. 피드백
