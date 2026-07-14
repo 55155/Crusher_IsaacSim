@@ -118,6 +118,17 @@
 > 과거 SAP 결과(`fem_uniaxial_20260629_*` 등)는 Genesis 0.2.1 + Taichi 산물이라
 > 새 환경 결과와 직접 비교 시 백엔드 차이 고려 필요.
 
+**[정정] env는 conda `isaacsim`이 아니라 standalone Python (2026-07-15 확인)**:
+위 "env: `isaacsim`" 표기는 부정확했다. 실제로 Genesis(v1.2.1, editable,
+`C:\Users\user\Desktop\Genesis`)+pyuipc+torch+warp-lang 스택이 설치된
+인터프리터는 `C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe`
+(standalone Python 3.11.9, conda 아님)이다. conda env 3개(`TabletCrusher`,
+`isaac_sim`, `mujoco_env`)에는 genesis-world가 전혀 없다 — `isaac_sim`
+conda env는 이름이 비슷해 헷갈리지만 실제로는 NVIDIA Isaac Sim 5.0.0
+(별개 제품) 전용이다. Genesis/IPC 스크립트 실행 시
+`C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe <script>`
+를 직접 호출할 것(conda activate 불필요/무의미).
+
 ### 5-2. 실링부 마찰 파지 — *해결됨* (2026-07-13)
 
 M0609+RG2 로 봉투 옆면 실링부(~1cm)를 순수 접촉+마찰로 파지(weld 없이).
