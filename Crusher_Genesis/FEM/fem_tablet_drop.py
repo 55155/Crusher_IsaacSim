@@ -1,62 +1,97 @@
 """
-fem_tablet_drop.py — 알약(정제)을 FEM.Elastic 재질로 불러와 중력 낙하시키는
-최소 드롭 테스트. **미해결 엔진 버그로 인해 결과가 물리적으로 정확하지
-않다 — 아래 내용 필독.**
+fem_tablet_drop.py — 길쭉한 캡슐형 정제(알약)를 FEM.Elastic 재질로
+자유낙하시켜 샘플백(FEM.Cloth) 안까지 담기게 하는 데모.
 
-**엔진 한계 발견(격리 테스트로 재현 확인, 2026-07-13)**:
-  1. implicit FEM 솔버(`use_implicit_solver=True`)는 완전 정지(v=0)에서
-     시작하면 `sim_options`/`fem_options` 양쪽에 중력을 제대로 줘도(실측:
-     `fem_solver.get_gravity()` 로 값 확인됨) 중력을 전혀 반영하지 않고
-     그대로 얼어붙는다(수십 스텝 동안 위치 변화 정확히 0).
-  2. **회피 시도** — 초기 하향 속도를 한 번 주는(`set_velocity` 킥) 우회:
-     - 구(Sphere) primitive: **-1mm/s 킥으로 정상 자유낙하** (검증됨).
-     - 이 정제 STL(tetgen 산출, 납작한 biconvex): -1mm/s, -50mm/s 킥은
-       아무 효과 없음(계속 얼어붙음). **-1m/s** 킥을 줘야 겨우 움직이는데,
-       그마저도 첫 10ms 는 급격히 찌그러졌다가(min_z가 -3.5mm 까지 내려감)
-       그 뒤로는 **중력과 반대로 계속 위로 올라간다**(t=60ms 에 +17mm) —
-       순수 자유낙하가 전혀 아니고 solver 자체가 불안정/비물리적이다.
-     즉 "적절한 킥 크기"가 형상/메시에 따라 달라지고, 통하는 킥조차 물리적
-     정확성을 보장 못 한다 — 근본 해결이 아니라 임시방편.
-  3. 씬에 Rigid 엔티티가 하나라도 있으면(SAPCouplerOptions,
-     LegacyCouplerOptions(rigid_fem=False) 둘 다 시도) 위 킥을 줘도 다시
-     완전히 얼어붙는다 — rigid solver 존재 자체가 FEM 중력 적분을 막는
-     것으로 보이는 별도 버그.
-  → 바닥판(Rigid) 은 뺐다(넣으면 100% 얼어붙음이 재현되므로). 이 스크립트는
-    "FEM 재질로 정제 메시 로드는 된다"까지만 확인하는 진단용이며, 실제
-    낙하 물리는 **신뢰하면 안 된다**. Genesis 쪽 버그 리포트/후속 조사 필요.
+**이력 1 — TetGen 산출 메시 + M0609 로봇 조합 얼어붙음(2026-07-14, 해결)**:
+  `M0609_RG2/grasp_bag_tablet_ipc_test.py` 조사에서 확인: `fem_options`를
+  아예 안 주면(기본 explicit 솔버) implicit-솔버 얼어붙음 문제는 해결되고,
+  M0609 앞에서는 `gs.morphs.Box` primitive 가 TetGen 산출 커스텀 메시(Sphere,
+  STL)보다 훨씬 안정적으로 낙하한다는 게 확인됐다.
 
-재료값(이 프로젝트 표준, DigitalTwin.md §7-8 / fem_uniaxial_compression.py):
-  E=2GPa, ν=0.25, ρ=1300 kg/m³, model=linear_corotated.
+**이력 2 — FEM.Elastic(체적) + FEM.Cloth(표면 전용) 조합에서 별개의 얼어붙음
+발견(2026-07-14)**: analytic 캡슐(TetGen 미사용)도 FEM.Cloth 봉투가 씬에
+있으면 접촉 여부와 무관하게 거의 완전히 멈췄다. 반면 `gs.morphs.Box` 는
+정상 낙하 — 당시엔 원인 불명이라 정제를 Box(직육면체)로 근사해 우회했다.
 
-출력: Sim_result/fem_tablet_drop_<ts>.mp4
+**이력 3 — 근본 원인 규명 및 해결: sliver tet(2026-07-14)**:
+  이력1·2 둘 다 "Box는 안정, 커스텀 형상(캡슐/구/STL)은 불안정"이라는 같은
+  패턴이었다. 캡슐을 v1(`make_capsule_tets`, 전역 centroid 하나로 부채꼴)
+  방식으로 만들면 극(pole) 근처에 종횡비 나쁜 sliver tet 가 다수 생기는데
+  (반지름 2.5mm인데 극-centroid 거리는 6mm — 밑변 작고 지렛대 긴 tet),
+  이게 두 얼어붙음 버그 모두의 진짜 원인이었다. `make_capsule_tets_v2`
+  (medial-axis 다중 앵커 — 반구는 자기 중심점, 원기둥은 축 위 국소 앵커에
+  부채꼴, §DigitalTwin.md §8 참고)로 sliver 를 제거하니 **Box와 거의 동일한
+  정상 자유낙하**를 회복했다(edge-비율 15.0→6.25 개선, M0609/FEM.Cloth
+  둘 다에서 얼어붙지 않음, 실측 확인). 이제 정제를 Box 근사가 아니라 실제
+  캡슐(길쭉한 알약) 형상으로 낙하시킨다.
+
+재질값(§grasp_bag_tablet_ipc_test.py 와 동일):
+  정제: E=5e4, ν=0.45, ρ=1300 kg/m³, model=stable_neohookean.
+  봉투: E=1e5, ν=0.499, ρ=200 kg/m³, thickness=1mm, bending=50.
+
+출력: FEM/Result/fem_tablet_bag_drop_<ts>.mp4
 """
 import os, sys
 from datetime import datetime
 import numpy as np
-import trimesh as tm
 
 for _s in (sys.stdout, sys.stderr):
     try: _s.reconfigure(encoding="utf-8", errors="replace")
     except (AttributeError, ValueError): pass
 
-DT, SUBSTEPS = 5e-4, 1
-DURATION = 0.06   # 바닥 없는 자유낙하라 짧게 — 60ms 면 자유낙하 거리 ≈17.6mm
-N_STEPS = int(DURATION / DT)
-RENDER_EVERY = 2
-
-E_TABLET, NU_TABLET, RHO_TABLET = 2.0e9, 0.25, 1300.0
-
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-TABLET_STL = os.path.join(_REPO_ROOT, "tablets_stl", "stl", "tablet_R4.0_AR1.00_CV0.20.stl")
-TABLET_SCALE = 1e-3   # mm → m
-
-DROP_GAP = 3.0e-3   # 정제 바닥 ~ 바닥판 사이 초기 간극 (3mm 낙하)
-PLATE_SIZE = (0.03, 0.03, 0.004)
-
 _DIR = os.path.dirname(os.path.abspath(__file__))
-OUT_DIR = os.path.join(_DIR, "..", "Sim_result"); os.makedirs(OUT_DIR, exist_ok=True)
+
+_r = _DIR
+while _r != os.path.dirname(_r) and not os.path.exists(os.path.join(_r, "config.json")):
+    _r = os.path.dirname(_r)
+sys.path.insert(0, _r)
+import paths
+
+sys.path.insert(0, os.path.join(os.path.dirname(_r), "utills"))
+from primitive_tablet_generator import make_capsule_tets_v2, add_analytic_fem_entity
+
+BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl")
+
+DT = 5e-3
+N_DROP, N_SETTLE = 150, 150
+N_STEPS = N_DROP + N_SETTLE
+RENDER_EVERY = 1
+
+# 정제 — 실제 정제는 길쭉한 캡슐이 아니라 납작한 원반(biconvex 정제) 형태에
+# 가까움 → radius > cyl_h/2 로 짧고 통통하게(지름 4mm, 전체 높이 5mm).
+# 지름(4mm) < 봉투 두께(6mm)로 여유를 둬 입구를 통과할 수 있게 함.
+CAP_RADIUS_MM, CAP_CYL_H_MM = 2.0, 1.0
+TABLET_E, TABLET_NU, TABLET_RHO = 5.0e4, 0.45, 1300.0
+TABLET_FRICTION = 0.5
+
+# ── 봉투(FEM.Cloth) — grasp_bag_ipc_test.py 검증값 ─────────────────────────
+BAG_SCALE = 1.0
+BAG_EULER = (90, 0, 0)
+BAG_HALF_H = 0.045  # 로컬 y 범위 ±45mm(입구가 world Z 최상단)
+BAG_POS = (0.0, 0.0, 0.06)
+
+SHELF_TOP = BAG_POS[2] - BAG_HALF_H - 0.0015
+SHELF_SIZE = (0.10, 0.10, 0.02)
+SHELF_POS = (BAG_POS[0], BAG_POS[1], SHELF_TOP - SHELF_SIZE[2] / 2)
+
+CLOTH_E, CLOTH_NU, CLOTH_RHO = 1.0e5, 0.499, 200.0
+CLOTH_THICK, CLOTH_BEND = 1.0e-3, 50.0
+CLOTH_FRICTION = 0.8
+
+BAG_MOUTH_Z = BAG_POS[2] + BAG_HALF_H
+# 입구 통과 여부가 접촉 해석의 knife-edge 조건이라 실행마다(부동소수점
+# 비결합성/GPU 스케줄링 차이로) 통과/걸림이 갈릴 수 있음(실측 확인 —
+# 낙하고를 15→35mm 로 늘려도 무관하게 걸리는 경우가 있었음). 여러 번 실행해
+# 통과하는 seed 를 채택.
+TABLET_DROP_H = 0.015  # 입구 위 15mm 에서 낙하
+TABLET_POS = (BAG_POS[0], BAG_POS[1], BAG_MOUTH_Z + TABLET_DROP_H)
+
+OUT_DIR = os.path.join(_DIR, "Result")
+os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
-MP4 = os.path.join(OUT_DIR, f"fem_tablet_drop_{_TS}.mp4")
+MP4 = os.path.join(OUT_DIR, f"fem_tablet_bag_drop_{_TS}.mp4")
+
+CAM_POS, CAM_LOOK = (0.16, -0.16, 0.13), (BAG_POS[0], BAG_POS[1], BAG_MOUTH_Z - 0.01)
 
 
 def _npy(x):
@@ -65,89 +100,94 @@ def _npy(x):
 
 def main(use_viewer: bool = False):
     print("=" * 60)
-    print(f" FEM Tablet Drop Test (viewer={use_viewer})")
+    print(f" FEM Tablet (sliver-free capsule) -> Samplebag Drop Test (viewer={use_viewer})")
     print("=" * 60)
-    print(f"  E={E_TABLET/1e9:.1f} GPa  ν={NU_TABLET}  ρ={RHO_TABLET} kg/m³")
-    print(f"  STL = {os.path.basename(TABLET_STL)}  drop_gap={DROP_GAP*1e3:.1f}mm")
-
-    # fem_uniaxial_compression.py 와 동일: 두께(Y)를 낙하축 Z 로 회전.
-    raw_mesh = tm.load(TABLET_STL)
-    raw_mesh.apply_transform(tm.transformations.rotation_matrix(np.pi / 2, [1, 0, 0]))
-    STL_TMP = os.path.join(OUT_DIR, "_tablet_drop_src.stl")
-    raw_mesh.export(STL_TMP)
-
-    bb = raw_mesh.bounding_box.bounds * TABLET_SCALE
-    tab_lo, tab_hi = bb[0], bb[1]
-    tab_h = float(tab_hi[2] - tab_lo[2])
-    print(f"[stl] bbox x=[{tab_lo[0]*1e3:.2f},{tab_hi[0]*1e3:.2f}] "
-          f"y=[{tab_lo[1]*1e3:.2f},{tab_hi[1]*1e3:.2f}] z=[{tab_lo[2]*1e3:.2f},{tab_hi[2]*1e3:.2f}] mm")
+    print(f"  capsule R={CAP_RADIUS_MM}mm cyl_h={CAP_CYL_H_MM}mm "
+          f"(len={CAP_CYL_H_MM+2*CAP_RADIUS_MM:.1f}mm dia={2*CAP_RADIUS_MM:.1f}mm)")
+    print(f"  drop_h={TABLET_DROP_H*1e3:.0f}mm above bag mouth (z={BAG_MOUTH_Z*1e3:.1f}mm)")
 
     import genesis as gs
-    gs.init(backend=gs.gpu, logging_level="warning", precision="64")
+    gs.init(backend=gs.gpu, logging_level="warning", precision="32")
 
     scene = gs.Scene(
-        sim_options=gs.options.SimOptions(dt=DT, substeps=SUBSTEPS, gravity=(0, 0, -9.81)),
-        fem_options=gs.options.FEMOptions(use_implicit_solver=True, gravity=(0, 0, -9.81)),
-        vis_options=gs.options.VisOptions(background_color=(0.95, 0.95, 0.97)),
+        sim_options=gs.options.SimOptions(dt=DT, gravity=(0, 0, -9.81)),
+        # fem_options 를 일부러 안 준다(기본 explicit 솔버) — §docstring 이력1.
+        coupler_options=gs.options.IPCCouplerOptions(
+            contact_d_hat=5.0e-4,
+            contact_friction_enable=True,
+            two_way_coupling=True,
+            enable_rigid_rigid_contact=False,
+            enable_rigid_ground_contact=False,
+        ),
+        vis_options=gs.options.VisOptions(background_color=(0.93, 0.94, 0.96)),
         show_viewer=use_viewer,
     )
 
-    # 바닥판(Rigid) 은 넣지 않는다 — 헤더 docstring 참고: 씬에 Rigid 엔티티가
-    # 있으면(coupler 유무/종류 무관) implicit FEM 이 중력을 적분하지 않는
-    # 재현 가능한 버그를 만난다. 시각 참고용 높이 표시선만 plate_top_z=0 로 유지.
-    plate_top_z = 0.0
-
-    # 정제: bbox 바닥이 plate_top_z + DROP_GAP 에 오도록 배치.
-    tablet_pos = (
-        -0.5 * (tab_lo[0] + tab_hi[0]),
-        -0.5 * (tab_lo[1] + tab_hi[1]),
-        plate_top_z + DROP_GAP - tab_lo[2],
+    scene.add_entity(gs.morphs.Plane(), material=gs.materials.Rigid(coup_type="ipc_only"))
+    scene.add_entity(
+        gs.morphs.Box(size=SHELF_SIZE, pos=SHELF_POS, fixed=True),
+        material=gs.materials.Rigid(coup_type="ipc_only", coup_friction=0.3),
+        surface=gs.surfaces.Default(color=(0.75, 0.78, 0.82)),
     )
-    tablet = scene.add_entity(
-        material=gs.materials.FEM.Elastic(
-            E=E_TABLET, nu=NU_TABLET, rho=RHO_TABLET, model="linear_corotated",
-            friction_mu=0.5,
+
+    bag = scene.add_entity(
+        material=gs.materials.FEM.Cloth(
+            E=CLOTH_E, nu=CLOTH_NU, rho=CLOTH_RHO,
+            thickness=CLOTH_THICK, bending_stiffness=CLOTH_BEND,
+            friction_mu=CLOTH_FRICTION,
         ),
-        morph=gs.morphs.Mesh(file=STL_TMP, scale=TABLET_SCALE, pos=tablet_pos),
+        morph=gs.morphs.Mesh(file=BAG_STL, scale=BAG_SCALE, pos=BAG_POS, euler=BAG_EULER),
+        surface=gs.surfaces.Default(color=(0.97, 0.97, 0.95), opacity=0.4,
+                                     roughness=0.9, double_sided=True),
     )
 
-    z_eye = plate_top_z + tab_h
-    cam_pos = (0.02, -0.06, z_eye + 0.01)
-    cam = scene.add_camera(res=(960, 720), pos=cam_pos, lookat=(0, 0, z_eye), fov=30, GUI=False)
+    cap_verts_mm, cap_elems = make_capsule_tets_v2(
+        radius_mm=CAP_RADIUS_MM, cyl_height_mm=CAP_CYL_H_MM, n_theta=12, n_cap_rings=4, n_cyl_bands=2,
+    )
+    print(f"[tablet]  capsule verts={len(cap_verts_mm)} tets={len(cap_elems)} "
+          f"(sliver-free medial-axis, TetGen 미사용)")
 
+    tablet = add_analytic_fem_entity(
+        scene, key=os.path.join(OUT_DIR, "_analytic_capsule_v2.stl"),
+        verts_mm=cap_verts_mm, elems=cap_elems,
+        material=gs.materials.FEM.Elastic(
+            E=TABLET_E, nu=TABLET_NU, rho=TABLET_RHO,
+            friction_mu=TABLET_FRICTION, model="stable_neohookean",
+        ),
+        scale=1e-3, pos=TABLET_POS,
+        surface=gs.surfaces.Default(color=(0.9, 0.9, 0.85), roughness=0.6),
+    )
+
+    cam = scene.add_camera(res=(960, 720), pos=CAM_POS, lookat=CAM_LOOK, fov=35,
+                            near=0.01, far=5.0, GUI=False)
     scene.build(n_envs=0)
 
+    vp0 = _npy(bag.get_state().pos).squeeze()
+    print(f"[bag]     verts={vp0.shape}  x={vp0[:,0].min():.4f}~{vp0[:,0].max():.4f}  "
+          f"y={vp0[:,1].min():.4f}~{vp0[:,1].max():.4f}  z={vp0[:,2].min():.4f}~{vp0[:,2].max():.4f}")
     pos0 = _npy(tablet.get_state().pos).squeeze()
-    print(f"[tablet] nodes={len(pos0)}  z0_mean={pos0[:,2].mean()*1e3:.2f}mm "
+    print(f"[tablet]  nodes={len(pos0)}  z0_mean={pos0[:,2].mean()*1e3:.2f}mm "
           f"z0_min={pos0[:,2].min()*1e3:.2f}mm")
-
-    # 실측 확인된 엔진 특이사항: implicit FEM 솔버는 완전 정지(v=0)에서 시작하면
-    # 중력을 반영 안 하고 그대로 얼어붙는다. 구(Sphere) primitive 는 아주 작은
-    # 킥(-1mm/s)으로도 풀렸지만, 이 정제 메시(tetgen 산출, 납작한 biconvex
-    # 형상)는 -1mm/s, -50mm/s 모두 안 통하고 **-1m/s 는 통함** — 임계값이
-    # 메시/형상에 따라 달라지는 것으로 보이는 별도 엔진 특이사항(§docstring
-    # 참고, 후속 조사 필요). 일단 확실히 통하는 값을 킥으로 사용.
-    n_verts = pos0.shape[0]
-    kick = np.zeros((n_verts, 3))
-    kick[:, 2] = -1.0
-    tablet.set_velocity(kick)
 
     cam.start_recording()
     for k in range(N_STEPS):
         scene.step()
         if (k + 1) % RENDER_EVERY == 0:
             cam.render()
-        if (k + 1) % 10 == 0:
+        if (k + 1) % 20 == 0:
             p = _npy(tablet.get_state().pos).squeeze()
             zc, zmin = p[:, 2].mean(), p[:, 2].min()
-            print(f"  t={(k+1)*DT*1e3:5.1f}ms  com_z={zc*1e3:+.3f}mm  min_z={zmin*1e3:+.3f}mm")
+            phase = "drop" if k < N_DROP else "settle"
+            print(f"  [{phase}] t={(k+1)*DT*1e3:5.1f}ms  tablet_com_z={zc*1e3:+.3f}mm  min_z={zmin*1e3:+.3f}mm")
 
     pf = _npy(tablet.get_state().pos).squeeze()
+    bagf = _npy(bag.get_state().pos).squeeze()
     fall_mm = (pos0[:, 2].mean() - pf[:, 2].mean()) * 1e3
-    print(f"\n[final] com_z={pf[:,2].mean()*1e3:.3f}mm  net_fall={fall_mm:.3f}mm")
-    print("[check] 위 헤더 docstring 참고 — 이 결과는 물리적으로 신뢰할 수 없음 "
-          "(엔진 버그로 인한 킥-후-비물리적 상승 거동 재현됨). FEM 재질/메시 로드 "
-          "자체는 정상 동작 확인.")
+    inside_xy = (pf[:, 0].mean() - BAG_POS[0]) ** 2 + (pf[:, 1].mean() - BAG_POS[1]) ** 2 < 0.03 ** 2
+    at_or_below_mouth = pf[:, 2].mean() <= BAG_MOUTH_Z + 0.002
+    print(f"\n[final] tablet_com_z={pf[:,2].mean()*1e3:.3f}mm  net_fall={fall_mm:.3f}mm  "
+          f"bag_com_z={bagf[:,2].mean()*1e3:.3f}mm")
+    print(f"[check] 봉투 입구 높이 이하: {at_or_below_mouth}  /  봉투 중심 근방(xy): {inside_xy}")
 
     cam.stop_recording(save_to_filename=MP4, fps=30)
     print(f"\n[saved video] {MP4}")

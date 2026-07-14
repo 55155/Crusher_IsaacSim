@@ -167,7 +167,51 @@ M0609+RG2 로 봉투 옆면 실링부(~1cm)를 순수 접촉+마찰로 파지(we
 
 4. **전략 결론.** SAP에 머무는 동안엔 coupler에 primitive를 쓸 수 없으므로, 터널링은 **이산 메쉬 접촉 아티팩트**로 보고 다음으로 누른다: **dt 축소 / substeps 증가**(스텝당 plate 변위 < 표면 tet 크기), **plate 속도 ↓·ramp**, **접촉부 메쉬 세분화**, **plate tet 두께 확보**. primitive contact의 "정답형"은 결국 IPC였다는 점은 기록해 둔다.
 
-### 6-2. Crusher와의 상호작용 — 실측 반력 프로파일 구동 FEM (2026-07-04)
+### 6-2. SDF vs fan tetrahedralization — 둘은 다른 층위의 방법 (2026-07-14)
+
+§6-1에서 언급한 **SDF(Signed Distance Function)**와, 캡슐 정제를 위해 실제로
+구현한 **fan tetrahedralization**(`utills/primitive_tablet_generator.py`)은
+이름이 둘 다 "primitive를 수식으로 정의"라서 헷갈리기 쉽지만 **풀고 있는
+문제 자체가 다르다.**
+
+**SDF — Rigid(강체) 충돌 전용, 메쉬가 아예 없음.**
+- 형상을 `f(x) = (점 x 에서 표면까지의 부호 있는 거리)` 라는 **암시적(implicit)
+  함수**로 정의한다. 예: 캡슐 SDF = "선분까지의 거리 − 반지름".
+- 정점(vertex)도 삼각형(face)도 없다 — 어떤 점이 형상 안/밖/표면에 있는지,
+  법선이 뭔지를 **그 자리에서 수식으로 계산**한다(BVH 순회·삼각형 테스트 불필요).
+- **강체 전용인 이유**: 형상이 절대 변형되지 않는다는 전제가 있어야 "표면까지
+  거리"라는 하나의 고정된 수식이 성립한다. 정제(FEM)처럼 매 스텝 표면이
+  변형장에 따라 움직이는 대상은 애초에 SDF로 표현할 수 없다(§6-1의 결론).
+  Genesis rigid solver는 캡슐을 이미 SDF primitive로 취급하므로 이 문제와는
+  무관하다.
+
+**Fan tetrahedralization — FEM(변형체) 전용, 실제 메쉬(정점+사면체)를 만듦.**
+- FEM은 물질점(material point)이 있어야 변형을 적분할 수 있으므로, SDF 같은
+  암시적 표현이 아니라 **명시적 정점 + 사면체(tet) 요소 목록**이 반드시 필요하다.
+  일반적으로 이걸 만드는 도구가 TetGen(Delaunay 기반 사면체화 라이브러리)이다.
+- **fan tetrahedralization은 TetGen을 안 쓰고 이 정점+사면체 목록을 직접
+  계산하는 방법**이다: ①형상의 표면을 파라메트릭 방정식으로 직접 생성(캡슐이면
+  원기둥+반구 방정식) → ②**볼록(convex) 도형**이면 내부의 아무 점(보통
+  centroid)에서 모든 표면 삼각형으로 부채꼴을 이으면 `tet(a, b, c, centroid)`
+  가 항상 유효(퇴화 없음)하다는 사실을 이용 → 표면 삼각형 N개 → 사면체 N개,
+  전부 같은 apex(centroid) 하나를 공유. TetGen의 Delaunay 리파인먼트·Steiner
+  point 삽입이 전혀 없는, 100% 폐형식(closed-form) 계산이다.
+- **한계**: 모든 tet가 같은 apex를 공유하는 구조라, 표면이 급격히 휘는
+  영역(캡슐의 극(pole))에 삼각형이 몰리면 그 근처 tet들이 아주 얇고
+  뾰족해진다(sliver tet, 종횡비 나쁨) — Delaunay 리파인먼트가 없어서 TetGen처럼
+  이런 tet를 자동으로 개선해주지 않는다. §8 캡슐 얼어붙음 조사에서 이게 바로
+  캡슐만 불안정하고 Box(sliver 없음)는 안정적인 이유로 좁혀졌다. 또한 오목
+  (non-convex) 형상에는 이 방법이 그대로 적용 불가(부채꼴이 형상 밖으로
+  나가 tet가 뒤집힘) — 그런 경우는 형상을 볼록 조각으로 나누거나 TetGen처럼
+  더 일반적인 사면체화가 필요하다.
+
+**요약**: SDF는 "형상을 수식으로 정의"하지만 메쉬가 없는 강체 접촉 기법이고,
+fan tetrahedralization은 "형상을 수식으로 정의"해서 **TetGen을 대체할 메쉬
+(정점+사면체)를 만드는** FEM 전용 기법이다. 이름의 "수식적 정의"라는 표현이
+같아서 헷갈렸지만 서로 대체재가 아니라 각각 다른 문제(강체 충돌 vs 변형체
+메쉬 생성)를 푼다.
+
+### 6-3. Crusher와의 상호작용 — 실측 반력 프로파일 구동 FEM (2026-07-04)
 
 정제가 시뮬 안에서 받아야 하는 힘은 임의 값이 아니라 **실기 Crusher가 실제로 가하는 힘**이다.
 이 절은 "Impact plate 접촉이 모델링됐는가?"라는 질문에 대한 답이자, 정제 하중을
@@ -260,7 +304,7 @@ sim 시계열은 [`extract_sim_profile.py`](../Crusher_Genesis/FEM/extract_sim_p
   다른 RPM엔 따라갈 real 프로파일이 없다. 그 순간 반력을 낼 수 있는 건 시뮬레이터뿐이라,
   sim-driving은 "굳이 sim을 쓰는 것"이 아니라 **real이 없는 곳에서 유일하게 응력장을 내는
   경로**다.
-- **§6-2의 real↔sim 비교(4번)는 생산이 아니라 검증이었다.** real·sim이 둘 다 있는 유일한
+- **§6-3의 real↔sim 비교(4번)는 생산이 아니라 검증이었다.** real·sim이 둘 다 있는 유일한
   케이스(60°)에서 **sim 경로의 오차를 값매김**한 것 = "위치 R²=0.998, 크기 +5%". 이게
   real이 없는 조건에서 sim을 믿어도 된다는 **사용 허가증**이다. 검증 없이 sim을 쓰면 근거가
   없고, real만 쓰면 커버리지가 측정한 8점에 갇힌다.
@@ -635,6 +679,115 @@ N_f·필요토크·균열패턴을 예측한다.
   시도했지만 형상에 따라 필요한 킥 크기가 다르고, 통하는 경우도 비물리적
   거동(찌그러졌다가 중력 반대로 상승)을 보임. Rigid 엔티티가 씬에 있으면
   킥을 줘도 다시 얼어붙음 — 원인 미상, Genesis 쪽 확인 필요.
+- **[해결] FEM.Elastic + M0609(IPC) 조합 "낙하 얼어붙음" — 원인 확정 (2026-07-14)**
+  (`M0609_RG2/grasp_bag_tablet_ipc_test.py`, `utills/primitive_tablet_generator.py`).
+  `fem_options`에 `use_implicit_solver=True`를 안 주면(기본값) 1차 문제는
+  해결되나, M0609가 씬에 있으면 FEM.Elastic이 다시 거의 얼어붙는 2차 문제가
+  있었다. 처음엔 "정점/tet 개수 임계치" 가설을 세웠으나(`gs.morphs.Box`는
+  정상, `Sphere`/정제 STL은 얼어붙음), **박스 적층(5-layer→3-layer, tet 수를
+  오히려 줄임)으로 반증됨** — 3-layer가 5-layer보다 더 심하게 얼어붙어 단순
+  개수 비례가 아님을 확인.
+  **진짜 원인**: 정점/tet 개수가 아니라 **TetGen을 거쳤는지 여부 자체**였다.
+  `genesis/utils/element.py`의 `box_to_elements`/`sphere_to_elements`/
+  `mesh_to_elements` 는 전부 `mu.tetrahedralize_mesh`(TetGen)를 호출하는데,
+  `gs.morphs.Box`만 우연히 안전한 게 아니라 **TetGen이 Box처럼 아주 단순한
+  볼록 입력에 한해 "질 좋은/안전한" tet를 내놓고, 조금만 복잡해지면(Sphere,
+  실제 메시) M0609+IPC 커플링과 상호작용하는 무언가 다른 내부 상태를 만드는
+  것**으로 좁혀졌다.
+  **검증**: `utills/primitive_tablet_generator.py` 로 캡슐을 **TetGen을 전혀
+  거치지 않고** 순수 수학적으로 사면체화했다 — 캡슐 표면을 파라메트릭
+  방정식으로 직접 생성하고, 볼록 도형의 정석 기법인 **centroid fan
+  tetrahedralization**(모든 표면 삼각형을 중심점과 이어 사면체 하나씩,
+  `tet(a,b,c,centroid)`)으로 verts/elems를 직접 계산한 뒤,
+  `genesis.utils.element.mesh_to_elements`를 몽키패치해 TetGen 경로를
+  건너뛰고 Genesis에 직접 주입했다(Genesis FEM solver는 `det([a-d,b-d,c-d])
+  < 0` 방향성 요구 — 위반 시 `RuntimeError: tet_wrong_order`, 삼각형별로
+  부호 확인 후 필요시 정점 swap으로 해결). **이 완전 비-TetGen 캡슐(정점
+  83개, tet 160개)은 M0609 앞에서 얼어붙지 않고 정상 낙하 →
+  파지→리프트까지 전 구간 성공**(tablet Δz=+123.2mm, Box 근사(+117.6mm)와
+  거의 동일) — **TetGen 산출물 자체가 원인이라는 가설이 최종 확인됨**.
+  실용적 해결책: Box primitive 근사, 또는 정확한 형상이 필요하면
+  `primitive_tablet_generator.py`의 analytic fan-tetrahedralization 사용
+  (단, 볼록 도형에만 적용 가능 — 오목 형상은 centroid fan이 무효가 되므로
+  별도 분해 필요).
+
+- **[정정 + 신규 발견] "TetGen 산출물이 원인"은 M0609 케이스에 한정 —
+  FEM.Elastic(체적) + FEM.Cloth(표면 전용) 조합은 별개의 얼어붙음 버그
+  (2026-07-14, `FEM/fem_tablet_drop.py`)**: 위 결론(TetGen 산출물 자체가
+  원인)은 M0609 로봇이 있는 씬에서만 검증됐다. 정제를 실제 샘플백
+  (FEM.Cloth)에 낙하시키는 씬에서 재테스트한 결과, **TetGen 을 전혀 안 쓴
+  analytic 캡슐도 FEM.Cloth 봉투가 씬에 있으면 접촉 여부/거리(멀리 떨어뜨려도
+  동일)/속도 킥과 무관하게 거의 완전히 멈췄다** — 심지어 봉투를 Rigid 메시로
+  바꿔도 재현됨. 반면 **`gs.morphs.Box` primitive 는 이 조합에서도 예외적으로
+  안정적**(격리 테스트: t=50ms 에 120→106.5mm, 이론 자유낙하와 근접). 즉
+  "TetGen 산출물"과 "Box 냐 아니냐"는 서로 다른 두 얼어붙음 버그 각각에서
+  독립적으로 확인된 회피 조건이며, 근본 원인(체적 FEM 대 표면 전용 FEM
+  결합 시 IPC 솔버 내부에서 무엇이 문제인지)은 아직 미상이다 — Box
+  primitive 만이 현재까지 발견된 두 버그 모두에서 안정적인 유일한 형상.
+  추가로 확인된 특이사항: 봉투 입구 통과 여부가 knife-edge 조건이라
+  `contact_d_hat=1mm` 에서는 동일 설정으로도 실행마다(GPU 부동소수점
+  비결합성 추정) 통과/걸림이 갈렸고, `contact_d_hat=0.5mm` 로 낮추자
+  안정적으로 통과함(실측 2/2).
+
+- **[변인통제 실험] 캡슐 얼어붙음의 원인은 "우리 수식 정의 방식"이 아니라
+  "캡슐이라는 형상/토폴로지" — Box 대조군으로 확정(2026-07-14)**: 위 발견에서
+  "analytic 캡슐도 FEM.Cloth 봉투 앞에서 얼어붙는다"까지만 알았고, 이게
+  ①우리가 만든 TetGen 우회 방식(표면 직접 계산 + centroid fan
+  tetrahedralization + `mesh_to_elements` 몽키패치 주입) 자체의 결함인지,
+  아니면 ②캡슐이라는 형상 고유의 문제인지가 불분명했다. 변인통제:
+  **`Samplebag(FEM.Cloth) + 우리 방식으로 만든 analytic Box(FEM.Elastic,
+  정점 9개/tet 12개, `primitive_tablet_generator.make_box_tets`)`** 를
+  `Samplebag + gs.morphs.Box`(대조군, TetGen 경유하지만 이미 안정성 확인됨)
+  와 비교 — **거의 완전히 일치하는 정상 자유낙하**(t=50/100/200ms 에서
+  106.55/68.62/-81.10mm vs 대조군 106.52/68.56/-81.70mm). 즉 **우리의 수식적
+  형상 정의 방식 자체는 정상**이고, 캡슐만 얼어붙는 원인은 ②쪽 — 구체적으로는
+  **fan tetrahedralization이 극(pole) 근처에서 만드는 다수의 얇은 sliver
+  tet**(하나의 centroid 정점을 공유하는 부채꼴 구조상, 표면이 급하게 휘는
+  영역에 삼각형이 많이 몰리면 종횡비 나쁜 tet가 다수 생김 — 해상도를 올렸을
+  때 실제 좌굴 변형으로 관찰된 것과 동일 메커니즘)로 좁혀졌다. Box(12개,
+  종횡비 좋음)는 문제없고 캡슐(160개, 극 근처 sliver 다수)만 얼어붙는 것과
+  일치. **SDF(§6-1 참고)와는 무관** — SDF는 애초에 FEM(변형체)에는 적용 불가한
+  Rigid 전용 접촉 표현이라, 이번 fan tetrahedralization 접근과는 완전히
+  다른 층위의 방법이다(아래 §6-3 참고).
+
+  **참고**: Box와 캡슐은 **둘 다 볼록(convex)** 이라 fan tetrahedralization
+  자체(사면체 유효성)는 둘 다 성립한다 — 문제는 볼록성이 아니라 "전역
+  centroid 하나로부터의 거리가 표면 전체에서 균일한가"였다. Box는 8개
+  꼭짓점이 중심에서 대략 비슷한 거리(반대각선 절반)에 있어 12개 tet의
+  종횡비가 고르지만, 캡슐은 극(pole) 쪽 작은 삼각형까지 전부 반지름보다
+  훨씬 먼 전역 centroid(예: 반지름 2.5mm인데 극-centroid 거리 6mm)로
+  이었던 게 문제였다 — 형상의 "볼록/오목"이 아니라 "부채꼴에 쓰는 apex와
+  표면 사이 거리의 균일성"이 sliver 발생 여부를 결정한다.
+
+- **[해결] sliver 없는 캡슐 사면체화 — medial-axis 다중 앵커 방식
+  (2026-07-14, `utills/primitive_tablet_generator.make_capsule_tets_v2`)**:
+  위 sliver 원인 분석을 그대로 뒤집어 해결책으로 썼다. 캡슐의 수학적 정의
+  자체가 "중심 선분(medial axis)까지 거리 ≤ 반지름인 점의 집합"이므로(§6-2
+  SDF 설명과 동일한 정의), 전역 centroid 하나 대신 **표면의 각 부분을 그
+  지점에서 가장 가까운 축 위의 점에 부채꼴로 잇는다**:
+  - 북/남 반구(뚜껑)는 정의상 그 반구 자신의 중심점에서 항상 정확히
+    반지름 R 만큼 떨어져 있으므로, 반구 표면 전체(pole 포함)를 그 반구
+    중심 하나로 부채꼴 — apex-표면 거리가 어디서나 정확히 R로 균일해짐.
+  - 원기둥 몸통은 `n_cyl_bands` 개 층으로 나누고, 각 층 경계를 표준
+    "삼각기둥→3-사면체" 분해(널리 쓰이는 프리즘 메싱 기법)로 처리 — 인접
+    층/반구가 같은 앵커점을 공유해 내부 경계면이 정확히 상쇄되어(watertight)
+    유지된다(직접 검증: 축퇴(0에 가까운 부피) tet 0개, 전체 부피가 이론값에
+    근접).
+  - **결과(실측)**: 최대 edge-길이비(sliver 정도 지표)가 **15.0 → 6.25로
+    개선**(같은 n_theta/n_cap_rings). 바닥 낙하 테스트에서 착지 후 좌굴/찌그러짐
+    없음(v1은 해상도를 올리면 좌굴 발생했었음). **더 중요하게, M0609+FEM.Elastic
+    얼어붙음과 FEM.Cloth+FEM.Elastic 얼어붙음 둘 다에서 더 이상 얼어붙지
+    않고 Box와 거의 동일한 정상 자유낙하를 보임**(Cloth+캡슐 v2:
+    t=50/100/150/200ms 에 107.5/70.7/9.5/-76.1mm — Box 대조군 106.5/68.6/6.3/
+    -81.1mm 과 거의 일치). 봉투 통과 데모(§Tablet)에서도 실제로 입구를
+    통과해 내부까지 안정적으로 낙하함을 확인(contact_d_hat=0.5mm).
+  - **함의**: 이번 결과로 앞서 별개로 보였던 두 얼어붙음 버그(M0609+TetGen
+    산출 메시, FEM.Cloth+FEM.Elastic)가 사실 **같은 근본 원인(FEM 메시의
+    tet 종횡비/조건수 불량, 즉 sliver tet)에서 비롯된 동일 계열의 문제였을
+    가능성이 높다** — "TetGen이냐 아니냐", "Cloth가 있냐 없냐" 는 진짜
+    원인이 아니라, 그 조건에서 우연히 sliver가 있었는지 없었는지의 대리
+    지표(proxy)였던 것으로 보인다. Box가 두 버그 모두에서 예외적으로
+    안정적이었던 이유도 이걸로 설명된다(sliver가 없는 형상이라서).
 
 ---
 
