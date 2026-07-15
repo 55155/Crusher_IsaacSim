@@ -1,0 +1,8 @@
+<mujoco model="tablet_disc">
+  <worldbody>
+    <body name="tablet" pos="0 0 0">
+      <freejoint/>
+      <geom name="tablet_geom" type="capsule" size="0.002 0.0005" density="1300" friction="0.5 0.02 0.001"/>
+    </body>
+  </worldbody>
+</mujoco>

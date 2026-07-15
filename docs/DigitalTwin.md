@@ -16,7 +16,8 @@
 6. [Tablet](#6-tablet)
 7. [FEM 방식으로 모델링](#7-fem-방식으로-모델링)
 8. [발생할 수 있는 문제 사항](#8-발생할-수-있는-문제-사항)
-9. [피드백](#9-피드백)
+9. [Solver / Coupler 조합 실험 기록](#9-solver--coupler-조합-실험-기록)
+10. [피드백](#10-피드백)
 
 ---
 
@@ -676,7 +677,7 @@ N_f·필요토크·균열패턴을 예측한다.
   N_f(반복 손상누적)** 를 풀 때만 추가로 든다 → 없으면 문헌값(MCC ~4–9 GPa)으로 고정.
 - **잃는 것**: σ_I 절대값이 문헌 E 의존 → 균열 위치·F_threshold 정밀도↓. 하지만 N_f 경로
   (Regime II)는 fit 이 스케일 오차를 흡수해 **성립**한다.
-- 한 박사님 피드백 "Data-driven 하게라도 풀 수 있어야"(§9)에 정확히 대응.
+- 한 박사님 피드백 "Data-driven 하게라도 풀 수 있어야"(§10)에 정확히 대응.
 
 ---
 
@@ -913,7 +914,215 @@ N_f·필요토크·균열패턴을 예측한다.
 
 ---
 
-## 9. 피드백
+## 9. Solver / Coupler 조합 실험 기록
+
+각 구성요소(Robotarm/Tablet/Samplebag)를 어떤 표현 방식(Rigid/FEM/PBD 등)으로
+넣고 어떤 coupler로 묶었는지의 조합별로 무엇을 시도했고 어떻게 풀었는지(또는
+아직 못 풀었는지) 정리한다. 상세 조사 과정은 §5~8에 이미 기록돼 있으므로
+여기서는 **조합 단위로 인덱싱**하고 핵심만 요약, 자세한 내용은 원 절을 참고.
+
+> **현재(2026-07) 사실상 IPC 커플러만 쓰고 있다** — PBD는 자기충돌 제약과
+> 침투 해석이 충돌해 폭발했고(조합 1), SAP는 rigid collider가 전부 mesh 경유라
+> 터널링에 취약해서(조합 4) 실전 조합은 거의 IPC로 수렴했다.
+
+### Robotarm(M0609+RG2) 관련 공통 테크닉
+
+이후 조합들에서 반복 사용되는 로봇팔/그리퍼 구현 기법:
+
+- **Mimic joint (4-bar 폐루프 근사)**: RG2 그리퍼는 실물이 4-bar 폐루프 기구라
+  RNE 계산이 트리 구조를 요구하는 시뮬레이터에서 그대로 풀 수 없다(§4).
+  MJCF `<equality><joint joint1=... joint2="gripper_joint" polycoef="0 1 0 0 0"/>`
+  로 능동 관절(`gripper_joint`) 하나만 구동하고 나머지 5개 관절(truss_arm/
+  finger_tip×2, mirror)을 1:1 선형 동기화하는 URDF-mimic 방식을 채택
+  (`m0609_rg2_v2.xml`). **단, Genesis 1.1.0은 `<equality><joint>`를 제대로
+  안 지킨다** — 네이티브 MuJoCo(`mj_step`)는 정상 동작하지만 Genesis에서
+  쓸 때는 이 우회가 필요: 6개 gripper DOF를 매 스텝 전부 동일 값으로
+  `set_dofs_position`/`control_dofs_position` 직접 호출(폐루프 풀이를
+  코드 레벨에서 흉내). 정합 관절/각속도 액추에이터 조합이 기본 Euler
+  적분기에서 qacc 발산을 일으켜 `integrator="implicitfast"`로 전환.
+- **Convex decomposition (CoACD)**: `f1_flex_finger`/`f2_flex_finger`의
+  실제 손가락 패드 메시는 오목(non-convex)이라 충돌 판정에 그대로 쓰기
+  까다롭다 — CoACD로 7개의 볼록 조각(`flex_finger_hull_000~006.stl`)으로
+  분해해 각각을 독립 collision geom(`friction="1.5 0.02 0.001"`)으로
+  MJCF에 주입(`_prepare_robot_mjcf()`, `grasp_bag_tablet_ipc_test.py` 등).
+- **Crusher 쪽 별도 기법**: crank-slider 4-bar도 동일한 이유로 폐루프를
+  직접 안 풀고, `link3`–`shaft` 연결을 끊은 뒤 `<equality>`로 재접합(§3-1).
+  self-collision이 불필요한 대부분의 바디는 collision-free 처리하고, 관통이
+  필요한 `Left_Wall`만 별도로 볼록분해(§3-2).
+
+### 조합 1 — Robotarm(Rigid, mimic+convex decomp) + Samplebag(PBD.Cloth) + LegacyCoupler(rigid_pbd) · **실패 → 폐기**
+
+(`M0609_RG2/grasp_bag_test.py`, §5-2)
+- PBD 입자 자기충돌 방지 제약과 손가락 mesh 침투 해석이 충돌 → **핑거가
+  봉투에 닿는 순간 즉시 폭발**. §5에서 이미 우려했던 "파지 시 particle
+  최소 간격 제약이 깨질 수 있다"는 리스크가 실제로 발생한 것.
+- 회피책 없이 **IPC 커플러로 전면 전환**하는 것으로 결론(조합 2로 이동).
+  PBD 자체는 폐기하지 않고 파우더 표현 등 다른 용도로는 남겨둘 여지 있음
+  (§5의 MPM→Rigid→PBD 3단 결합 구상은 아직 미시도).
+
+### 조합 2 — Robotarm(Rigid, mimic+convex decomp) + Samplebag(FEM.Cloth, 2D) + IPC coupler · **성공**
+
+(`M0609_RG2/grasp_bag_ipc_test.py`, `grasp_box_test.py`, `grasp_bag_tablet_ipc_test.py`, §5-2)
+- IPC는 PBD를 못 보므로 봉투 재질을 `FEM.Cloth`로 교체. 실측 STL(두께 0
+  핀치 실링선 포함)을 그대로 넣으면 self-intersection sanity check 실패 →
+  원인은 위상이 아니라 **패널 간격(1.2mm)이 material thickness(2mm)보다
+  얇아서 생긴 자기충돌**(로그 레벨을 올려야 보이는 네이티브 에러) — 검증된
+  procedural 5-panel 프록시(간격 6mm)로 교체해 해결.
+- 초기 버전은 6DOF mimic(v2) 대신 **단순 2DOF(m0609_rg2.xml) +
+  `set_dofs_position` 텔레포트**를 썼다 — IPC의 `two_way_soft_constraint`가
+  반력을 자체 처리해 PD 게인 튜닝이 불필요했기 때문. 이후 박스 파지
+  검증(`grasp_box_test.py`)에서 `control_dofs_position` 통합 호출 +
+  `noslip_iterations=20`/`constraint_timeconst=0.005`(정지 시 접촉 소실
+  방지) 조합을 확정하면서 v2 6DOF mimic + convex decomp 그리퍼로 이행.
+- 결과: 실링부(~1cm) 순수 마찰 파지(weld 없음), 봉투 Δz +125.8mm.
+
+### 조합 3 — Robotarm(Rigid, M0609 복잡 메시) + Tablet(FEM.Elastic) + IPC coupler · **부분 해결 → 최종적으로 조합 5의 근본 원인으로 수렴**
+
+(`M0609_RG2/grasp_bag_tablet_ipc_test.py`, §8)
+- 정제가 tetgen 산출 메시(Sphere/STL)면 M0609 앞에서 거의 얼어붙고, `Box`
+  primitive만 정상 낙하하는 패턴을 처음 발견한 조합. 당시엔 "TetGen 산출물
+  자체가 원인"으로 결론지었으나, 이후 조합 5·6에서 밝혀진 **self-contact
+  d_hat 오탐**이 진짜 원인이었을 가능성이 높음(같은 증상, 더 정밀한 원인).
+
+### 조합 4 — Tablet(FEM.Elastic, 실측 2GPa) + Crusher Plate(Rigid) + SAP coupler · **부분 성공(저속) / 실패(고속) → IPC로 대체**
+
+(`FEM/fem_uniaxial_compression.py`, §6-1, §7-7, §7-9)
+- Franka 공식 예제 패턴(`sap_coupling/franka_grasp_fem_sphere.py`) 그대로
+  quasi-static 압축(plate 속도 0.01mm/s)에는 성공 — 진짜 Rigid-FEM 접촉으로
+  σ-ε, F(t), W(t) 실측.
+- **터널링 발견**: SAP coupler는 rigid collider를 primitive로 안 쓰고
+  **Box plate조차 trimesh→tet 메쉬로 변환**하며 primitive plane은 명시적
+  금지(`GEOM_TYPE.PLANE`→raise). 접촉이 `FEMSurfaceTetLBVH`↔`RigidTetLBVH`
+  BVH 이산 접촉이라, plate가 한 스텝에 정제 표면 tet 두께를 넘게 움직이면
+  겹침을 놓쳐 관통 — plate 속도를 올리면(비-quasi-static) 재현됨.
+- **추가 발견**: plate 속도가 0/미정의면 SAP가 contact impulse를 안 보내다가
+  penetration이 깊어지면 한 번에 큰 임펄스로 튕기는 불연속 spike 거동(§7-9).
+- 결론: primitive contact이 진짜 필요한 조합(빠른 충돌)엔 IPC가 맞고, SAP는
+  quasi-static 압축처럼 느린 케이스에만 신뢰. dt 축소/substeps 증가/plate
+  속도 ramp로 완화는 가능하나 근본 해결은 아님.
+
+### 조합 5 — Tablet(3D FEM.Elastic, fan tetrahedralization) + Samplebag(2D FEM.Cloth) + IPC coupler · **해결**
+
+(`utills/primitive_tablet_generator.py`, `FEM/fem_tablet_drop.py`,
+`FEM/fem_tablet_drop_stiff.py`, `FEM/fem_tablet_solo_diag.py`, §8)
+
+TetGen을 아예 안 쓰고 표면을 파라메트릭 방정식으로 생성 + 사면체는 순수
+기하학적으로 계산하는 방식(§8) 자체가 핵심 아이디어. 이 조합에서 겪은
+문제가 가장 복잡해 3단계로 풀렸다:
+
+1. **얼어붙음(1차, v1 fan tet)**: 전역 centroid 하나로 부채꼴 이으면 극(pole)
+   근처에 종횡비 나쁜 sliver tet가 다수 생김(반지름 2.5mm인데 극-centroid
+   거리 6mm) → M0609/FEM.Cloth 양쪽 모두에서 얼어붙음. `make_capsule_tets_v2`
+   (medial-axis 다중 앵커: 반구는 자기 중심점, 원기둥은 축 위 국소 앵커 +
+   표준 프리즘→3-사면체 분해)로 sliver를 대폭 줄여(edge-비율 15.0→6.25)
+   해소 — Box와 거의 동일한 정상 낙하 회복.
+2. **강성 상향 스윕**: 위 해결로 확보한 v2 캡슐 + explicit dt를 파동속도
+   스케일링(`dt ∝ 1/√E`)해가며 E를 5e4(안정화용)→1e6(20x)→1e7(200x)까지
+   올려도 발산 없이 낙하·안착(`fem_tablet_drop_stiff.py`). E=1e8(2000x)에서는
+   "중력을 무시하고 정지"하는 별개의 새 현상 재현 — 강성-질량 수치 불균형
+   가설, 원인 미확정.
+3. **"우그러짐"의 진짜 근본 원인(최종)**: 위 1·2단계 내내 정제가 접촉 전부터
+   미세하게 압축된 채로 보였던 게 사실은 **`contact_d_hat`이 캡슐 극 근처
+   정점 간격(0.32mm)보다 컸던 것**(당시 값 5e-4=0.5mm) — IPC self-contact
+   배리어가 정상적으로 가까운 인접 정점을 충돌로 오인해 t=0(접촉 불가능한
+   자유낙하 중)부터 극을 짓누름. 봉투/선반 없는 정제 단독 낙하로 재현해
+   접촉 무관함을 확정하고, `scipy.cKDTree`로 최근접 이웃 거리를 실측해
+   d_hat을 그보다 충분히 작게(1e-4~5e-5) 낮추자 완전 해소 — 자유낙하 중
+   설계 형상 그대로 유지, 봉투 접촉부터 비로소 진짜 동적 변형 시작.
+   **교훈(표준 절차화)**: 곡률 큰 FEM 메시는 `contact_d_hat`을 정할 때
+   오브젝트 간 간극뿐 아니라 **메시 자신의 최소 정점 간격**부터 확인할 것.
+4. **위 3가지가 사실 하나로 수렴**: "강성을 올릴수록 얼어붙음이 심해진다"
+   (앞서 관찰)와 "self-contact 오탐이 근본 원인"(나중 발견)을 합치면, 극의
+   가짜 self-contact 고정력이 재질이 뻣뻣할수록 몸체 전체 움직임을 더 강하게
+   묶어버리는 것으로 설명됨 — 작은 정제(정점 간격이 더 촘촘)일수록, 강성이
+   높을수록 같은 d_hat 버그가 "약간의 압축"에서 "완전한 정지"까지 다양한
+   심각도로 나타난다.
+
+### 조합 6 — Tablet(Rigid Body, MJCF capsule geom = SDF) + Samplebag(FEM.Cloth) + IPC coupler · **해결**
+
+(`FEM/rigid_capsule_tablet_bag_ipc_test.py`, `FEM/fem_tablet_drop.py`
+`TABLET_MODE=rigid_sdf`, §8)
+- 정제를 변형체가 아니라 **강체 SDF**(Genesis에 `Capsule` 모프 클래스는
+  없지만 MJCF `<geom type="capsule">`는 `GEOM_TYPE.CAPSULE`, 즉 메시가 아닌
+  radius+height 파라미터의 analytic 표현으로 처리됨)로 넣으면 형상 왜곡이
+  원천적으로 불가능해진다는 아이디어.
+- **1차 시도 실패**: `coup_type="two_way_soft_constraint"`로 접촉 순간 위치가
+  수 미터로 발산. `constraint_strength`를 100→0.5로 낮추면 발산은 막히지만
+  감쇠 없는 바운스가 계속됨 — 근본 원인 미상으로 잠정 보류.
+- **원인 특정**: `coupler.py`의 `_setup_coupling_config`가 `coup_type=None`
+  일 때 **`entity.n_joints>0`(관절 있음, freejoint 포함)이면 자동으로
+  `two_way_soft_constraint`**를 선택함 — 이건 PD로 계속 구동되는 제어
+  대상(로봇 팔 등)을 위한 경로다. 캡슐의 MJCF `<freejoint/>`가 "관절 1개"로
+  카운트되어, 아무 명령도 받지 않는 순수 낙하체에 잘못된 경로가 자동
+  적용된 것.
+- **해결**: `material=gs.materials.Rigid(coup_type="ipc_only", ...)`로
+  자동선택을 명시적으로 override(Plane/Shelf가 이미 쓰던, 검증된 one-way
+  경로 — "IPC가 중력·동역학 전부 담당"). `constraint_strength`는 기본값
+  100 그대로 두고도 발산 없이 낙하→봉투 입구 통과→바닥 안착까지 성공.
+- **한계**: 강체라 정제의 압축·파손 거동은 볼 수 없음 — 그런 관찰이
+  필요하면 조합 5(FEM+FEM)를 쓴다.
+
+### 조합 7 — Tablet(FEM.Elastic, Box primitive vs 우리 정의 analytic Box) + Samplebag(FEM.Cloth) + IPC coupler · **변인통제 실험(조합 5 진단용)**
+
+(`utills/primitive_tablet_generator.make_box_tets`, §8)
+- 조합 5의 sliver 가설을 검증하기 위한 대조군: `gs.morphs.Box`(TetGen 경유)
+  vs 우리가 fan tetrahedralization으로 직접 만든 analytic Box(정점 9개/
+  tet 12개, TetGen 미사용) — 둘 다 FEM.Cloth 앞에서 거의 완전히 동일한
+  정상 자유낙하(106.5/68.6/-81.1mm vs 106.55/68.62/-81.10mm, t=50/100/200ms).
+  **결론**: "TetGen 경유 여부"는 무관했고, 우리 수식 정의 방식 자체도
+  정상 — 문제는 항상 캡슐의 sliver/self-contact 쪽이었다.
+
+### 조합 8 — Tablet(Rigid+SDF) + Samplebag(FEM.Cloth) + Robotarm(Rigid, mimic+convex decomp) + IPC coupler · **미해결 → Tablet을 FEM으로 우회해 파이프라인은 완성**
+
+(`M0609_RG2_Tablet_Samplebag/tablet_bag_grasp_pipeline.py`, 2026-07-15)
+
+조합 2(로봇+봉투)와 조합 6(정제+봉투)는 각각 따로는 검증됐으니, 셋을 합쳐
+"정제 낙하 → 봉투가 받음 → 로봇이 봉투(+정제)를 파지·리프트"하는 최종
+워크플로우를 그대로 합쳐서 시도했다.
+
+**증상**: 셋을 한 씬에 합치자 로봇을 전혀 구동하지 않아도(정지 상태로 두기만
+해도) 정제 위치가 단 1~2 스텝만에 지수적으로 발산했다(k=1에 2.9m, k=11에
+10²³mm 스케일). `constraint_strength_translation/rotation`을 100(로봇 단독
+검증값)→30→10 으로 낮춰도 15~30스텝 내 동일하게 발산. **1.0까지 낮추면
+발산은 멈추지만, 이번엔 정제가 봉투를 그대로 뚫고 바닥까지 가속 낙하**해
+버렸다(접촉 해석 자체가 무력화됨) — 즉 "로봇 파지에 필요한 강한 결합"과
+"정제의 정상적인 접촉 해석"을 동시에 만족하는 `constraint_strength` 값을
+찾지 못했다.
+
+**원인 조사**: Genesis 공식 예제(`examples/IPC_Solver/*.py`) 4개를 전수
+확인한 결과, `ipc_robot_cloth_teleop.py`에 Rigid(Franka, `two_way_soft_
+constraint`) + FEM.Cloth + Rigid(`ipc_only`)의 **같은 조합이 존재**하지만,
+그 `ipc_only` 엔티티(16개 박스)는 전부 **`fixed=True`(정적 소품)**였다.
+그 예제의 커플러 설정(`enable_rigid_rigid_contact=True`,
+`newton_semi_implicit_enable=False`, `contact_resistance=1e7`,
+`newton_tolerance=1e-1` 등, 우리보다 훨씬 느슨함)을 그대로 우리 씬에
+적용해도 발산은 재현됐다 — 즉 "설정 미스매치"가 아니라, **동적(freejoint)
+`ipc_only` 강체가 `two_way_soft_constraint` 강체와 같은 IPC 시스템에
+공존하는 조합 자체가 검증된 바 없는 조합**으로 판단된다(`ipc_objects_
+falling.py`는 동적 `ipc_only` 박스가 있지만 `two_way_soft_constraint`
+엔티티가 아예 없는 씬이라 이 조합을 커버하지 않음). 코드 레벨 근본 원인은
+미확정(후속 조사 항목).
+
+**우회(채택)**: 정제를 Rigid+SDF 대신 **FEM(조합5, sliver-free 캡슐)**으로
+바꿨다 — 그러면 씬의 Rigid 엔티티가 로봇 하나뿐이라 `ipc_only`+
+`two_way_soft_constraint` mismatch 자체가 사라진다. `constraint_strength`
+를 로봇 단독 검증값(100.0) 그대로 쓸 수 있었고, `contact_d_hat=1e-4`(조합5
+self-contact 교훈 반영)로 정제도 낙하 중 형상 왜곡 없이 정상 동작.
+**결과: 발산 없이 전체 파이프라인 완주** — 정제 낙하(492.97→426.57mm,
+봉투 안 안착) → 그리퍼 파지 → 리프트(finger Δz=+126.1mm, bag grip
+Δz=+125.9mm, tablet Δz=+89.6mm, 봉투/정제 동반 상승 둘 다 OK).
+
+**교훈**: `coup_type`을 엔티티별로 다르게 섞을 때(`ipc_only` + `two_way_
+soft_constraint` 등), 최소 하나가 **동적(freejoint)** 이면 공식 예제로
+검증되지 않은 조합일 수 있다 — 강도 파라미터를 아무리 튜닝해도 "발산 아니면
+접촉 무력화"라는 양자택일만 나올 수 있으니, 이런 조합을 새로 시도할 땐
+먼저 공식 예제에 정확히 같은 조합(정적/동적 여부까지)이 있는지 확인하고,
+없으면 파라미터 튜닝보다 **한쪽을 같은 도메인(FEM 등)으로 통일**하는 우회를
+먼저 고려하는 게 시간 대비 효율적이다.
+
+---
+
+## 10. 피드백
 
 **한 박사님:**
 - 중요한 것은 화학자들이 어떤 것을 얻을 수 있을까?
