@@ -1120,6 +1120,92 @@ soft_constraint` 등), 최소 하나가 **동적(freejoint)** 이면 공식 예�
 없으면 파라미터 튜닝보다 **한쪽을 같은 도메인(FEM 등)으로 통일**하는 우회를
 먼저 고려하는 게 시간 대비 효율적이다.
 
+### 조합 9 — Crusher(Rigid) + 알루미늄 플레이트 4개(Rigid, 정적) + Tablet(FEM) + Samplebag(FEM) + Robotarm(Rigid, mimic+convex decomp) + IPC coupler · **해결, 전체 시퀀스(파지→리프트→슬롯 삽입) 성공**
+
+(`Crusher_M0609_RG2_Tablet_Samplebag/full_workflow.py`, 2026-07-15)
+
+조합 8 파이프라인에 Crusher 본체와 알루미늄 플레이트 4개(작업대)를 추가해
+"정제 낙하 → 봉투가 받음 → 로봇이 봉투를 파지·리프트 → Crusher 슬롯까지
+이동 → 슬롯에 삽입"까지 전체 워크플로우를 완성했다.
+
+**CUDA 크래시 2건 (모두 `coup_type` 미지정이 원인)**:
+1. Crusher 추가 시 `cudaErrorInvalidDevice`(scene.build() 내부 advance()에서
+   발생) — 자동선택이 `external_articulation`을 골랐는데, 이는 모든 링크가
+   충돌 지오메트리를 가져야 하는 조건이라 Crusher의 장식용 링크(충돌 지오메트리
+   없음)에서 `Rigid link has no collision geometry` 예외로 이어짐. **해결**:
+   `material=gs.materials.Rigid(coup_type="two_way_soft_constraint")`를
+   Crusher에 명시(관절이 있는 구동체이므로 로봇과 동일 취급).
+2. 알루미늄 플레이트 4개 추가 시 재발 — 원인은 플레이트가
+   `gs.materials.Rigid()`로 `coup_type` 미지정(자동선택) 상태였던 것.
+   **해결**: 플레이트도 `coup_type="ipc_only"` 명시(Plane/Shelf와 동일
+   패턴 — 무관절 정적 소품).
+   조합 8 교훈("엔티티별 coup_type을 섞을 때 최소 하나가 동적이면 위험")의
+   실전 재확인: 이번엔 반대로 **모든 엔티티에 coup_type을 명시적으로
+   지정**하는 것 자체가 근본 해결책이었다(자동선택에 맡기지 않음).
+
+**봉투 형상 고정 — `set_vertex_constraints`의 IPC 커플러 버그 발견**:
+로봇을 Crusher 슬롯 근처(거리 0.87m)에 두자 IK 오차가 8~12cm로 컸다.
+로봇을 슬롯에서 ~0.65m 거리로 재배치하니 오차가 <0.001m로 줄었다(고정
+자세 제약 하에서 IK 수렴은 로봇 베이스로부터의 거리에 매우 민감함).
+
+첫 실행에서 봉투가 아무 지지 없이 중력만으로 버티다 정제가 채 들어가기도
+전에 처져버렸고(§5), 이후 그리퍼가 126mm 올라가는 동안 봉투는 제자리에
+그대로 남아 파지가 완전히 실패했다. 조사 결과 봉투를 고정하는 함수가
+프로젝트 어디에도 없었다 — grasp 자체는 순수 마찰 접촉으로 설계돼 있었지만
+(치트 없음), 그 이전에 형상 자체가 무너져 파지 대상이 사라진 것.
+
+Genesis `FEMEntity.set_vertex_constraints()`가 정확히 이 용도(PBD의
+`fix_particles_to_link` 대응)지만, 소스 확인 결과 버그가 있었다
+(`fem_entity.py` 900행 부근):
+```python
+if isinstance(self.sim.coupler, IPCCoupler):
+    gs.raise_exception("This method is only supported by IPC coupler.")
+```
+조건이 뒤집혀 있어 "IPC 커플러에서만 지원됨"이라는 메시지와 반대로 **IPC
+커플러를 쓸 때 정확히 예외를 던진다** — 우리 씬은 전부 IPC 커플러이므로
+이 메서드가 사실상 항상 막혀 있었다(실측 확인:
+`bag.set_vertex_constraints(...)` → `GenesisException`). `update_constraint_
+targets()`/`remove_vertex_constraints()`는 이 체크가 없어 정상 동작.
+
+**우회**: Genesis 설치본(site-packages)은 건드리지 않고, 원본 로직을 그대로
+복제하되 버그인 `isinstance` 체크 한 줄만 제거한 함수로 런타임에
+`FEMEntity.set_vertex_constraints`를 몽키패치(`utills/fem_ipc_workarounds.
+patch_fem_vertex_constraints()`, `primitive_tablet_generator.py`의
+`mesh_to_elements` 패치와 동일한 기법).
+
+고정 정점 범위는 3회 반복 튜닝: 정점 77%(입구 제외 전부)를 고정하니 자유
+상태인 입구가 오히려 비현실적으로 늘어남(50스텝 내 -390mm) → 바닥 밴드
+(12mm)만 고정하니 150스텝까지는 버티다 이후 붕괴(z-span 88.7→31.8mm) →
+**바닥(12mm) + 양 측면(각 8mm), 입구만 완전히 자유** = 정점 303/771(39%)
+고정이 격리 테스트에서 설계 치수(90mm z-span)를 200+ 스텝(1초+) 안정
+유지함을 확인. `close`(그리퍼 닫기) 직전에 `remove_vertex_constraints()`로
+전부 해제, 이후 `grasp`/`lift`는 순수 마찰로 진행.
+
+**결과 (`_full_workflow_run2.log`)**: 고정 적용 후 `prep`/`drop`/`settle` 동안
+봉투 COM이 사실상 고정(0.4321→0.4322, 5번째 소수점 드리프트)된 채 정제가
+정상적으로 낙하(456.83→431.44mm)했고, 해제 후 `close`→`grasp`→`lift`에서
+봉투 COM_z가 0.4315→0.5560(+125.9mm)로 상승해 finger_z 상승분(0.4360→
+0.5621, +126.1mm)과 거의 정확히 일치 — **순수 마찰 파지가 실제로 성공**한
+것을 수치로 확인(이전 실행에선 finger_z는 동일하게 126mm 올라갔지만
+bag_com은 완전히 그대로였음 — 완전한 반전). `above`/`insert` 구간에서는
+봉투·정제가 팔의 이동을 따라 흔들리며 이동했고(스윙 있음), 최종적으로
+봉투가 Crusher 슬롯 가이드 벽 틈 사이로 내려간 것을 `bagcam` 영상 프레임
+(`insert_end`, `end`)으로 시각 확인함 — 그리퍼에 물린 흰색 봉투 메쉬가
+슬롯의 검은 가이드 벽 사이에 걸쳐 있는 모습.
+
+영상: `RESULT/full_workflow_20260715_162834_overview.mp4`,
+`RESULT/full_workflow_20260715_162834_bagcam.mp4`.
+
+**교훈**: (1) 복잡한 다중 엔티티 IPC 씬에서는 **모든** Rigid 엔티티에
+`coup_type`을 명시하는 편이 안전하다(자동선택 규칙이 장식용 충돌-지오메트리
+없는 링크나 무관절 소품에서 예상 밖의 타입을 고를 수 있음). (2) Genesis API
+문서/타입힌트만 믿지 말고 실제 예외가 발생하면 소스를 직접 읽을 것 —
+`set_vertex_constraints`의 `isinstance` 체크는 정확히 반대로 뒤집힌 버그였고
+메시지만 봐서는 알아챌 수 없었다. (3) FEM 형상을 grasp 전 안정화할 때는
+"입구/파지 대상 부위는 자유, 나머지 골격(바닥+측면)만 고정"하는 최소 고정이
+과다 고정(전체 고정)보다 결과가 좋다 — 과다 고정은 해제 안 된 자유 영역에
+비현실적 응력 집중을 유발한다.
+
 ---
 
 ## 10. 피드백
