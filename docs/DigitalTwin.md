@@ -1206,6 +1206,112 @@ bag_com은 완전히 그대로였음 — 완전한 반전). `above`/`insert` 구
 과다 고정(전체 고정)보다 결과가 좋다 — 과다 고정은 해제 안 된 자유 영역에
 비현실적 응력 집중을 유발한다.
 
+### 조합 9 후속 — 씬 튜닝 · 슬롯 삽입 위치 재조사 (2026-07-15 2~5차)
+
+(`Crusher_M0609_RG2_Tablet_Samplebag/full_workflow.py`, run3~run7)
+
+조합 9 1차 성공 이후 사용자 시각 검수 피드백을 반영해 5차례 재실행하며
+장면 품질·삽입 위치·기구 이해를 다듬었다.
+
+**1) 조명/배경 튜닝**: 기본 조명(ambient 0.1, key light 1개 intensity 5.0)이
+너무 어두워 45도 키 라이트(intensity 8.0) + 필 라이트(3.0) + ambient 0.35 로
+올렸더니 이번엔 명암 대비가 거의 없이 밋밋(washed-out)해짐 → ambient 0.16,
+key 6.0, fill 1.2 로 재조정해 대비를 되살림. 격자무늬 Ground 는
+`gs.morphs.Plane(visualization=False)`로 충돌(안전망)은 유지하되 렌더만 꺼서
+알루미늄 플레이트만 보이게 함.
+
+**2) `contact_d_hat` 축소 시도 → 성능 폭증 → 원복**: 정제 우그러짐 재발
+우려로 `IPC_D_HAT` 1e-4→5e-5 로 낮췄더니 `scene.build()` 내부 warm-start
+솔브가 30분+ 로 폭증(직전 1e-4 실행은 빌드+전체스텝+인코딩 합쳐 16분18초).
+원인: `contact_d_hat`은 정제 하나의 self-contact 뿐 아니라 **씬 전체(플레이트
+4개+Crusher+로봇+봉투+정제)의 모든 접촉쌍**에 적용되는 커플러 전역 설정이라,
+민감도를 2배 높이면 이 복잡한 다중 엔티티 씬 전체의 접촉 해석 비용이
+크게 늘어난다 — 격리 테스트(정제 단독)에서는 이 비용이 안 보였던 것. 정제
+극 근처 최소 정점 간격(0.32mm) 대비 1e-4 의 비율은 0.31 로 이미 문서 기준
+"1/3 이하" 안전 마진 안이었으므로 원복(1e-4).
+**교훈**: 씬 전역 파라미터를 국소 문제(특정 엔티티의 self-contact) 해결
+목적으로 낮출 땐, 그 파라미터가 정말 국소적인지부터 확인할 것 — 아니라면
+전체 씬 규모에서 비용을 먼저 가늠해야 한다.
+
+**3) 실링부 색칠 — vertex color 는 무시됨, UV+텍스처만 동작**: Genesis 는
+mesh 에 구운 `vertex_colors`(PLY 로 저장해도)를 렌더에 반영하지 않는다(격리
+테스트로 확인 — 단색으로만 나옴; `utils/mesh.py`의 `_get_texture`가
+`ColorTexture`/`ImageTexture` 두 경우만 처리하고 mesh 자체의 vertex color
+경로가 없음). 대안으로 봉투 로컬 좌표(폭 ±32mm, 높이 ±45mm, 이미 원점 중심)에
+평면 UV(`u=x/64mm+0.5, v=y/90mm+0.5`)를 구워 OBJ 로 내보내고, 좌우 가장자리
+10mm 대역(`|local_x|>22mm`)만 다른 색인 128×128 스트라이프 텍스처를
+`surface=gs.surfaces.Default(diffuse_texture=gs.textures.ImageTexture(...))`
+로 입혀 해결 — 격리 렌더 테스트로 확인.
+
+**4) 파지 위치를 봉투 최상단(입구)으로 이동**: `TOP_GRIP_MARGIN=8mm` 추가,
+`BAG_POS_z = FINGER_MID_z - BAG_HALF_H + TOP_GRIP_MARGIN`(이전엔 봉투
+중앙 높이가 FINGER_MID 와 일치) — 그리퍼가 입구에서 8mm 안쪽을 물고, 봉투
+대부분이 그 아래로 늘어지는 구조로 변경.
+
+**5) 슬롯 삽입 위치 — 3단계 시행착오**:
+   - *5-1 (경험적 보정)*: gap 슬릿 중심(gap_cx,gap_cy)을 목표로 주면 파지된
+     봉투가 관성/처짐으로 목표에 못 미쳐(벽 쪽 -42/-28mm 부족) 도착 — 실측
+     shortfall 만큼 목표를 벽 쪽으로 미리 밀어 보정(1차 완화, 완전 해결은
+     아님).
+   - *5-2 (포켓 바닥판 오인)*: "봉투 하단이 벽 쪽에 더 붙어야 한다"는 지적을
+     "`L1_Wall1_1`(포켓 바닥 플레이트) 중심까지 가야 한다"로 확대 해석해
+     목표를 그쪽으로 옮김. 하지만 이 바닥판은 12mm 폭 gap 슬릿보다 더
+     안쪽(-x 방향)에 있어 단순 수직 하강으로는 도달 불가능한 자리였다 —
+     실측 로그에서 `insert`/`settle2` 내내 bag_com.x 가 목표로 수렴하지 않고
+     **오히려 멀어지는** 패턴으로 이를 확인(벽 구조물에 막힘).
+   - *5-3 (근본 수정, docs/Crusher.md 재확인)*: `Crusher.md` §5·§11-5 를 보면
+     `Left_Wall`(`L1_Guide1_1_L2_Left_Wall1_1`, Motor2, Rack&Pinion)이 바로
+     "샘플백 홀더" — "모터를 계속해서 구동시킴을 통해서 강하게 고정"한다고
+     명시돼 있다. 즉 **봉투를 포켓 깊숙이 옮기는 건 로봇의 역할이 아니고,
+     로봇은 gap 근처까지만 옮기면 Left_Wall 이 닫히며 실링부를 Wall3 에
+     눌러 고정**하는 게 실제 기구 설계다. 목표를 `Crusher_Samplebag.py` 원안
+     (`target_x=gap_cx, target_z=wall_top_z`)으로 되돌림 — 파지점이 이제
+     봉투 최상단이라 `gripper_z ≈ 입구 높이`가 `wall_top_z` 목표와 자연스럽게
+     대응된다.
+   - **저비용 사전검증 스크립트**(`slot_ik_check.py`, 신규): above/insert
+     목표에서 로봇팔이 Crusher 본체와 충돌하는지를, 무거운 IPC+FEM 풀 씬을
+     빌드하지 않고 **Rigid-only(Crusher+Robot 만, coupler 기본값)** 로 빠르게
+     검증(빌드 수십 초 vs 풀 파이프라인 4~16분). `entity.get_contacts
+     (with_entity=...)` 로 손가락 제외 링크가 Crusher 와 접촉하는지 확인 —
+     above/insert 모두 접촉 0건으로 "로봇팔이 슬롯에 같이 들어가는" 문제는
+     Crusher 본체와는 무관함을 확인(사용자가 우려했던 지점). 참고로 같은
+     검증에서 팔 아래쪽 링크가 **바닥 plane 과는 접촉**함을 발견했는데,
+     본 파이프라인은 로봇을 `set_dofs_position`(운동학적 텔레포트)으로
+     구동해 이 접촉이 물리적으로 강제되지 않으므로(렌더상 살짝 파고드는
+     정도) 봉투/정제 물리에는 영향 없음 — 미해결 코스메틱 이슈로 남겨둠.
+
+**6) `clamp`/`release` phase 신규 추가 — 미해결 이상 발견**: `insert`/
+`settle2` 이후 `Left_Wall` 을 `WALL_OFFSET`(+6mm)→`CLAMP_TARGET`(-5mm, 2.0s)
+로 램프하는 `clamp` phase 와, 그 뒤 그리퍼를 여는 `release` phase 를
+추가(`Crusher_Samplebag.py` 의 `CLAMP_TARGET` 재사용). **증상**: 명령한
+목표는 -5mm 인데 `crusher.get_dofs_position()` 실측값이 **-159.42mm** 로
+찍힘 — 물리적으로 불가능한 수치. 그런데 `overview` 카메라로는 clamp 진행
+중 벽이 시각적으로 거의 안 움직였고, `bagcam` 에는 봉투(실링부 색 포함)가
+가이드 블록과 모터 하우징 사이에 눌린 모습만 보인다. **추정 원인**:
+Crusher 가 로봇과 동일하게 `coup_type="two_way_soft_constraint"`(rigid
+솔버가 계산한 목표를 스프링으로 IPC 쪽 실제 강체에 당기는 방식)로 처리되는데,
+벽이 봉투와 접촉해 저항을 받으면 `constraint_strength=100.0` 스프링이 그
+반력을 못 이겨 **rigid 솔버 쪽 DOF 값만 목표를 향해 계속 헛돌며 발산**하고,
+IPC 가 실제로 시뮬레이션하는 강체 자체는 접촉에 막혀 거의 못 움직이는
+것으로 보인다 — 로봇 손가락-봉투 결합에서 이미 확인된 "soft constraint 가
+약해 반력을 못 버틴다" 문제와 같은 계열이, 이번엔 Crusher 자체의 벽-봉투
+접촉에서 재현된 것. **미해결** — Crusher 전용으로 `constraint_strength`를
+올려보거나, clamp 구간만 다른 결합 방식을 쓰는 등의 후속 조사가 필요하다.
+
+영상: `RESULT/full_workflow_20260715_202218_overview.mp4`,
+`RESULT/full_workflow_20260715_202218_bagcam.mp4`(run7, clamp/release
+포함 — clamp 수치 이상 있는 채로 저장됨).
+
+**교훈**: (1) "위치가 부정확하다"는 피드백을 받으면 목표를 더 밀어넣기 전에
+그 방향이 애초에 기구적으로 맞는 요구인지(문서·실측 로그의 수렴 여부)부터
+확인할 것 — 5-2 처럼 도달 불가능한 목표를 밀어붙이면 로그상 "수렴 실패"
+패턴(목표에서 멀어짐)으로 드러난다. (2) `two_way_soft_constraint` 의
+`constraint_strength` 부족 문제는 로봇-봉투 접촉에만 국한된 게 아니라
+**두 way-soft-constraint 로 묶인 어떤 rigid 엔티티든 강한 접촉 저항을 받으면
+동일하게 재현될 수 있는 일반적인 실패 모드**로 간주해야 한다. (3) 비싼
+풀 IPC+FEM 빌드 전에 rigid-only 저비용 씬으로 IK 목표의 충돌 여부만 먼저
+검증하는 방식(`slot_ik_check.py`)이 반복 튜닝 비용을 크게 줄여준다.
+
 ---
 
 ## 10. 피드백
