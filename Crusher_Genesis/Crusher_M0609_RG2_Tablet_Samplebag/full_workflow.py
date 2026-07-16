@@ -207,20 +207,38 @@ CLOTH_THICK, CLOTH_BEND = 1.0e-3, 400.0
 CLOTH_FRICTION = 0.8
 FEM_DAMPING = 0.2
 
+# 2026-07-16 9차: BAG_EULER 를 (90,0,0)->(90,0,90) 로 바꿈에 따라(아래 참고)
+# 그리퍼 닫힘축도 world Y->X 로 되돌아가야 해서 손목(joint 6) 트위스트(+90°)
+# 를 제거(0°) — FK 실측 확인: wrist=0 일 때 핑거가 X축으로, wrist=+90°일 때
+# Y축으로 벌어짐(box 실험 시절의 "네이티브" 축은 X, 봉투 두께=Y 시절에만
+# +90°가 필요했다).
 FINGER_LINKS = ("f1_flex_finger", "f2_flex_finger")
-Q_GRASP = np.array([0, -0.40, 1.30, 0, 2.00, np.pi / 2], float)
-Q_LIFT = np.array([0, -0.11, 0.60, 0, 2.41, np.pi / 2], float)
+Q_GRASP = np.array([0, -0.40, 1.30, 0, 2.00, 0.0], float)
+Q_LIFT = np.array([0, -0.11, 0.60, 0, 2.41, 0.0], float)
 FING_OPEN, FING_CLOSE = 1.00, 1.20
 
 # 슬롯(약 (-0.33,-0.05,0.09))에서 0.87m 떨어진 원래 위치((0,0.7,0))는 orientation
 # 고정 IK 오차가 12cm 까지 났다 — 슬롯에 훨씬 가까운 위치로 재배치(오차 <0.001m
 # 확인, 이 스크립트 개발 중 격리 테스트로 검증).
 ROBOT_OFFSET = np.array([-0.330, -0.65, 0.0])
-FINGER_MID_BASE = np.array([0.20365, 0.00618, 0.43297])
+# wrist=0(위 변경) 기준으로 FK 재실측(Q_GRASP+FING_CLOSE=1.20) — 이전 값은
+# wrist=+90°에서 잰 것이라 손목 회전만큼(수 mm 수준) 어긋난다.
+FINGER_MID_BASE = np.array([0.20339339, 0.00618061, 0.43607193])
 FINGER_MID = FINGER_MID_BASE + ROBOT_OFFSET
 
 BAG_SCALE = 1.0
-BAG_EULER = (90, 0, 0)
+# **버그 발견(2026-07-16, 사용자 지적)**: BAG_EULER=(90,0,0) 에서는 봉투의
+# world 좌표계 크기가 X=64mm(폭+실링), Y=6mm(두께), Z=90mm(높이) 였는데,
+# 슬롯 gap 은 X=12mm(좁음), Y=65mm(여유) — 봉투의 넓은 면(64mm)이 좁은 12mm
+# gap 과, 얇은 면(6mm)이 여유로운 65mm 쪽과 부딪히는 **축이 뒤바뀐 상태**였다.
+# 원래 참고했던 Crusher_Samplebag.py 는 BAG_EULER=(90,0,**90**) 을 썼는데
+# (마지막 Z축 90도가 우리 코드에서 빠져 있었음) 이걸 추가하면 X=6mm(두께,
+# gap 12mm 대비 여유 3mm씩), Y=64mm(폭, gap 65mm 대비 여유 0.5mm씩 — 타이트
+# 하지만 통과 가능)로 정확히 뒤바뀐다. 높이(local Y->world Z)는 이 변경과
+# 무관하게 그대로다(trimesh 로 직접 회전행렬 적용해 검증 완료).
+BAG_EULER = (90, 0, 90)
+# SEAL_LOCAL_X 는 로컬 mesh 폭축(실링 위치) 오프셋 — 이제 그 축이 world Y 로
+# 매핑되므로(위 회전 변경), BAG_POS 적용 위치도 X->Y 로 옮긴다.
 SEAL_LOCAL_X = -0.028
 BAG_HALF_H = 0.045
 # 파지 위치를 봉투 거의 최상단(입구 쪽)으로 이동(2026-07-15 4차, 사용자 지시).
@@ -228,7 +246,7 @@ BAG_HALF_H = 0.045
 # 였는데, 입구에서 8mm 안쪽(맨 가장자리는 잡을 재료가 부족해 8mm 마진)에 오도록
 # BAG_POS(봉투 중심)를 그만큼 아래로 내린다.
 TOP_GRIP_MARGIN = 0.008
-BAG_POS = (FINGER_MID[0] - SEAL_LOCAL_X, FINGER_MID[1],
+BAG_POS = (FINGER_MID[0], FINGER_MID[1] - SEAL_LOCAL_X,
            FINGER_MID[2] - BAG_HALF_H + TOP_GRIP_MARGIN)
 
 SHELF_TOP = BAG_POS[2] - BAG_HALF_H - 0.0015
@@ -427,10 +445,12 @@ def main(use_viewer: bool = False):
     print("[build] 성공")
 
     # ── 봉투 형상 고정: 바닥+양측면(입구는 자유) — §docstring 참고 ───────────
+    # BAG_EULER 가 (90,0,90)으로 바뀌면서 폭(측면 고정 대상) 축이 world X->Y
+    # 로 이동(높이=Z 는 불변) — by 기준으로 side_mask 를 잡는다.
     bag_pos0 = _npy(bag.get_state().pos).squeeze()
-    bx, bz = bag_pos0[:, 0], bag_pos0[:, 2]
+    by, bz = bag_pos0[:, 1], bag_pos0[:, 2]
     bag_bottom_mask = bz < bz.min() + 0.012
-    bag_side_mask = (bx < bx.min() + 0.008) | (bx > bx.max() - 0.008)
+    bag_side_mask = (by < by.min() + 0.008) | (by > by.max() - 0.008)
     bag_fixed_idx = np.where(bag_bottom_mask | bag_side_mask)[0]
     bag.set_vertex_constraints(verts_idx_local=bag_fixed_idx.tolist(), is_soft_constraint=False)
     print(f"[bag] shape 고정: {len(bag_fixed_idx)}/{len(bz)} 정점(바닥+양측면), 입구는 자유")
@@ -547,38 +567,45 @@ def main(use_viewer: bool = False):
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
 
     # ── Phase 7: above — 슬롯 바로 위로 이동 (IK) ──────────────────────────
-    # Q_LIFT 의 마지막 관절(wrist roll)=+pi/2 를 그대로 목표 orientation 에
-    # 쓰면 슬롯 접근 시 불필요하게 90도 틀어진 자세가 되어 IK 가 팔을 억지로
-    # 웅크리게 만든다(사용자 시각 확인: above/insert 프레임에서 팔이 바닥 쪽으로
-    # 접힌 부자연스러운 자세). 손목 관절만 0으로 되돌린 순간의 gripper quat 을
-    # 구해 그 값을 above/insert 목표 orientation 으로 쓴다 — 그리퍼는 이미 봉투를
-    # 문 상태이므로 이 조회는 순수 forward-kinematics 이며, 조회 직후 실제 상태를
-    # 즉시 복원해 물리에는 영향 없다.
-    q_insert_ref = q_lift.copy()
-    q_insert_ref[5] = 0.0
-    robot.set_dofs_position(np.concatenate([q_insert_ref, [FING_CLOSE] * 6]))
-    q_insert_quat = _npy(gripper_link.get_quat()).squeeze()
-    robot.set_dofs_position(np.concatenate([q_lift, [FING_CLOSE] * 6]))  # 실제 상태 복원
+    # **버그 발견(2026-07-16, 사용자 지적)**: 지금까지 IK 타깃 링크로 썼던
+    # `gripper_body`는 실제 손가락(=봉투가 매달린 지점)과 무려 140mm(z),
+    # 34mm(x) 어긋나 있었다(FK 실측 확인) — gripper_body 는 손목 브라켓
+    # 쪽이고, RG2 내부 링크(moment_arm/truss_arm)를 거쳐 손가락이 그보다 한참
+    # 아래에 붙는다. `insert_z=wall_top_z`로 gripper_body 를 명령했더니 실제
+    # 손가락은 140mm 아래(z<0, 포켓 바닥까지)로 내려갔던 것 — 이전 라운드들의
+    # "목표에 도달 못 함/벽에 막힘"으로 보였던 현상 상당수가 사실 이 링크
+    # 오프셋 때문이었다. **IK 타깃 링크를 `left_link`(손가락)로 교체**해
+    # 해결(격리 검증: 오차 0.19mm, Crusher 접촉 0건).
+    #
+    # (2026-07-16 9차: Q_GRASP/Q_LIFT 의 wrist 가 이미 0으로 바뀌어서 — 위
+    # BAG_EULER 수정과 함께 — 더 이상 "손목만 0으로 되돌리는" 임시 조회가
+    # 필요 없다. 그냥 현재 상태의 손가락 quat 을 그대로 above/insert 목표
+    # orientation 으로 쓴다.)
+    q_insert_quat = _npy(left_link.get_quat()).squeeze()
 
-    # ── 목표 위치 재계산(2026-07-15 5차, docs/Crusher.md §5·§11-5 참고) ───────
-    # 로봇이 봉투를 포켓 깊숙이(L1_Wall1_1 바닥판 중앙)까지 옮기려 했던 4차
-    # 시도는 실측상 목표에 도달하지 못했다(insert 내내 x가 목표로 수렴하지 않고
-    # 오히려 멀어짐 — 좁은 gap 통과 후 옆으로 더 들어가야 하는 경로라 벽에 막힘).
-    # docs/Crusher.md §5("Left_Wall...랙-피니언 구동으로...분쇄 간격을 조정"),
-    # §11-5("샘플백 홀더...Motor2...Rack and Pinion...모터를 계속해서 구동시킴을
-    # 통해서 강하게 고정")를 보면 애초에 봉투를 포켓 안까지 밀어넣는 건 로봇의
-    # 역할이 아니다 — **로봇은 gap 근처까지만 옮기고, Left_Wall이 닫히며(Motor2)
-    # 실링부를 Wall3 에 눌러 고정**하는 게 실제 기구 설계다. 목표를
-    # Crusher_Samplebag.py 원안(target_x=gap_cx, target_z=wall_top_z)으로
-    # 되돌린다 — 파지 위치가 이제 봉투 최상단(입구)이라 gripper_z ≈ 입구 높이가
-    # 그대로 wall_top_z 목표와 대응된다.
-    above_z = wall_top_z + 0.20   # Crusher_Samplebag.py SLOT_DZ_START=0.20 재사용
-    insert_z = wall_top_z
+    # ── 목표 위치(2026-07-16 6차, docs/Crusher.md §5·§11-5 + 사용자 지시) ────
+    # X/Y: 로봇은 봉투를 포켓 깊숙이 밀어넣을 필요 없이 gap 근처까지만
+    # 옮기면 된다(Left_Wall 이 이후 실제로 클램프하는 기구 — §조합9 후속).
+    # Z: "벽 중앙에서 10cm 위"(사용자 지시) — wall_center_z(포켓 상/하단의
+    # 세로 중점) + 100mm 를 **손가락** 목표로 직접 사용.
+    wall_center_z = (wall_top_z + wb_lo[2]) / 2.0
+    above_z = wall_top_z + 0.20
+    # 2026-07-16 7~8차: "벽쪽으로 조금씩 붙이면서 슬롯에 들어갈 때까지 테스트"
+    # (사용자 지시) — INSERT_MARGIN_ABOVE_CENTER 를 낮춰가며 반복 실행.
+    # 히스토리: 0.10(최초, 봉투가 gap 위에 뜬 채 안 들어감) -> 0.06(봉투가 gap
+    # 안으로 들어감, 확인됨) -> 이번 0.052. rigid-only 정밀 스윕(slot_ik_check
+    # 방식)으로 핑거(gap 12mm보다 훨씬 넓어 gap 통과 불가)-Crusher 충돌 경계를
+    # 찾음: margin=52mm(wall_top+16mm)는 접촉 0건, 50mm(wall_top+14mm)부터
+    # 접촉 7건 — 52mm가 안전한 최소 여유의 타이트한 값.
+    INSERT_MARGIN_ABOVE_CENTER = 0.052
+    insert_z = wall_center_z + INSERT_MARGIN_ABOVE_CENTER
     target_xy = np.array([gap_cx, gap_cy])
+    print(f"[slot] wall_center_z={wall_center_z:.4f}  insert_z(finger)={insert_z:.4f}  "
+          f"margin={INSERT_MARGIN_ABOVE_CENTER*1000:.0f}mm")
 
     target_above = np.array([target_xy[0], target_xy[1], above_z])
     qpos_above = _npy(robot.inverse_kinematics(
-        link=gripper_link, pos=target_above, quat=q_insert_quat, dofs_idx_local=np.arange(6)))[:6]
+        link=left_link, pos=target_above, quat=q_insert_quat, dofs_idx_local=np.arange(6)))[:6]
     print(f"\n[ik] above-slot target={target_above}  arm_q={qpos_above}")
     run_arm("above", q_lift, qpos_above, FING_CLOSE, FING_CLOSE, N_ABOVE,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
@@ -586,7 +613,7 @@ def main(use_viewer: bool = False):
     # ── Phase 8: insert — 슬롯 입구까지 하강(gap 근방, 느리게) ───────────────
     target_insert = np.array([target_xy[0], target_xy[1], insert_z])
     qpos_insert = _npy(robot.inverse_kinematics(
-        link=gripper_link, pos=target_insert, quat=q_insert_quat, dofs_idx_local=np.arange(6)))[:6]
+        link=left_link, pos=target_insert, quat=q_insert_quat, dofs_idx_local=np.arange(6)))[:6]
     print(f"[ik] insert target={target_insert}  arm_q={qpos_insert}")
     run_arm("insert", qpos_above, qpos_insert, FING_CLOSE, FING_CLOSE, N_INSERT,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
