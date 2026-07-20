@@ -1,0 +1,47 @@
+{
+  "combo": "legacy",
+  "coupler": "LegacyCoupler(rigid_pbd=True)",
+  "bag_material": "PBD.Cloth",
+  "tablet_material": "Rigid",
+  "grasp_method": "weld (fix_particles_to_link cheat)",
+  "dt": 0.001,
+  "substeps": 10,
+  "total_steps": 11150,
+  "sim_time_sec": 11.15,
+  "wall_clock_sec": 947.0806398999412,
+  "steps_per_sec": 11.77302072311181,
+  "phase_times_sec": {
+    "build": 15.971690400037915,
+    "prep": 82.05803710012697,
+    "drop": 59.20261130016297,
+    "settle": 25.63899889984168,
+    "close": 33.44836440007202,
+    "grasp": 16.36699440004304,
+    "lift": 86.97065130015835,
+    "hold": 43.21187529992312,
+    "above": 176.31578669999726,
+    "insert": 150.94952060002834,
+    "settle2": 30.670586599968374,
+    "clamp": 130.5644495000597,
+    "release": 37.64708249992691
+  },
+  "slot_target": [
+    -0.3302777709960938,
+    -0.047302336215972886,
+    0.05043122673034668
+  ],
+  "bag_com_at_clamp_end": [
+    100.0,
+    100.0,
+    100.0
+  ],
+  "dist_to_slot_at_clamp_end_mm": 173394.18571659777,
+  "dist_to_slot_xy_at_clamp_end_mm": 141688.48697886305,
+  "bag_com_final": [
+    100.0,
+    100.0,
+    100.0
+  ],
+  "dist_to_slot_final_mm": 173394.18571659777,
+  "dist_to_slot_xy_final_mm": 141688.48697886305
+}

@@ -1,0 +1,82 @@
+[slot] gap_cx=-0.3303 gap_cy=-0.0473 wall_top_z=0.0864 wall_center_z=0.0504
+[slot] gap X 폭=12mm(좁음)  gap Y 폭=65mm(여유, 하지만 봉투 폭 64mm라 타이트)
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [16:17:46] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [16:17:47] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.01`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py:245: DeprecationWarning: keyword.__init__ got an unexpected keyword argument 'ctx'. Support for arbitrary keyword arguments is deprecated and will be removed in Python 3.15.
+  kwarg_node = ast.keyword(
+[build] 성공
+
+[ready] 뷰어 창에서 좌클릭 드래그로 주황색 프로브 박스를 슬롯(gap)에 넣어보세요.
+        0.5초마다 프로브 world 위치를 출력합니다. Ctrl+C 로 종료.
+
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 654.0,841.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   0.5s] probe pos = (-0.3316, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 569.0,234.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 516.0,157.0, button=2) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 537.0,170.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 624.0,169.0, button=2) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 624.0,169.0, button=2) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 624.0,169.0, button=2) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   1.0s] probe pos = (-0.3315, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   1.5s] probe pos = (-0.3312, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   2.0s] probe pos = (-0.3311, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   2.5s] probe pos = (-0.3310, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   3.0s] probe pos = (-0.3310, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   3.5s] probe pos = (-0.3309, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   4.0s] probe pos = (-0.3309, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[pick] OK - 'L2_Left_Wall1_1' 잡음 (스크린 좌표 721.0,517.0)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 233.0,887.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 306.0,806.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   4.5s] probe pos = (-0.3308, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   5.0s] probe pos = (-0.3308, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   5.5s] probe pos = (-0.3307, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   6.0s] probe pos = (-0.3307, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   6.5s] probe pos = (-0.3307, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   7.0s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   7.5s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 512.0,506.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   8.0s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   8.5s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   9.0s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   9.5s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  10.0s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  10.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  11.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  11.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  12.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  12.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  13.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  13.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  14.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  14.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  15.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  15.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  16.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  16.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  17.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  17.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  18.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  18.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  19.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  19.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  20.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  20.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  21.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  21.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  22.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  22.5s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  23.0s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  23.5s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  24.0s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  24.5s] probe pos = (-0.3307, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  25.0s] probe pos = (-0.3308, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  25.5s] probe pos = (-0.3311, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  26.0s] probe pos = (-0.3237, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  26.5s] probe pos = (-0.3310, -0.0499, +0.0545)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  27.0s] probe pos = (-0.3283, -0.0499, +0.0544)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  27.5s] probe pos = (-0.3283, -0.0499, +0.0544)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  28.0s] probe pos = (-0.3283, -0.0499, +0.0544)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  28.5s] probe pos = (-0.3283, -0.0499, +0.0544)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  29.0s] probe pos = (-0.3283, -0.0499, +0.0544)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)

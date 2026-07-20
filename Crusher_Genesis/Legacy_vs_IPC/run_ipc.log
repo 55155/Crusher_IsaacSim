@@ -1,0 +1,73 @@
+============================================================
+ [IPC] Legacy_vs_IPC pipeline_ipc  (viewer=False)
+============================================================
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+[38;5;226m[Genesis] [19:15:10] [WARNING] At least one of the meshes contain many faces (27466). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [19:15:11] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [19:15:11] [WARNING] Link 'link_2' has dubious center of mass [x=0.000, y=0.000, z=0.000] compared to the bounding box from geometry [x=(-0.068, 0.479), y=(-0.069, 0.069), z=(0.082, 0.274)].[0m
+[38;5;226m[Genesis] [19:15:12] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.01`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py:245: DeprecationWarning: keyword.__init__ got an unexpected keyword argument 'ctx'. Support for arbitrary keyword arguments is deprecated and will be removed in Python 3.15.
+  kwarg_node = ast.keyword(
+[build] 성공 (10.7s)
+[bag] shape 고정: 375/771 정점(바닥+양측면), 입구는 자유
+[slot] gap_cx=-0.3303 gap_cy=-0.0473 gap_width=12.0mm wall_top_z=0.0864
+[slot] pocket(L1_Wall1_1) center=(-0.3683,-0.0853)  wall_center_z=0.0504
+
+[phase] 0 prep (1.0s sim) — 크랭크 0->-3.142rad, Left_Wall 0->+6mm
+[phase] prep     @done  (38.8s wall)
+    [drop k=   0] tablet_z=+441.71mm bag_com=[-0.12662047 -0.61670107  0.39840963]
+    [drop k=  40] tablet_z=+438.50mm bag_com=[-0.12662357 -0.61670107  0.39840963]
+    [drop k=  80] tablet_z=+431.51mm bag_com=[-0.1266205  -0.6167017   0.39840963]
+    [drop k= 120] tablet_z=+419.94mm bag_com=[-0.12662317 -0.6167012   0.39840963]
+[phase] drop     @done  bag_com=[-0.12662287 -0.6167017   0.39840963]  finger_z=0.4355  tablet_z=+414.85mm  (31.9s wall)
+[phase] settle   @done  bag_com=[-0.1266218  -0.61670107  0.39840963]  finger_z=0.4355  tablet_z=+398.48mm  (17.2s wall)
+[bag] shape 고정 해제 — 이제부터 순수 마찰 파지
+[phase] close    @done  bag_com=[-0.12442426 -0.6173251   0.39767236]  finger_z=0.4314  tablet_z=+397.07mm  (12.6s wall)
+[phase] grasp    @done  bag_com=[-0.1248459  -0.61748517  0.39767554]  finger_z=0.4314  tablet_z=+396.83mm  (7.2s wall)
+[phase] lift     @done  bag_com=[-0.12933552 -0.6210575   0.52228826]  finger_z=0.5573  tablet_z=+518.20mm  (65.9s wall)
+[phase] hold     @done  bag_com=[-0.12844056 -0.6209674   0.5225058 ]  finger_z=0.5573  tablet_z=+484.10mm  (26.8s wall)
+[slot] wall_center_z=0.0504  insert_z(finger)=0.1024  margin=52mm
+
+[ik] above-slot target=[-0.33027777 -0.04730234  0.28643123]  arm_q=[ 1.6530168   0.718905    0.4230762  -0.26477602  2.0062175   1.5416934 ]
+    [above k=   0] tablet_z=+483.88mm bag_com=[-0.12808254 -0.62063843  0.522249  ]
+    [above k=  40] tablet_z=+472.04mm bag_com=[-0.08949837 -0.5861978   0.5114435 ]
+    [above k=  80] tablet_z=+458.58mm bag_com=[-0.04984356 -0.5346988   0.49616817]
+    [above k= 120] tablet_z=+447.47mm bag_com=[-0.02056047 -0.4719395   0.47756785]
+    [above k= 160] tablet_z=+431.09mm bag_com=[-0.00912031 -0.40228644  0.4550536 ]
+    [above k= 200] tablet_z=+404.66mm bag_com=[-0.01719723 -0.3283921   0.4283908 ]
+    [above k= 240] tablet_z=+375.76mm bag_com=[-0.04146704 -0.2533416   0.39863697]
+    [above k= 280] tablet_z=+342.99mm bag_com=[-0.08357818 -0.1808082   0.36611176]
+    [above k= 320] tablet_z=+307.88mm bag_com=[-0.14341247 -0.11603175  0.33045572]
+    [above k= 360] tablet_z=+268.37mm bag_com=[-0.21825068 -0.06209744  0.29232758]
+[phase] above    @done  bag_com=[-0.3014172  -0.02302543  0.25351638]  finger_z=0.2862  tablet_z=+226.22mm  (167.7s wall)
+[ik] insert target=[-0.33027777 -0.04730234  0.10243123]  arm_q=[ 1.6529723   0.6276229   1.0914025  -0.24118827  1.4465578   1.6859881 ]
+    [insert k=   0] tablet_z=+224.89mm bag_com=[-0.30303705 -0.02287521  0.25268045]
+    [insert k=  40] tablet_z=+205.73mm bag_com=[-0.3095701  -0.01872994  0.2350406 ]
+    [insert k=  80] tablet_z=+189.93mm bag_com=[-0.3056696  -0.01410842  0.21785201]
+    [insert k= 120] tablet_z=+174.91mm bag_com=[-0.3054315  -0.01084849  0.20018058]
+    [insert k= 160] tablet_z=+159.67mm bag_com=[-0.30517992 -0.00889414  0.18206449]
+    [insert k= 200] tablet_z=+145.23mm bag_com=[-0.30516934 -0.00830381  0.16349381]
+    [insert k= 240] tablet_z=+130.52mm bag_com=[-0.30508715 -0.00883312  0.14475381]
+    [insert k= 280] tablet_z=+115.12mm bag_com=[-0.3047501  -0.01080863  0.12569006]
+    [insert k= 320] tablet_z=+96.95mm bag_com=[-0.30063447 -0.01329299  0.10750338]
+    [insert k= 360] tablet_z=+78.60mm bag_com=[-0.29507738 -0.01746815  0.09115078]
+[phase] insert   @done  bag_com=[-0.2892863  -0.02288863  0.0801084 ]  finger_z=0.1023  tablet_z=+71.82mm  (116.8s wall)
+[phase] settle2  @done  bag_com=[-0.2847619  -0.02308971  0.08510517]  finger_z=0.1022  tablet_z=+76.71mm  (19.9s wall)
+
+[phase] 9 clamp (2.0s sim) — Left_Wall +6.0mm -> -5.0mm
+[phase] clamp    @done  bag_com=[-0.28655326 -0.0241963   0.07969067]  (84.3s wall)  dist_to_slot=57.5mm (xy=49.5mm)
+    [release k=   0] tablet_z=+64.83mm bag_com=[-0.286561   -0.02419441  0.07969142]
+    [release k=  40] tablet_z=+63.44mm bag_com=[-0.28655413 -0.02484245  0.0759277 ]
+    [release k=  80] tablet_z=+61.48mm bag_com=[-0.28531304 -0.02375684  0.07459335]
+[phase] release  @done  bag_com=[-0.28521624 -0.02365863  0.07444839]  finger_z=0.1064  tablet_z=+61.14mm  (23.3s wall)
+
+[saved] overview -> C:\Crusher_isaacsim\Crusher_Genesis\Legacy_vs_IPC\RESULT\ipc_20260720_191504_overview.mp4
+[saved] bagcam   -> C:\Crusher_isaacsim\Crusher_Genesis\Legacy_vs_IPC\RESULT\ipc_20260720_191504_bagcam.mp4
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Legacy_vs_IPC\RESULT\results_ipc_20260720_191504.json
+[summary] total_wall=638.3s  sim_time=11.15s  dist_to_slot(final)=56.3mm (xy=50.9mm)
+완료.

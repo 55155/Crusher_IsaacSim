@@ -1,0 +1,35 @@
+[slot] gap_cx=-0.3303 gap_cy=-0.0473 wall_top_z=0.0864 wall_center_z=0.0504
+[slot] gap X 폭=12mm(좁음)  gap Y 폭=65mm(여유, 하지만 봉투 폭 64mm라 타이트)
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [16:21:06] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [16:21:06] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.01`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+[build] 성공
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py:245: DeprecationWarning: keyword.__init__ got an unexpected keyword argument 'ctx'. Support for arbitrary keyword arguments is deprecated and will be removed in Python 3.15.
+  kwarg_node = ast.keyword(
+
+[ready] 뷰어 창에서 좌클릭 드래그로 주황색 프로브 박스를 슬롯(gap)에 넣어보세요.
+        0.5초마다 프로브 world 위치를 출력합니다. Ctrl+C 로 종료.
+
+[pick] OK - 'box_baselink' 잡음 (스크린 좌표 587.0,887.0)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 609.0,540.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+Traceback (most recent call last):
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\interactive_probe.py", line 114, in <module>
+    scene.step()
+    ~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 142, in wrapper
+    return method(self, *args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\scene.py", line 1042, in step
+    self._sim.step()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\simulator.py", line 278, in step
+    self.rigid_solver.check_errno()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\solvers\rigid\rigid_solver.py", line 1110, in check_errno
+    gs.raise_exception("Invalid constraint forces causing 'nan'. Please decrease Rigid simulation timestep.")
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 35, in raise_exception
+    raise gs.GenesisException(msg)
+genesis.GenesisException: Invalid constraint forces causing 'nan'. Please decrease Rigid simulation timestep.
+
+[38;5;9m[Genesis] [16:21:13] [ERROR] GenesisException: Invalid constraint forces causing 'nan'. Please decrease Rigid simulation timestep.[0m

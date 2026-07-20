@@ -1,0 +1,46 @@
+{
+  "combo": "ipc",
+  "coupler": "IPCCoupler",
+  "bag_material": "FEM.Cloth",
+  "tablet_material": "FEM.Elastic",
+  "grasp_method": "friction_contact (no cheat)",
+  "dt": 0.005,
+  "total_steps": 2230,
+  "sim_time_sec": 11.15,
+  "wall_clock_sec": 638.3015085998923,
+  "steps_per_sec": 3.49364676403708,
+  "phase_times_sec": {
+    "build": 10.710128100123256,
+    "prep": 38.80060279997997,
+    "drop": 31.94034150009975,
+    "settle": 17.15823130006902,
+    "close": 12.60715729999356,
+    "grasp": 7.1906588999554515,
+    "lift": 65.91320489998907,
+    "hold": 26.777735899901018,
+    "above": 167.7461208999157,
+    "insert": 116.84009930002503,
+    "settle2": 19.854108199942857,
+    "clamp": 84.30793930008076,
+    "release": 23.256050700088963
+  },
+  "slot_target": [
+    -0.3302777709960938,
+    -0.047302336215972886,
+    0.05043122673034668
+  ],
+  "bag_com_at_clamp_end": [
+    -0.2865532636642456,
+    -0.02419629879295826,
+    0.07969066500663757
+  ],
+  "dist_to_slot_at_clamp_end_mm": 57.46160661738127,
+  "dist_to_slot_xy_at_clamp_end_mm": 49.45423648997726,
+  "bag_com_final": [
+    -0.28521624207496643,
+    -0.0236586295068264,
+    0.07444839179515839
+  ],
+  "dist_to_slot_final_mm": 56.2706892921008,
+  "dist_to_slot_xy_final_mm": 50.88778100544114
+}

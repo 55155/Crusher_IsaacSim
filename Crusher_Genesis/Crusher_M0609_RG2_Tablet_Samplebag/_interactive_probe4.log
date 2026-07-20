@@ -1,0 +1,64 @@
+[slot] gap_cx=-0.3303 gap_cy=-0.0473 wall_top_z=0.0864 wall_center_z=0.0504
+[slot] gap X 폭=12mm(좁음)  gap Y 폭=65mm(여유, 하지만 봉투 폭 64mm라 타이트)
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [16:22:58] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [16:22:59] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.002`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+[build] 성공
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py:245: DeprecationWarning: keyword.__init__ got an unexpected keyword argument 'ctx'. Support for arbitrary keyword arguments is deprecated and will be removed in Python 3.15.
+  kwarg_node = ast.keyword(
+
+[ready] 뷰어 창에서 좌클릭 드래그로 주황색 프로브 박스를 슬롯(gap)에 넣어보세요.
+        0.5초마다 프로브 world 위치를 출력합니다. Ctrl+C 로 종료.
+
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 688.0,876.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 722.0,822.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] OK - 'L8_Link3_Shaft_1' 잡음 (스크린 좌표 595.0,440.0)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 675.0,204.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 793.0,512.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 757.0,173.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 448.0,36.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 684.0,361.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   0.5s] probe pos = (-0.3318, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   1.0s] probe pos = (-0.3316, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 794.0,146.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 650.0,200.0, button=2) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   1.5s] probe pos = (-0.3309, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 679.0,926.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   2.0s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   2.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   3.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   3.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 661.0,862.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 703.0,776.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 683.0,933.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 595.0,853.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 644.0,798.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] OK - 'box_baselink' 잡음 (스크린 좌표 719.0,715.0)
+[pick] OK - 'L2_Left_Wall1_1' 잡음 (스크린 좌표 637.0,388.0)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 621.0,372.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 630.0,373.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 828.0,292.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 622.0,123.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 738.0,212.0, button=2) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   4.0s] probe pos = (+1.0201, -0.0301, +0.9520)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+Traceback (most recent call last):
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\interactive_probe.py", line 118, in <module>
+    scene.step()
+    ~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 142, in wrapper
+    return method(self, *args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\scene.py", line 1042, in step
+    self._sim.step()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\simulator.py", line 278, in step
+    self.rigid_solver.check_errno()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\solvers\rigid\rigid_solver.py", line 1110, in check_errno
+    gs.raise_exception("Invalid constraint forces causing 'nan'. Please decrease Rigid simulation timestep.")
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 35, in raise_exception
+    raise gs.GenesisException(msg)
+genesis.GenesisException: Invalid constraint forces causing 'nan'. Please decrease Rigid simulation timestep.
+
+[38;5;9m[Genesis] [16:24:20] [ERROR] GenesisException: Invalid constraint forces causing 'nan'. Please decrease Rigid simulation timestep.[0m

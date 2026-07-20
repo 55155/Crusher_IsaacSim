@@ -1,0 +1,111 @@
+[slot] gap_cx=-0.3303 gap_cy=-0.0473 wall_top_z=0.0864 wall_center_z=0.0504
+[slot] gap X 폭=12mm(좁음)  gap Y 폭=65mm(여유, 하지만 봉투 폭 64mm라 타이트)
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [16:25:36] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [16:25:36] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.002`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+[build] 성공
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py:245: DeprecationWarning: keyword.__init__ got an unexpected keyword argument 'ctx'. Support for arbitrary keyword arguments is deprecated and will be removed in Python 3.15.
+  kwarg_node = ast.keyword(
+
+[ready] 뷰어 창에서 좌클릭 드래그로 주황색 프로브 박스를 슬롯(gap)에 넣어보세요.
+        0.5초마다 프로브 world 위치를 출력합니다. Ctrl+C 로 종료.
+
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 607.0,126.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[t=   0.5s] probe pos = (-0.3318, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   1.0s] probe pos = (-0.3316, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   1.5s] probe pos = (-0.3309, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   2.0s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   2.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   3.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   3.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   4.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   4.5s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   5.0s] probe pos = (-0.3305, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   5.5s] probe pos = (-0.3306, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   6.0s] probe pos = (-0.3238, -0.0473, +0.1194)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   6.5s] probe pos = (-0.3267, -0.0480, +0.0538)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   7.0s] probe pos = (-0.3266, -0.0480, +0.0538)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   7.5s] probe pos = (-0.3266, -0.0480, +0.0538)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   8.0s] probe pos = (-0.3265, -0.0480, +0.0538)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   8.5s] probe pos = (-0.3264, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   9.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=   9.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  10.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  10.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  11.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  11.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  12.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  12.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  13.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  13.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  14.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  14.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  15.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  15.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  16.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  16.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  17.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  17.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  18.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  18.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  19.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  19.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  20.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  20.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  21.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  21.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  22.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  22.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  23.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  23.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  24.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  24.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  25.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  25.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  26.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  26.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  27.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  27.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  28.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  28.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  29.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  29.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  30.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  30.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  31.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  31.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  32.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  32.5s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[t=  33.0s] probe pos = (-0.3263, -0.0480, +0.0537)   (gap_cx=-0.3303 gap_cy=-0.0473 wall_center_z=0.0504)
+[pick] MISS - 아무것도 안 잡힘 (스크린 좌표 672.0,840.0, button=1) — 박스를 정확히 클릭했는지 확인. 못 맞추면 카메라가 대신 회전함.
+[pick] BLOCKED - 'L2_Left_Wall1_1' 은 프로브가 아님(Crusher 부품) — 무시함
+Traceback (most recent call last):
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\interactive_probe.py", line 134, in <module>
+    scene.step()
+    ~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 142, in wrapper
+    return method(self, *args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\scene.py", line 1048, in step
+    self._visualizer.update(force=not advance, auto=refresh_visualizer)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\vis\visualizer.py", line 202, in update
+    self._viewer.update(auto_refresh=auto, force=force)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\vis\viewer.py", line 189, in update
+    self._pyrender_viewer.update_on_sim_step()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\ext\pyrender\viewer.py", line 1351, in update_on_sim_step
+    plugin.update_on_sim_step()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 153, in wrapper
+    return method(self, *args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\vis\viewer_plugins\plugins\mouse_interaction.py", line 164, in update_on_sim_step
+    self._apply_spring_force(ray_hit_plane.position, self.scene.sim.dt)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\vis\viewer_plugins\plugins\mouse_interaction.py", line 289, in _apply_spring_force
+    link_quat = tensor_to_array(self._held_link.get_quat(envs_idx=envs_idx).squeeze(0))
+                                ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'get_quat'
+
+[38;5;9m[Genesis] [16:35:05] [ERROR] AttributeError: 'NoneType' object has no attribute 'get_quat'[0m
