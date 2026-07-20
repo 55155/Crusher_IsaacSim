@@ -1,0 +1,326 @@
+<?xml version="1.0" ?>
+<robot name="고정장치" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+<xacro:include filename="$(find 고정장치_description)/urdf/materials.xacro" />
+<xacro:include filename="$(find 고정장치_description)/urdf/고정장치.trans" />
+<xacro:include filename="$(find 고정장치_description)/urdf/고정장치.gazebo" />
+<link name="base_link">
+  <inertial>
+    <origin xyz="-0.10999999999999556 0.07251121264321245 0.004996333843608021" rpy="0 0 0"/>
+    <mass value="2.446873660836993"/>
+    <inertia ixx="0.004289" iyy="0.00967" izz="0.013918" ixy="0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Servo1_1">
+  <inertial>
+    <origin xyz="3.4916514124461173e-14 8.487655023259322e-14 0.0005999999999809491" rpy="0 0 0"/>
+    <mass value="0.006806278705239594"/>
+    <inertia ixx="0.0" iyy="0.0" izz="1e-06" ixy="0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.138 -0.0725 -0.0875" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Servo1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.138 -0.0725 -0.0875" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Servo1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Servo2_1">
+  <inertial>
+    <origin xyz="-0.0015816004302571796 5.898059818321144e-15 0.015322738889781397" rpy="0 0 0"/>
+    <mass value="0.0040481964198345426"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.171 -0.0677 -0.0405" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Servo2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.171 -0.0677 -0.0405" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Servo2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="L1_1">
+  <inertial>
+    <origin xyz="0.04000000000000252 8.58346151193061e-06 0.07498762221888246" rpy="0 0 0"/>
+    <mass value="2.1009849657713837"/>
+    <inertia ixx="0.003963" iyy="0.009546" izz="0.005618" ixy="0.0" iyz="-0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.15 -0.005 -0.01" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/L1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.15 -0.005 -0.01" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/L1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Back_1">
+  <inertial>
+    <origin xyz="-6.9111383282915995e-15 0.03250878091969619 0.05998243816059264" rpy="0 0 0"/>
+    <mass value="1.1692860743084308"/>
+    <inertia ixx="0.002917" iyy="0.00141" izz="0.001527" ixy="-0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.195 -0.04 -0.01" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Back_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.195 -0.04 -0.01" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Back_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="R1_1">
+  <inertial>
+    <origin xyz="0.039999999999991515 -8.583461500927259e-06 0.07498762221887459" rpy="0 0 0"/>
+    <mass value="2.1009849657713824"/>
+    <inertia ixx="0.003963" iyy="0.009546" izz="0.005618" ixy="0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.15 -0.14 -0.01" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/R1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.15 -0.14 -0.01" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/R1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="F1_1">
+  <inertial>
+    <origin xyz="-3.0749342969441096e-06 -0.02753926705472584 0.05998462950193841" rpy="0 0 0"/>
+    <mass value="1.1666837707077449"/>
+    <inertia ixx="0.002907" iyy="0.001401" izz="0.001525" ixy="0.0" iyz="-0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.025 -0.1 -0.01" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/F1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.025 -0.1 -0.01" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/F1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="MotorDriver_1">
+  <inertial>
+    <origin xyz="-0.011239303650356684 0.002488130276015868 -0.05852996345426442" rpy="0 0 0"/>
+    <mass value="0.7210496546217889"/>
+    <inertia ixx="0.001293" iyy="0.000908" izz="0.000488" ixy="6e-06" iyz="-1.9e-05" ixz="-4e-06"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.03 -0.09405 -0.12675" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/MotorDriver_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.03 -0.09405 -0.12675" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/MotorDriver_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="T1_1">
+  <inertial>
+    <origin xyz="-0.08429334830713939 -0.027487552999684514 0.007533335543486008" rpy="0 0 0"/>
+    <mass value="2.204219544587429"/>
+    <inertia ixx="0.003881" iyy="0.006044" izz="0.009789" ixy="0.0" iyz="0.0" ixz="4e-06"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.025 -0.1 -0.13" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/T1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.025 -0.1 -0.13" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/T1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="ServoShaft_1">
+  <inertial>
+    <origin xyz="-7.584667154333924e-05 1.9664565626562047e-05 0.009584209226361301" rpy="0 0 0"/>
+    <mass value="0.007434495823643457"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="-0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.138 -0.0725 -0.132" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/ServoShaft_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.138 -0.0725 -0.132" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/ServoShaft_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Jig_1">
+  <inertial>
+    <origin xyz="2.1635561678140514e-05 1.1102230246251565e-14 0.005486282955048355" rpy="0 0 0"/>
+    <mass value="0.03163742025368081"/>
+    <inertia ixx="3e-06" iyy="4e-06" izz="5e-06" ixy="0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.138 -0.0725 -0.1403" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Jig_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.138 -0.0725 -0.1403" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Jig_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Servo3_1">
+  <inertial>
+    <origin xyz="-0.0008126082473343121 -5.7988780331239e-05 -0.048107644599258814" rpy="0 0 0"/>
+    <mass value="1.2771847015112354"/>
+    <inertia ixx="0.001633" iyy="0.001669" izz="0.000787" ixy="2e-06" iyz="-1e-06" ixz="-4.4e-05"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.138 -0.0725 -0.132" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Servo3_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.138 -0.0725 -0.132" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://고정장치_description/meshes/Servo3_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<joint name="Servo3_Servo1" type="fixed">
+  <origin xyz="0.0 0.0 -0.0445" rpy="0 0 0"/>
+  <parent link="Servo3_1"/>
+  <child link="Servo1_1"/>
+</joint>
+
+<joint name="Servo3_Servo2 " type="fixed">
+  <origin xyz="-0.033 -0.0048 -0.0915" rpy="0 0 0"/>
+  <parent link="Servo3_1"/>
+  <child link="Servo2_1"/>
+</joint>
+
+<joint name="Bottom_L1" type="fixed">
+  <origin xyz="-0.15 0.005 0.01" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="L1_1"/>
+</joint>
+
+<joint name="Bottom_Back" type="fixed">
+  <origin xyz="-0.195 0.04 0.01" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="Back_1"/>
+</joint>
+
+<joint name="Bottom_R1" type="fixed">
+  <origin xyz="-0.15 0.14 0.01" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="R1_1"/>
+</joint>
+
+<joint name="Bottom_F1" type="fixed">
+  <origin xyz="-0.025 0.1 0.01" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="F1_1"/>
+</joint>
+
+<joint name="F1_MotorDriver" type="fixed">
+  <origin xyz="-0.005 -0.00595 0.11675" rpy="0 0 0"/>
+  <parent link="F1_1"/>
+  <child link="MotorDriver_1"/>
+</joint>
+
+<joint name="F1_T1" type="fixed">
+  <origin xyz="0.0 0.0 0.12" rpy="0 0 0"/>
+  <parent link="F1_1"/>
+  <child link="T1_1"/>
+</joint>
+
+<joint name="Servo3_ServoShaft" type="continuous">
+  <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  <parent link="Servo3_1"/>
+  <child link="ServoShaft_1"/>
+  <axis xyz="-0.0 -0.0 1.0"/>
+</joint>
+
+<joint name="ServoShaft_Jig" type="fixed">
+  <origin xyz="0.0 0.0 0.0083" rpy="0 0 0"/>
+  <parent link="ServoShaft_1"/>
+  <child link="Jig_1"/>
+</joint>
+
+<joint name="T1_Servo3" type="fixed">
+  <origin xyz="-0.113 -0.0275 0.002" rpy="0 0 0"/>
+  <parent link="T1_1"/>
+  <child link="Servo3_1"/>
+</joint>
+
+</robot>

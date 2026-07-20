@@ -1,0 +1,165 @@
+<mujoco model="고정장치">
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="base_link" content_type="model/stl" file="meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Servo1_1" content_type="model/stl" file="meshes/Servo1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Servo2_1" content_type="model/stl" file="meshes/Servo2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="L1_1" content_type="model/stl" file="meshes/L1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Back_1" content_type="model/stl" file="meshes/Back_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="R1_1" content_type="model/stl" file="meshes/R1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="F1_1" content_type="model/stl" file="meshes/F1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MotorDriver_1" content_type="model/stl" file="meshes/MotorDriver_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="T1_1" content_type="model/stl" file="meshes/T1_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="ServoShaft_1" content_type="model/stl" file="meshes/ServoShaft_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Jig_1" content_type="model/stl" file="meshes/Jig_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Servo3_1" content_type="model/stl" file="meshes/Servo3_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Jig_1_hull_000" file="meshes/Jig_1_hull_000.stl"/>
+    <mesh name="Jig_1_hull_001" file="meshes/Jig_1_hull_001.stl"/>
+    <mesh name="Jig_1_hull_002" file="meshes/Jig_1_hull_002.stl"/>
+    <mesh name="Jig_1_hull_003" file="meshes/Jig_1_hull_003.stl"/>
+    <mesh name="Jig_1_hull_004" file="meshes/Jig_1_hull_004.stl"/>
+    <mesh name="Jig_1_hull_005" file="meshes/Jig_1_hull_005.stl"/>
+    <mesh name="Jig_1_hull_006" file="meshes/Jig_1_hull_006.stl"/>
+    <mesh name="Jig_1_hull_007" file="meshes/Jig_1_hull_007.stl"/>
+    <mesh name="Jig_1_hull_008" file="meshes/Jig_1_hull_008.stl"/>
+    <mesh name="Jig_1_hull_009" file="meshes/Jig_1_hull_009.stl"/>
+    <mesh name="Jig_1_hull_010" file="meshes/Jig_1_hull_010.stl"/>
+    <mesh name="Jig_1_hull_011" file="meshes/Jig_1_hull_011.stl"/>
+    <mesh name="Jig_1_hull_012" file="meshes/Jig_1_hull_012.stl"/>
+    <mesh name="Jig_1_hull_013" file="meshes/Jig_1_hull_013.stl"/>
+    <mesh name="Jig_1_hull_014" file="meshes/Jig_1_hull_014.stl"/>
+    <mesh name="Jig_1_hull_015" file="meshes/Jig_1_hull_015.stl"/>
+    <mesh name="Jig_1_hull_016" file="meshes/Jig_1_hull_016.stl"/>
+    <mesh name="Jig_1_hull_017" file="meshes/Jig_1_hull_017.stl"/>
+    <mesh name="Jig_1_hull_018" file="meshes/Jig_1_hull_018.stl"/>
+    <mesh name="Jig_1_hull_019" file="meshes/Jig_1_hull_019.stl"/>
+    <mesh name="Jig_1_hull_020" file="meshes/Jig_1_hull_020.stl"/>
+    <mesh name="Jig_1_hull_021" file="meshes/Jig_1_hull_021.stl"/>
+    <mesh name="Jig_1_hull_022" file="meshes/Jig_1_hull_022.stl"/>
+    <mesh name="Jig_1_hull_023" file="meshes/Jig_1_hull_023.stl"/>
+    <mesh name="Jig_1_hull_024" file="meshes/Jig_1_hull_024.stl"/>
+    <mesh name="Jig_1_hull_025" file="meshes/Jig_1_hull_025.stl"/>
+    <mesh name="Jig_1_hull_026" file="meshes/Jig_1_hull_026.stl"/>
+    <mesh name="Jig_1_hull_027" file="meshes/Jig_1_hull_027.stl"/>
+    <mesh name="Jig_1_hull_028" file="meshes/Jig_1_hull_028.stl"/>
+    <mesh name="Jig_1_hull_029" file="meshes/Jig_1_hull_029.stl"/>
+    <mesh name="Jig_1_hull_030" file="meshes/Jig_1_hull_030.stl"/>
+    <mesh name="Jig_1_hull_031" file="meshes/Jig_1_hull_031.stl"/>
+    <mesh name="Jig_1_hull_032" file="meshes/Jig_1_hull_032.stl"/>
+    <mesh name="Jig_1_hull_033" file="meshes/Jig_1_hull_033.stl"/>
+    <mesh name="Jig_1_hull_034" file="meshes/Jig_1_hull_034.stl"/>
+    <mesh name="Jig_1_hull_035" file="meshes/Jig_1_hull_035.stl"/>
+    <mesh name="Jig_1_hull_036" file="meshes/Jig_1_hull_036.stl"/>
+    <mesh name="Jig_1_hull_037" file="meshes/Jig_1_hull_037.stl"/>
+    <mesh name="Jig_1_hull_038" file="meshes/Jig_1_hull_038.stl"/>
+    <mesh name="Jig_1_hull_039" file="meshes/Jig_1_hull_039.stl"/>
+    <mesh name="Jig_1_hull_040" file="meshes/Jig_1_hull_040.stl"/>
+    <mesh name="Jig_1_hull_041" file="meshes/Jig_1_hull_041.stl"/>
+    <mesh name="Jig_1_hull_042" file="meshes/Jig_1_hull_042.stl"/>
+    <mesh name="Jig_1_hull_043" file="meshes/Jig_1_hull_043.stl"/>
+    <mesh name="Jig_1_hull_044" file="meshes/Jig_1_hull_044.stl"/>
+    <mesh name="Jig_1_hull_045" file="meshes/Jig_1_hull_045.stl"/>
+    <mesh name="Jig_1_hull_046" file="meshes/Jig_1_hull_046.stl"/>
+    <mesh name="Jig_1_hull_047" file="meshes/Jig_1_hull_047.stl"/>
+    <mesh name="Jig_1_hull_048" file="meshes/Jig_1_hull_048.stl"/>
+    <mesh name="Jig_1_hull_049" file="meshes/Jig_1_hull_049.stl"/>
+    <mesh name="Jig_1_hull_050" file="meshes/Jig_1_hull_050.stl"/>
+    <mesh name="Jig_1_hull_051" file="meshes/Jig_1_hull_051.stl"/>
+    <mesh name="Jig_1_hull_052" file="meshes/Jig_1_hull_052.stl"/>
+    <mesh name="Jig_1_hull_053" file="meshes/Jig_1_hull_053.stl"/>
+    <mesh name="Jig_1_hull_054" file="meshes/Jig_1_hull_054.stl"/>
+    <mesh name="Jig_1_hull_055" file="meshes/Jig_1_hull_055.stl"/>
+    <mesh name="Jig_1_hull_056" file="meshes/Jig_1_hull_056.stl"/>
+    <mesh name="Jig_1_hull_057" file="meshes/Jig_1_hull_057.stl"/>
+    <mesh name="Jig_1_hull_058" file="meshes/Jig_1_hull_058.stl"/>
+    <mesh name="Jig_1_hull_059" file="meshes/Jig_1_hull_059.stl"/>
+    <mesh name="Jig_1_hull_060" file="meshes/Jig_1_hull_060.stl"/>
+    <mesh name="Jig_1_hull_061" file="meshes/Jig_1_hull_061.stl"/>
+    <mesh name="Jig_1_hull_062" file="meshes/Jig_1_hull_062.stl"/>
+    <mesh name="Jig_1_hull_063" file="meshes/Jig_1_hull_063.stl"/>
+  </asset>
+
+  <worldbody>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="base_link"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="L1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Back_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="R1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="F1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="MotorDriver_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="T1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Servo3_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Servo1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Servo2_1"/>
+    <body name="ServoShaft_1" pos="-0.138 0.0725 0.132">
+      <inertial pos="0.00672379 3.74172e-06 0.00626603" quat="0.000118414 0.737604 -0.00040078 0.675234" mass="0.0390719" diaginertia="5.54284e-06 4.6256e-06 3.18277e-06"/>
+      <joint name="Servo3_ServoShaft" pos="0 0 0" axis="0 0 1"/>
+      <geom pos="0.138 -0.0725 -0.132" type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="ServoShaft_1"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Jig_1"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_000"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_001"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_002"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_003"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_004"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_005"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_006"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_007"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_008"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_009"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_010"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_011"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_012"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_013"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_014"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_015"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_016"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_017"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_018"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_019"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_020"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_021"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_022"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_023"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_024"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_025"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_026"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_027"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_028"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_029"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_030"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_031"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_032"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_033"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_034"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_035"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_036"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_037"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_038"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_039"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_040"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_041"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_042"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_043"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_044"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_045"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_046"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_047"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_048"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_049"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_050"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_051"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_052"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_053"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_054"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_055"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_056"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_057"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_058"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_059"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_060"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_061"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_062"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_063"/>
+    </body>
+  </worldbody>
+</mujoco>

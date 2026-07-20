@@ -175,6 +175,18 @@ ROBOT_MJCF = os.path.join(paths.ROBOTS_DIR, "m0609_rg2_v2.xml")
 COACD_DIR_REL = "rg2/reference_onrobot_ros/meshes/rg2_v1/coacd"
 FLEX_FINGER_HULLS = [f"flex_finger_hull_{i:03d}.stl" for i in range(7)]
 BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl")
+# 고정장치(fixture jig, fusion2urdf URDF → MJCF 변환, 2026-07-20): 사용자 지시대로
+# 나머지 부품(base_link/L1/Back/R1/F1/MotorDriver/T1/Servo1~3/ServoShaft)은 전부
+# contype=0/conaffinity=0(collision-free, 시각 전용)이고, 실제로 뭔가를 붙잡는
+# Jig_1만 충돌을 켠다 — Jig_1은 CoACD로 64개 볼록껄(hull)로 분해해 collision
+# geom으로 추가(utills 관례와 동일, run_coacd_leftwall.py 참고). 덕분에
+# Servo3_ServoShaft(continuous) 힌지도 원본 그대로 살렸다 — 예전에 이 힌지를
+# 살리면 걸리던 self-intersection sanity check는 Servo 주변 메시들이 이제
+# 충돌에 안 걸려서 더 이상 발생하지 않는다. 작업 구역(로봇/Crusher/슬롯)과 안
+# 겹치는 플레이트 위 한쪽에 배치, z는 조립체 최저점(~-0.117m)이 플레이트
+# 상단(z=0)보다 위로 오도록 여유를 둠.
+FIXTURE_MJCF = os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고정장치.xml")
+FIXTURE_POS = (0.5, -0.3, 0.12)
 # 실링부 색칠(2026-07-15 4차, 사용자 지시): Genesis 는 로드된 mesh 의
 # vertex_colors 를 그대로 렌더에 반영하지 않는다(격리 테스트로 확인 — PLY에
 # vertex_colors 를 구워도 단색으로만 나옴). UV + ImageTexture 조합만 동작
@@ -398,6 +410,11 @@ def main(use_viewer: bool = False):
         gs.morphs.Box(size=SHELF_SIZE, pos=SHELF_POS, fixed=True),
         material=gs.materials.Rigid(coup_type="ipc_only", coup_friction=0.3),
         surface=gs.surfaces.Default(color=(0.75, 0.78, 0.82)),
+    )
+
+    scene.add_entity(
+        gs.morphs.MJCF(file=FIXTURE_MJCF, pos=FIXTURE_POS, decimate=False),
+        material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
 
     robot = scene.add_entity(
