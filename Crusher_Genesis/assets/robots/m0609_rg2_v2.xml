@@ -41,15 +41,25 @@
 
   <asset>
     <mesh name="MF0609_0_0" file="m0609/assets/MF0609_0_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_0_0_vis" file="m0609/assets/MF0609_0_0_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_1_0" file="m0609/assets/MF0609_1_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_1_0_vis" file="m0609/assets/MF0609_1_0_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_2_0" file="m0609/assets/MF0609_2_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_0_vis" file="m0609/assets/MF0609_2_0_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_2_1" file="m0609/assets/MF0609_2_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_1_vis" file="m0609/assets/MF0609_2_1_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_2_2" file="m0609/assets/MF0609_2_2.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_2_2_vis" file="m0609/assets/MF0609_2_2_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_3_0" file="m0609/assets/MF0609_3_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_3_0_vis" file="m0609/assets/MF0609_3_0_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_4_0" file="m0609/assets/MF0609_4_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_4_0_vis" file="m0609/assets/MF0609_4_0_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_4_1" file="m0609/assets/MF0609_4_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_4_1_vis" file="m0609/assets/MF0609_4_1_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_5_0" file="m0609/assets/MF0609_5_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_5_0_vis" file="m0609/assets/MF0609_5_0_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="MF0609_6_0" file="m0609/assets/MF0609_6_0.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="MF0609_6_0_vis" file="m0609/assets/MF0609_6_0_ss.obj" scale="0.001 0.001 0.001"/>
 
     <!-- OnRobot RG2 공식 STL (m 단위, 스케일 변환 불필요 — body.stl 높이 118mm 실측 확인) -->
     <mesh name="rg2_body"        file="rg2/reference_onrobot_ros/meshes/rg2_v1/visual/body.stl"/>
@@ -73,42 +83,42 @@
   </asset>
 
   <worldbody>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_0_0" material="metal"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_0_0_vis" material="metal"/>
     <body name="link_1" pos="0 0 0.1345">
       <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
       <joint name="joint_1" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-400 400" damping="400" frictionloss="1"/>
-      <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_1_0" material="white"/>
+      <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_1_0_vis" material="white"/>
       <body name="link_2" pos="0 0.0062 0" quat="0.499898 -0.500102 -0.5 -0.5">
         <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
         <joint name="joint_2" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-300 300" damping="400" frictionloss="1"/>
         <geom type="mesh" mesh="MF0609_2_0"/>
-        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_0" material="white"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_0_vis" material="white"/>
         <geom type="mesh" mesh="MF0609_2_1"/>
-        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_1" material="metal"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_1_vis" material="metal"/>
         <geom type="mesh" mesh="MF0609_2_2"/>
-        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_2" material="white"/>
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_2_2_vis" material="white"/>
         <body name="link_3" pos="0.411 0 0" quat="0.707035 0 0 0.707179">
           <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
           <joint name="joint_3" pos="0 0 0" axis="0 0 1" range="-2.618 2.618" actuatorfrcrange="-300 300" damping="400" frictionloss="1"/>
           <geom type="mesh" mesh="MF0609_3_0"/>
-          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_3_0" material="white"/>
+          <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_3_0_vis" material="white"/>
           <body name="link_4" pos="0 -0.368 0" quat="0.707035 0.707179 0 0">
             <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
             <joint name="joint_4" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-200 200" damping="400" frictionloss="1"/>
             <geom type="mesh" mesh="MF0609_4_0"/>
-            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_4_0" material="white"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_4_0_vis" material="white"/>
             <geom type="mesh" mesh="MF0609_4_1"/>
-            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_4_1" material="white"/>
+            <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_4_1_vis" material="white"/>
             <body name="link_5" quat="0.707035 -0.707179 0 0">
               <inertial pos="0 0 0" mass="1" diaginertia="0.01 0.01 0.01"/>
               <joint name="joint_5" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-220 220" damping="300" frictionloss="1"/>
               <geom type="mesh" mesh="MF0609_5_0"/>
-              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_5_0" material="white"/>
+              <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_5_0_vis" material="white"/>
               <body name="link_6" pos="0 -0.121 0" quat="0.707035 0.707179 0 0">
                 <inertial pos="-3e-05 -4.5e-05 -0.0539" quat="0.963897 0.266271 -0.00109467 0.000577053" mass="1.16" diaginertia="0.00802262 0.00540366 0.00538672"/>
                 <joint name="joint_6" pos="0 0 0" axis="0 0 1" range="-6.2832 6.2832" actuatorfrcrange="-50 50" damping="200" frictionloss="1"/>
                 <geom type="mesh" mesh="MF0609_6_0"/>
-                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_6_0" material="metal"/>
+                <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" mesh="MF0609_6_0_vis" material="metal"/>
 
                 <!-- ===== OnRobot RG2 (공식 STL, moment_arm/truss_arm mimic 구조) =====
                      link_6 local +Z = 플랜지 접근축(기존 rg2_hand 의 euler -90y 보정에서

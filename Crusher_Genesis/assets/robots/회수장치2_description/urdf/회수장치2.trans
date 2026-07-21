@@ -1,0 +1,48 @@
+<?xml version="1.0" ?>
+<robot name="회수장치2" xmlns:xacro="http://www.ros.org/wiki/xacro" >
+
+<transmission name="회전 29_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="회전 29">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="회전 29_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="회전 31_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="회전 31">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="회전 31_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="회전 34_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="회전 34">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="회전 34_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="슬라이더 35_tran">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="슬라이더 35">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="슬라이더 35_actr">
+    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+</robot>

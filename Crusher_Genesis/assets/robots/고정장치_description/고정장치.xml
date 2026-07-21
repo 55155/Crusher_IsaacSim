@@ -2,18 +2,18 @@
   <compiler angle="radian"/>
 
   <asset>
-    <mesh name="base_link" content_type="model/stl" file="meshes/base_link.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Servo1_1" content_type="model/stl" file="meshes/Servo1_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Servo2_1" content_type="model/stl" file="meshes/Servo2_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="L1_1" content_type="model/stl" file="meshes/L1_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Back_1" content_type="model/stl" file="meshes/Back_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="R1_1" content_type="model/stl" file="meshes/R1_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="F1_1" content_type="model/stl" file="meshes/F1_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="MotorDriver_1" content_type="model/stl" file="meshes/MotorDriver_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="T1_1" content_type="model/stl" file="meshes/T1_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="ServoShaft_1" content_type="model/stl" file="meshes/ServoShaft_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Jig_1" content_type="model/stl" file="meshes/Jig_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Servo3_1" content_type="model/stl" file="meshes/Servo3_1.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="base_link" file="meshes/base_link_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Servo1_1" file="meshes/Servo1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Servo2_1" file="meshes/Servo2_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="L1_1" file="meshes/L1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Back_1" file="meshes/Back_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="R1_1" file="meshes/R1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="F1_1" file="meshes/F1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="MotorDriver_1" file="meshes/MotorDriver_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="T1_1" file="meshes/T1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="ServoShaft_1" file="meshes/ServoShaft_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Jig_1" file="meshes/Jig_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Servo3_1" file="meshes/Servo3_1_ss.obj" scale="0.001 0.001 0.001"/>
     <mesh name="Jig_1_hull_000" file="meshes/Jig_1_hull_000.stl"/>
     <mesh name="Jig_1_hull_001" file="meshes/Jig_1_hull_001.stl"/>
     <mesh name="Jig_1_hull_002" file="meshes/Jig_1_hull_002.stl"/>
@@ -81,21 +81,21 @@
   </asset>
 
   <worldbody>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="base_link"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="L1_1"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Back_1"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="R1_1"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="F1_1"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="MotorDriver_1"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="T1_1"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Servo3_1"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Servo1_1"/>
-    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Servo2_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="base_link"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="L1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Back_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="R1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="F1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="MotorDriver_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="T1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Servo3_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Servo1_1"/>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Servo2_1"/>
     <body name="ServoShaft_1" pos="-0.138 0.0725 0.132">
       <inertial pos="0.00672379 3.74172e-06 0.00626603" quat="0.000118414 0.737604 -0.00040078 0.675234" mass="0.0390719" diaginertia="5.54284e-06 4.6256e-06 3.18277e-06"/>
       <joint name="Servo3_ServoShaft" pos="0 0 0" axis="0 0 1"/>
-      <geom pos="0.138 -0.0725 -0.132" type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="ServoShaft_1"/>
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="0" conaffinity="0" group="1" rgba="0.7 0.7 0.7 1" mesh="Jig_1"/>
+      <geom pos="0.138 -0.0725 -0.132" type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="ServoShaft_1"/>
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="0" conaffinity="0" group="1" rgba="0.75 0.76 0.78 1" mesh="Jig_1"/>
       <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_000"/>
       <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_001"/>
       <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_002"/>

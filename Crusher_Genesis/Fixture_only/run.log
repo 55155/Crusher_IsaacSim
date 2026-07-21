@@ -1,0 +1,20 @@
+============================================================
+ Fixture only — 고정장치 단독 실행 (viewer=False)
+============================================================
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [10:27:41] [WARNING] Link 'ServoShaft_1' has dubious mass 0.039 compared to the estimate from geometry 6189182.429 given material density 1500.[0m
+[38;5;226m[Genesis] [10:27:41] [WARNING] Link 'ServoShaft_1' has dubious inertia [ixx=5.543e-06,iyy=4.626e-06,izz=3.183e-06] compared to the estimate from geometry [ixx=4.280e+00,iyy=5.115e+00,izz=6.647e+00] given material density 1500.000.[0m
+[build] 성공  n_dofs=1
+
+[spin] Servo3_ServoShaft 0 -> 2π (300스텝)
+    k=   0 q=0.021rad
+    k=  50 q=1.068rad
+    k= 100 q=2.115rad
+    k= 150 q=3.163rad
+    k= 200 q=4.210rad
+    k= 250 q=5.257rad
+[hold] 정지 유지 (60스텝)
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Fixture_only\RESULT\fixture_only_20260721_102736.mp4
+완료.

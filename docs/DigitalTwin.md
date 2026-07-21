@@ -1396,3 +1396,9 @@ z 목표에서 margin 을 100mm→10mm 단위로 낮춰가며 손가락-Crusher 
 **남은 과제:**
 - 피로파손 – 압력.
 - 알약의 경도와 피로파손을 어떻게 풀 수 있을까.
+
+---
+
+## 11. Visualization options
+
+**고정장치/M0609 렌더링 스파이크 아티팩트 — 해결(2026-07-21)**: `smooth=True`(기본값)에서 볼트머리 등 작은 디테일 부근에 별모양 스파이크 발생, `smooth=False`는 형상 자체가 깨짐, `decimate`는 무영향 — 같은 STL을 MuJoCo 자체 렌더러로 찍으면 정상이라 Genesis 쪽 문제로 특정. 원인: `pyrender/mesh.py`의 smooth 셰이딩이 `trimesh.vertex_normals`를 크리스 각도 구분 없이 그대로 씀(hard-edge 개념 없음), MuJoCo는 날카로운 모서리에서 정점을 분리해 평균을 안 냄. 해결: `trimesh` `mesh.smooth_shaded`(크리스 각도 기준 정점 분리 후 스무싱)로 재수출한 `_ss.obj`를 시각 전용 geom에만 적용(충돌 geom은 원본 STL 유지, non-watertight라 충돌엔 부적합) — 고정장치 12개, M0609 링크 10개 메시에 적용 완료.

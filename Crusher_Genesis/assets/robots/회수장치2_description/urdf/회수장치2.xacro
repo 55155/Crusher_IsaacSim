@@ -1,0 +1,924 @@
+<?xml version="1.0" ?>
+<robot name="회수장치2" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+<xacro:include filename="$(find 회수장치2_description)/urdf/materials.xacro" />
+<xacro:include filename="$(find 회수장치2_description)/urdf/회수장치2.trans" />
+<xacro:include filename="$(find 회수장치2_description)/urdf/회수장치2.gazebo" />
+<link name="base_link">
+  <inertial>
+    <origin xyz="-0.08045074856896171 0.05928354153655983 0.019442384739811414" rpy="0 0 0"/>
+    <mass value="0.29742019318517815"/>
+    <inertia ixx="0.000184" iyy="6.8e-05" izz="0.000247" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/base_link.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_Back_1">
+  <inertial>
+    <origin xyz="0.002500006906224187 0.02133115244223075 0.011411639174309995" rpy="0 0 0"/>
+    <mass value="0.13564114029374033"/>
+    <inertia ixx="0.000142" iyy="1.3e-05" izz="0.00013" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.005 -0.03788 -0.02" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Back_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.005 -0.03788 -0.02" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Back_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_Left2_1">
+  <inertial>
+    <origin xyz="-0.030900548792238823 -0.002497460070317892 0.011563488502547774" rpy="0 0 0"/>
+    <mass value="0.1257539911884981"/>
+    <inertia ixx="1.2e-05" iyy="0.000115" izz="0.000103" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.025 -0.01788 -0.02" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Left2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.025 -0.01788 -0.02" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Left2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_Right2_1">
+  <inertial>
+    <origin xyz="-0.03108653244635951 0.002496902290871114 0.012562547685015423" rpy="0 0 0"/>
+    <mass value="0.125753991188505"/>
+    <inertia ixx="1.2e-05" iyy="0.000115" izz="0.000103" ixy="0.0" iyz="-0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.024816 -0.100155 -0.019009" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Right2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.024816 -0.100155 -0.019009" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Right2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="LeftSlider2_1">
+  <inertial>
+    <origin xyz="-0.029813164920246507 -0.0016259345215642613 -9.236184039806972e-10" rpy="0 0 0"/>
+    <mass value="0.0022909197231347814"/>
+    <inertia ixx="0.0" iyy="2e-06" izz="2e-06" ixy="-0.0" iyz="-0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.024907 -0.01288 -0.0325" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/LeftSlider2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.024907 -0.01288 -0.0325" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/LeftSlider2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="RightSlider2_1">
+  <inertial>
+    <origin xyz="-0.02905828818063517 0.0016254035828931895 9.236524184386141e-10" rpy="0 0 0"/>
+    <mass value="0.002288830406003305"/>
+    <inertia ixx="0.0" iyy="2e-06" izz="2e-06" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.02625 -0.105155 -0.0325" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/RightSlider2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.02625 -0.105155 -0.0325" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/RightSlider2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_Top_1">
+  <inertial>
+    <origin xyz="-0.023513603635346506 0.028419223012934324 0.0049982018269539505" rpy="0 0 0"/>
+    <mass value="0.47582587327244286"/>
+    <inertia ixx="0.000535" iyy="0.000113" izz="0.00064" ixy="0.0" iyz="-0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.0025 -0.030818 -0.048" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Top_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.0025 -0.030818 -0.048" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Top_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_RightLink_1">
+  <inertial>
+    <origin xyz="-0.002499999999977083 -0.0050596844721923495 0.04584440309160876" rpy="0 0 0"/>
+    <mass value="0.07560982781553315"/>
+    <inertia ixx="6.2e-05" iyy="5.9e-05" izz="3e-06" ixy="0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.05 -0.101715 -0.053" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_RightLink_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.05 -0.101715 -0.053" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_RightLink_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_LeftLink_1">
+  <inertial>
+    <origin xyz="-0.002499999999989018 0.005059753713808773 0.045844401974026276" rpy="0 0 0"/>
+    <mass value="0.07560982781553303"/>
+    <inertia ixx="6.2e-05" iyy="5.9e-05" izz="3e-06" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.05 -0.016715 -0.053" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_LeftLink_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.05 -0.016715 -0.053" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_LeftLink_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_Right1_1">
+  <inertial>
+    <origin xyz="-0.025134787293513063 0.0025000694651160366 -0.014316750139806864" rpy="0 0 0"/>
+    <mass value="0.10156651857711187"/>
+    <inertia ixx="2e-05" iyy="4.5e-05" izz="2.6e-05" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.0025 -0.11343 -0.038" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Right1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.0025 -0.11343 -0.038" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Right1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_Left1_1">
+  <inertial>
+    <origin xyz="-0.02513478729353126 -0.0024999999999941293 -0.014316750139799984" rpy="0 0 0"/>
+    <mass value="0.1015665185771126"/>
+    <inertia ixx="2e-05" iyy="4.5e-05" izz="2.6e-05" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.0025 -0.005 -0.038" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Left1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.0025 -0.005 -0.038" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Left1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="F_Back_1">
+  <inertial>
+    <origin xyz="-0.002498002080163264 0.021059684004511338 0.011670245712220098" rpy="0 0 0"/>
+    <mass value="0.1377673585784849"/>
+    <inertia ixx="0.000145" iyy="1.3e-05" izz="0.000132" ixy="-0.0" iyz="-0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.105148 -0.038141 -0.01938" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_Back_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.105148 -0.038141 -0.01938" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_Back_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="F_Left_1">
+  <inertial>
+    <origin xyz="0.02517769445282836 -0.0024999648632446575 -0.014375704033977484" rpy="0 0 0"/>
+    <mass value="0.10115837119830648"/>
+    <inertia ixx="2e-05" iyy="4.5e-05" izz="2.6e-05" ixy="0.0" iyz="-0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.107648 -0.004986 -0.038" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_Left_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.107648 -0.004986 -0.038" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_Left_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="F_Right_1">
+  <inertial>
+    <origin xyz="0.025177981071861297 0.002500104601865477 -0.014375543871177579" rpy="0 0 0"/>
+    <mass value="0.10115837119830615"/>
+    <inertia ixx="2e-05" iyy="4.5e-05" izz="2.6e-05" ixy="0.0" iyz="-0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.107648 -0.113416 -0.038" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_Right_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.107648 -0.113416 -0.038" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_Right_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="F_Top_1">
+  <inertial>
+    <origin xyz="0.023600399124462115 -0.02923818571454312 0.004998211108953564" rpy="0 0 0"/>
+    <mass value="0.47829478039138357"/>
+    <inertia ixx="0.000537" iyy="0.000114" izz="0.000643" ixy="0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.107648 -0.088416 -0.048" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_Top_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.107648 -0.088416 -0.048" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_Top_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="F_RightLink2_1">
+  <inertial>
+    <origin xyz="0.004554695222672808 0.005011927157442808 0.021480281383473444" rpy="0 0 0"/>
+    <mass value="0.03785906702646859"/>
+    <inertia ixx="8e-06" iyy="7e-06" izz="1e-06" ixy="0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.069502 -0.091701 -0.058" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_RightLink2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.069502 -0.091701 -0.058" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_RightLink2_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="F_RightLink_1">
+  <inertial>
+    <origin xyz="0.0025004847180710027 -0.00505964911193145 0.045844401974036504" rpy="0 0 0"/>
+    <mass value="0.0756098278155331"/>
+    <inertia ixx="6.2e-05" iyy="5.9e-05" izz="3e-06" ixy="0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.060002 -0.101701 -0.053" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_RightLink_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.060002 -0.101701 -0.053" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_RightLink_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="F_LeftLink_1">
+  <inertial>
+    <origin xyz="0.0025004847180579923 0.005059789074069756 0.04584440309162812" rpy="0 0 0"/>
+    <mass value="0.07560982781553312"/>
+    <inertia ixx="6.2e-05" iyy="5.9e-05" izz="3e-06" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.060002 -0.016701 -0.053" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_LeftLink_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.060002 -0.016701 -0.053" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/F_LeftLink_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="RightSlider1_1">
+  <inertial>
+    <origin xyz="0.03150741696236428 -0.002510744995282796 -7.707808980306902e-05" rpy="0 0 0"/>
+    <mass value="0.004929188358690365"/>
+    <inertia ixx="0.0" iyy="4e-06" izz="4e-06" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.085148 -0.113416 -0.0325" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/RightSlider1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.085148 -0.113416 -0.0325" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/RightSlider1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="LeftSlider1_1">
+  <inertial>
+    <origin xyz="0.03128653444177631 0.0024788868142259996 -2.1437273066415852e-07" rpy="0 0 0"/>
+    <mass value="0.004809685770316762"/>
+    <inertia ixx="0.0" iyy="4e-06" izz="4e-06" ixy="-0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.085106 -0.004986 -0.032524" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/LeftSlider1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.085106 -0.004986 -0.032524" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/LeftSlider1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Handle_1">
+  <inertial>
+    <origin xyz="-0.009894697823166182 -0.029224564795870905 -0.005370912957364395" rpy="0 0 0"/>
+    <mass value="0.17237906438223471"/>
+    <inertia ixx="5.1e-05" iyy="3e-05" izz="6e-05" ixy="0.0" iyz="-0.0" ixz="-5e-06"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.107648 -0.088416 -0.058" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Handle_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.107648 -0.088416 -0.058" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Handle_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="HexNut_1">
+  <inertial>
+    <origin xyz="4.842485457207113e-07 1.1807981993572358e-07 0.0032497773016602616" rpy="0 0 0"/>
+    <mass value="0.00486569255968102"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="-0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.074015 -0.05922 -0.00788" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/HexNut_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.074015 -0.05922 -0.00788" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/HexNut_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="NeedleBearing_1">
+  <inertial>
+    <origin xyz="4.842484910977385e-07 1.180798231067981e-07 0.001999777301660368" rpy="0 0 0"/>
+    <mass value="0.0014596624866741945"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.074015 -0.05922 -0.01438" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/NeedleBearing_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.074015 -0.05922 -0.01438" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/NeedleBearing_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Bearing1_1">
+  <inertial>
+    <origin xyz="-4.3788127313509895e-05 8.447204488672144e-05 0.0024997773016602887" rpy="0 0 0"/>
+    <mass value="0.0004938638077749643"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.074015 -0.05922 -0.01938" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Bearing1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.074015 -0.05922 -0.01938" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Bearing1_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Washer_1">
+  <inertial>
+    <origin xyz="4.84248481188998e-07 1.1807967408711262e-07 0.001459533399209536" rpy="0 0 0"/>
+    <mass value="0.01137511795002603"/>
+    <inertia ixx="1e-06" iyy="1e-06" izz="2e-06" ixy="0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.074015 -0.05922 -0.02438" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Washer_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.074015 -0.05922 -0.02438" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Washer_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="RachetGear_1">
+  <inertial>
+    <origin xyz="4.842487667106044e-07 -1.9011596508772266e-05 0.002999662051555784" rpy="0 0 0"/>
+    <mass value="0.006687270749656688"/>
+    <inertia ixx="1e-06" iyy="1e-06" izz="1e-06" ixy="-0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.074015 -0.05922 -0.02838" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/RachetGear_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.074015 -0.05922 -0.02838" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/RachetGear_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="PULLEY_1">
+  <inertial>
+    <origin xyz="4.842333330284943e-07 -1.5542385214846466e-05 0.002999777301648736" rpy="0 0 0"/>
+    <mass value="0.06401620253144692"/>
+    <inertia ixx="8e-06" iyy="8e-06" izz="1.6e-05" ixy="0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.074015 -0.05922 -0.03488" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/PULLEY_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.074015 -0.05922 -0.03488" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/PULLEY_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Crank_1">
+  <inertial>
+    <origin xyz="0.03000048424884516 1.1807991753126634e-07 0.002982532263665086" rpy="0 0 0"/>
+    <mass value="0.05254077615308606"/>
+    <inertia ixx="1e-06" iyy="2.6e-05" izz="2.7e-05" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.091515 -0.05922 -0.04088" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Crank_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.091515 -0.05922 -0.04088" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Crank_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Shaft_copy_1">
+  <inertial>
+    <origin xyz="4.191281729321039e-07 -0.00011135969139965812 0.008875757252281815" rpy="0 0 0"/>
+    <mass value="0.0025310231000734533"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.074015 -0.05922 -0.01438" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Shaft_copy_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.074015 -0.05922 -0.01438" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Shaft_copy_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_LeftLink2_copy_1">
+  <inertial>
+    <origin xyz="-0.004521443493009446 -0.005011822555556152 0.021480281383466783" rpy="0 0 0"/>
+    <mass value="0.03785906702646838"/>
+    <inertia ixx="8e-06" iyy="7e-06" izz="1e-06" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.0415 -0.026715 -0.058" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_LeftLink2_copy_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.0415 -0.026715 -0.058" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_LeftLink2_copy_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="Crank_1">
+  <inertial>
+    <origin xyz="-0.029999515751154837 1.1807991753126634e-07 -0.0030174677363349126" rpy="0 0 0"/>
+    <mass value="0.05254077615308606"/>
+    <inertia ixx="1e-06" iyy="2.6e-05" izz="2.7e-05" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.031515 -0.05922 -0.04688" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Crank_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.031515 -0.05922 -0.04688" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/Crank_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="M_Bottom_1">
+  <inertial>
+    <origin xyz="0.13059891780779692 0.030091221110271675 -0.07268970169910897" rpy="0 0 0"/>
+    <mass value="0.31556313390690294"/>
+    <inertia ixx="0.000179" iyy="6.7e-05" izz="0.000241" ixy="0.0" iyz="-0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.160469 -0.028926 -0.092694" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Bottom_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.160469 -0.028926 -0.092694" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/M_Bottom_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="ShaftHandle_1">
+  <inertial>
+    <origin xyz="4.842489699230512e-07 0.0029996773652555403 -3.997599676286434e-08" rpy="0 0 0"/>
+    <mass value="0.003766419065312411"/>
+    <inertia ixx="1e-06" iyy="0.0" izz="1e-06" ixy="-0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.074015 -0.055155 -0.004776" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/ShaftHandle_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.074015 -0.055155 -0.004776" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/ShaftHandle_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<link name="PAWL_1">
+  <inertial>
+    <origin xyz="0.007597395858656347 0.004145072902053005 0.0029997773016538394" rpy="0 0 0"/>
+    <mass value="0.0021964348249797275"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="-0.0" iyz="0.0" ixz="0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="0.081083 -0.026968 -0.02838" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/PAWL_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="0.081083 -0.026968 -0.02838" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://회수장치2_description/meshes/PAWL_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
+<joint name="M_Bottom_M_Back" type="fixed">
+  <origin xyz="0.155469 0.008954 -0.072694" rpy="0 0 0"/>
+  <parent link="M_Bottom_1"/>
+  <child link="M_Back_1"/>
+</joint>
+
+<joint name="MBottom_MLeft2" type="fixed">
+  <origin xyz="0.135469 -0.011046 -0.072694" rpy="0 0 0"/>
+  <parent link="M_Bottom_1"/>
+  <child link="M_Left2_1"/>
+</joint>
+
+<joint name="MBottom_MRight2" type="fixed">
+  <origin xyz="0.135653 0.071229 -0.073685" rpy="0 0 0"/>
+  <parent link="M_Bottom_1"/>
+  <child link="M_Right2_1"/>
+</joint>
+
+<joint name="MLeft2_LeftSlider2" type="fixed">
+  <origin xyz="9.3e-05 -0.005 0.0125" rpy="0 0 0"/>
+  <parent link="M_Left2_1"/>
+  <child link="LeftSlider2_1"/>
+</joint>
+
+<joint name="MRight2_RightSlider2" type="fixed">
+  <origin xyz="-0.001434 0.005 0.013491" rpy="0 0 0"/>
+  <parent link="M_Right2_1"/>
+  <child link="RightSlider2_1"/>
+</joint>
+
+<joint name="MBack_MTop" type="fixed">
+  <origin xyz="0.0025 -0.007062 0.028" rpy="0 0 0"/>
+  <parent link="M_Back_1"/>
+  <child link="M_Top_1"/>
+</joint>
+
+<joint name="MTop_MRightLink" type="fixed">
+  <origin xyz="-0.0475 0.070897 0.005" rpy="0 0 0"/>
+  <parent link="M_Top_1"/>
+  <child link="M_RightLink_1"/>
+</joint>
+
+<joint name="MTop_MLeftLink1" type="fixed">
+  <origin xyz="-0.0475 -0.014103 0.005" rpy="0 0 0"/>
+  <parent link="M_Top_1"/>
+  <child link="M_LeftLink_1"/>
+</joint>
+
+<joint name="MBack_MRight1" type="fixed">
+  <origin xyz="0.0025 0.07555 0.018" rpy="0 0 0"/>
+  <parent link="M_Back_1"/>
+  <child link="M_Right1_1"/>
+</joint>
+
+<joint name="MBack_MLeft1" type="fixed">
+  <origin xyz="0.0025 -0.03288 0.018" rpy="0 0 0"/>
+  <parent link="M_Back_1"/>
+  <child link="M_Left1_1"/>
+</joint>
+
+<joint name="FBottom_FBack" type="fixed">
+  <origin xyz="-0.105148 0.038141 0.01938" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="F_Back_1"/>
+</joint>
+
+<joint name="FBack_FLeft" type="fixed">
+  <origin xyz="-0.0025 -0.033155 0.01862" rpy="0 0 0"/>
+  <parent link="F_Back_1"/>
+  <child link="F_Left_1"/>
+</joint>
+
+<joint name="FBack_FRight" type="fixed">
+  <origin xyz="-0.0025 0.075275 0.01862" rpy="0 0 0"/>
+  <parent link="F_Back_1"/>
+  <child link="F_Right_1"/>
+</joint>
+
+<joint name="FBack_FTop" type="fixed">
+  <origin xyz="-0.0025 0.050275 0.02862" rpy="0 0 0"/>
+  <parent link="F_Back_1"/>
+  <child link="F_Top_1"/>
+</joint>
+
+<joint name="FTop_RightLink2" type="fixed">
+  <origin xyz="0.038146 0.003285 0.01" rpy="0 0 0"/>
+  <parent link="F_Top_1"/>
+  <child link="F_RightLink2_1"/>
+</joint>
+
+<joint name="FTop_RightLink1" type="fixed">
+  <origin xyz="0.047646 0.013285 0.005" rpy="0 0 0"/>
+  <parent link="F_Top_1"/>
+  <child link="F_RightLink_1"/>
+</joint>
+
+<joint name="FTop_FLeftLink" type="fixed">
+  <origin xyz="0.047646 -0.071715 0.005" rpy="0 0 0"/>
+  <parent link="F_Top_1"/>
+  <child link="F_LeftLink_1"/>
+</joint>
+
+<joint name="FRight_RightSlider" type="fixed">
+  <origin xyz="0.0225 0.0 -0.0055" rpy="0 0 0"/>
+  <parent link="F_Right_1"/>
+  <child link="RightSlider1_1"/>
+</joint>
+
+<joint name="FLeft_LeftSlider" type="fixed">
+  <origin xyz="0.022542 0.0 -0.005476" rpy="0 0 0"/>
+  <parent link="F_Left_1"/>
+  <child link="LeftSlider1_1"/>
+</joint>
+
+<joint name="FTop_Handle" type="fixed">
+  <origin xyz="0.0 0.0 0.01" rpy="0 0 0"/>
+  <parent link="F_Top_1"/>
+  <child link="Handle_1"/>
+</joint>
+
+<joint name="강체 23" type="fixed">
+  <origin xyz="0.0 0.0 -0.0065" rpy="0 0 0"/>
+  <parent link="Shaft_copy_1"/>
+  <child link="HexNut_1"/>
+</joint>
+
+<joint name="강체 24" type="fixed">
+  <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  <parent link="Shaft_copy_1"/>
+  <child link="NeedleBearing_1"/>
+</joint>
+
+<joint name="강체 25" type="fixed">
+  <origin xyz="0.0 0.0 0.005" rpy="0 0 0"/>
+  <parent link="Shaft_copy_1"/>
+  <child link="Bearing1_1"/>
+</joint>
+
+<joint name="강체 26" type="fixed">
+  <origin xyz="0.0 0.0 0.01" rpy="0 0 0"/>
+  <parent link="Shaft_copy_1"/>
+  <child link="Washer_1"/>
+</joint>
+
+<joint name="강체 27" type="fixed">
+  <origin xyz="0.0 0.0 0.014" rpy="0 0 0"/>
+  <parent link="Shaft_copy_1"/>
+  <child link="RachetGear_1"/>
+</joint>
+
+<joint name="강체 28" type="fixed">
+  <origin xyz="0.0 0.0 0.0205" rpy="0 0 0"/>
+  <parent link="Shaft_copy_1"/>
+  <child link="PULLEY_1"/>
+</joint>
+
+<joint name="회전 29" type="continuous">
+  <origin xyz="0.0425 0.0 0.012" rpy="0 0 0"/>
+  <parent link="PULLEY_1"/>
+  <child link="Crank_1"/>
+  <axis xyz="-0.0 -0.0 -1.0"/>
+</joint>
+
+<joint name="회전 31" type="continuous">
+  <origin xyz="-0.074015 0.05922 0.01438" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="Shaft_copy_1"/>
+  <axis xyz="0.0 0.0 1.0"/>
+</joint>
+
+<joint name="강체 33" type="fixed">
+  <origin xyz="-0.039 -0.004103 0.01" rpy="0 0 0"/>
+  <parent link="M_Top_1"/>
+  <child link="M_LeftLink2_copy_1"/>
+</joint>
+
+<joint name="회전 34" type="continuous">
+  <origin xyz="-0.029015 0.028402 -0.00112" rpy="0 0 0"/>
+  <parent link="M_Top_1"/>
+  <child link="Crank_1"/>
+  <axis xyz="0.0 0.0 1.0"/>
+</joint>
+
+<joint name="슬라이더 35" type="prismatic">
+  <origin xyz="-0.160469 0.028926 0.092694" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="M_Bottom_1"/>
+  <axis xyz="1.0 -0.0 -0.0"/>
+  <limit upper="0.0" lower="0.0" effort="100" velocity="100"/>
+</joint>
+
+<joint name="강체 36" type="fixed">
+  <origin xyz="0.0 -0.004065 -0.009604" rpy="0 0 0"/>
+  <parent link="Shaft_copy_1"/>
+  <child link="ShaftHandle_1"/>
+</joint>
+
+<joint name="강체 38" type="fixed">
+  <origin xyz="-0.081083 0.026968 0.02838" rpy="0 0 0"/>
+  <parent link="base_link"/>
+  <child link="PAWL_1"/>
+</joint>
+
+</robot>

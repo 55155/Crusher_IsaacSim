@@ -1,0 +1,34 @@
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+============================================================
+ FEM Tablet(2x scale) drop with bag-mouth-open test (viewer=False)
+============================================================
+  capsule R=4.0mm cyl_h=2.0mm (지름 8mm x 길이 10mm)
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+
+[build] scene.build() 시작...
+[build] 성공
+[bag] 입구 벌릴 정점: front=51 back=51 (mouth_band=12mm, 봉투 두께 y=[-3.88,2.12]mm)
+
+[phase] open (100steps) — 입구 전/후면을 서로 반대 방향으로 15mm씩
+    k=  25 s=0.25 bag_com=[-0.0002 -0.0019  0.0594]
+    k=  50 s=0.50 bag_com=[-0.0002 -0.0025  0.0593]
+    k=  75 s=0.75 bag_com=[-0.0002 -0.0034  0.0593]
+    k= 100 s=1.00 bag_com=[-0.0002 -0.0045  0.0591]
+[phase] hold_open (30steps)
+[phase] drop (200steps) — 정제 구속 해제, 자유낙하
+    k=  40 tablet_com_z=+17.84mm  bag_com=[-0.0001 -0.0091  0.0583]
+    k=  80 tablet_com_z=+17.84mm  bag_com=[ 0.     -0.0115  0.0576]
+    k= 120 tablet_com_z=+17.84mm  bag_com=[ 0.0004 -0.0146  0.0566]
+    k= 160 tablet_com_z=+17.84mm  bag_com=[ 0.0007 -0.0186  0.0548]
+    k= 200 tablet_com_z=+17.84mm  bag_com=[ 0.001  -0.0227  0.0524]
+[phase] settle (150steps) — 입구 구속 해제, 봉투 자연 이완
+    k=  40 tablet_com_z=+17.84mm  bag_com=[ 0.0013 -0.027   0.0493]
+    k=  80 tablet_com_z=+17.84mm  bag_com=[ 0.0016 -0.0313  0.0452]
+    k= 120 tablet_com_z=+17.84mm  bag_com=[ 0.0018 -0.0352  0.0402]
+
+[final] tablet_com=[0.0001 0.0099 0.0178]  bag_com=[ 0.0021 -0.0377  0.0361]
+[check] 정제가 봉투 입구 아래로 내려감: True
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\FEM\Result\fem_tablet_bag_open_20260721_163021.mp4
+완료.

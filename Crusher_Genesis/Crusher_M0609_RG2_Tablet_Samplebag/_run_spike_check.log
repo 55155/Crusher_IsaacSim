@@ -1,0 +1,73 @@
+============================================================
+ Full workflow: tablet drop -> bag catch -> grasp -> lift -> Crusher slot insert (viewer=False)
+============================================================
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+[38;5;226m[Genesis] [14:22:45] [WARNING] At least one of the meshes contain many faces (27466). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [14:22:45] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [14:22:45] [WARNING] Link 'ServoShaft_1' has dubious mass 0.039 compared to the estimate from geometry 6189182.429 given material density 1500.[0m
+[38;5;226m[Genesis] [14:22:45] [WARNING] Link 'ServoShaft_1' has dubious inertia [ixx=5.543e-06,iyy=4.626e-06,izz=3.183e-06] compared to the estimate from geometry [ixx=4.280e+00,iyy=5.115e+00,izz=6.647e+00] given material density 1500.000.[0m
+[38;5;226m[Genesis] [14:22:45] [WARNING] Link 'link_2' has dubious center of mass [x=0.000, y=0.000, z=0.000] compared to the bounding box from geometry [x=(-0.068, 0.479), y=(-0.069, 0.069), z=(0.082, 0.274)].[0m
+[38;5;226m[Genesis] [14:22:46] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.01`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py:245: DeprecationWarning: keyword.__init__ got an unexpected keyword argument 'ctx'. Support for arbitrary keyword arguments is deprecated and will be removed in Python 3.15.
+  kwarg_node = ast.keyword(
+[build] 성공
+[bag] shape 고정: 375/771 정점(바닥+양측면), 입구는 자유
+[slot] gap_cx=-0.3303 gap_cy=-0.0473 gap_width=12.0mm wall_top_z=0.0864
+[slot] pocket(L1_Wall1_1) center=(-0.3683,-0.0853)
+[bag] grip_strip verts near FINGER_MID: 91
+
+[phase] 0 prep (1.0s) — 크랭크 0->-3.142rad(-180deg), Left_Wall 0->+6mm(개방)
+[phase] prep     @done  crank=-3.000rad  wall=+5.43mm
+    [drop k=   0] tablet_z=+442.48mm bag_com=[-0.126591   -0.61667615  0.39840963]
+    [drop k=  40] tablet_z=+440.77mm bag_com=[-0.12659058 -0.61667615  0.39840963]
+    [drop k=  80] tablet_z=+435.93mm bag_com=[-0.12659009 -0.61667615  0.39840963]
+    [drop k= 120] tablet_z=+419.09mm bag_com=[-0.1265945  -0.61667615  0.3984096 ]
+[phase] drop     @done  bag_com=[-0.12659624 -0.61667615  0.39840966]  finger_z=0.4355  tablet_z=+410.69mm
+[phase] settle   @done  bag_com=[-0.12659468 -0.61667615  0.3984096 ]  finger_z=0.4355  tablet_z=+400.09mm
+[bag] shape 고정 해제 — 이제부터 순수 마찰 파지
+[phase] close    @done  bag_com=[-0.12420519 -0.61725736  0.39767888]  finger_z=0.4314  tablet_z=+398.47mm
+[phase] grasp    @done  bag_com=[-0.12498777 -0.61747545  0.3976801 ]  finger_z=0.4314  tablet_z=+398.25mm
+[phase] lift     @done  bag_com=[-0.12960006 -0.6209991   0.5222563 ]  finger_z=0.5573  tablet_z=+519.90mm
+[phase] hold     @done  bag_com=[-0.12974317 -0.62146854  0.5222594 ]  finger_z=0.5573  tablet_z=+492.84mm
+[slot] wall_center_z=0.0504  insert_z(finger)=0.1024  margin=52mm
+
+[ik] above-slot target=[-0.33027777 -0.04730234  0.28643123]  arm_q=[ 1.6530277   0.7190716   0.4227698  -0.26480713  2.0064867   1.5422592 ]
+    [above k=   0] tablet_z=+489.73mm bag_com=[-0.1294093  -0.62116545  0.5220151 ]
+    [above k=  40] tablet_z=+476.68mm bag_com=[-0.08848512 -0.5851859   0.51130795]
+    [above k=  80] tablet_z=+467.11mm bag_com=[-0.04756781 -0.53372777  0.49616042]
+    [above k= 120] tablet_z=+456.33mm bag_com=[-0.02620808 -0.4747111   0.4765766 ]
+    [above k= 160] tablet_z=+439.34mm bag_com=[-0.01044321 -0.40259778  0.45466045]
+    [above k= 200] tablet_z=+413.20mm bag_com=[-0.01751216 -0.32839432  0.4282708 ]
+    [above k= 240] tablet_z=+384.58mm bag_com=[-0.03949317 -0.25339556  0.3987381 ]
+    [above k= 280] tablet_z=+352.52mm bag_com=[-0.08354834 -0.18108276  0.3658791 ]
+    [above k= 320] tablet_z=+315.18mm bag_com=[-0.1440893  -0.11604954  0.3302726 ]
+    [above k= 360] tablet_z=+272.72mm bag_com=[-0.21651663 -0.06225759  0.2923577 ]
+[phase] above    @done  bag_com=[-0.30391133 -0.02377424  0.25247535]  finger_z=0.2862  tablet_z=+229.45mm
+[ik] insert target=[-0.33027777 -0.04730234  0.10243123]  arm_q=[ 1.6530346   0.62771326  1.0912718  -0.24130055  1.4467571   1.6866548 ]
+    [insert k=   0] tablet_z=+228.20mm bag_com=[-0.3054705  -0.0235771   0.25179833]
+    [insert k=  40] tablet_z=+210.12mm bag_com=[-0.3060615  -0.01818093  0.2351026 ]
+    [insert k=  80] tablet_z=+192.34mm bag_com=[-0.30744052 -0.0146322   0.2174106 ]
+    [insert k= 120] tablet_z=+174.61mm bag_com=[-0.30489126 -0.01089032  0.20001082]
+    [insert k= 160] tablet_z=+160.07mm bag_com=[-0.3052739  -0.00908411  0.18176335]
+    [insert k= 200] tablet_z=+144.47mm bag_com=[-0.30554882 -0.00846548  0.16325124]
+    [insert k= 240] tablet_z=+129.75mm bag_com=[-0.30544287 -0.00912001  0.14439571]
+    [insert k= 280] tablet_z=+115.39mm bag_com=[-0.30567372 -0.01086061  0.12551482]
+    [insert k= 320] tablet_z=+99.82mm bag_com=[-0.30069447 -0.01337512  0.10728168]
+    [insert k= 360] tablet_z=+83.59mm bag_com=[-0.2948095  -0.0175277   0.09112673]
+[phase] insert   @done  bag_com=[-0.28906807 -0.02294763  0.08004839]  finger_z=0.1023  tablet_z=+77.38mm
+[phase] settle2  @done  bag_com=[-0.28469014 -0.02297619  0.08508355]  finger_z=0.1022  tablet_z=+80.11mm
+
+[phase] 9 clamp (2.0s) — Left_Wall +6.0mm -> -5.0mm (실링부 압착)
+[phase] clamp    @done  wall=-4.48mm  bag_com=[-0.28637627 -0.0241015   0.07979602]
+    [release k=   0] tablet_z=+67.60mm bag_com=[-0.2863831  -0.02410047  0.07979698]
+    [release k=  40] tablet_z=+66.35mm bag_com=[-0.2864766  -0.02467727  0.07583179]
+    [release k=  80] tablet_z=+63.58mm bag_com=[-0.28490525 -0.02374951  0.07451175]
+[phase] release  @done  bag_com=[-0.28485245 -0.02367901  0.074405  ]  finger_z=0.1064  tablet_z=+63.54mm
+
+[saved] overview -> C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT\full_workflow_20260721_142239_overview.mp4
+[saved] bagcam   -> C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT\full_workflow_20260721_142239_bagcam.mp4
+완료.
