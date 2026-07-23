@@ -1,0 +1,10 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"script",
+	"author":	"simuser",
+	"description":	{
+		"":	"Dump joint anchor points (world + component-local) for occurrences matching a name pattern, and compute pin-to-pin distance for components with two joints (closed-loop duplicate export case)."
+	},
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}

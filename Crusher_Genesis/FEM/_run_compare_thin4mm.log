@@ -1,0 +1,21 @@
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+============================================================
+ Tablet (fem) -> Samplebag Drop Test (viewer=False)
+============================================================
+  bag_variant=thin4mm (Samplebag_seal_pouch3_thin4mm.stl)  cloth_thickness=0.40mm
+  drop_h=15mm above bag mouth (z=105.0mm)  dt=0.005
+[tablet]  capsule verts=137 tets=288 (sliver-free medial-axis, TetGen 미사용)
+[bag]     verts=(771, 3)  z=0.0159~0.1059
+[tablet]  z0=120.00mm
+  [drop] t= 200.0ms  tablet_z=+105.682mm
+  [drop] t= 400.0ms  tablet_z=+87.038mm
+  [drop] t= 600.0ms  tablet_z=+79.957mm
+  [settle] t= 800.0ms  tablet_z=+73.139mm
+  [settle] t=1000.0ms  tablet_z=+53.642mm
+  [settle] t=1200.0ms  tablet_z=+11.457mm
+  [settle] t=1400.0ms  tablet_z=+11.409mm
+
+[final] tablet_z=11.348mm  net_fall=108.652mm
+
+[saved video] C:\Crusher_isaacsim\Crusher_Genesis\FEM\Result\fem_tablet_bag_drop_fem_thin4mm_20260722_144654.mp4

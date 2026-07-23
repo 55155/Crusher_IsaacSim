@@ -1,0 +1,193 @@
+<mujoco model="회수장치2">
+  <compiler angle="radian"/>
+
+  <asset>
+    <mesh name="base_link" file="meshes/base_link_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Back_1" file="meshes/M_Back_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Left2_1" file="meshes/M_Left2_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Right2_1" file="meshes/M_Right2_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="LeftSlider2_1" file="meshes/LeftSlider2_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="RightSlider2_1" file="meshes/RightSlider2_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Top_1" file="meshes/M_Top_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_RightLink_1" file="meshes/M_RightLink_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_LeftLink_1" file="meshes/M_LeftLink_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Right1_1" file="meshes/M_Right1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Left1_1" file="meshes/M_Left1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="F_Back_1" file="meshes/F_Back_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="F_Left_1" file="meshes/F_Left_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="F_Right_1" file="meshes/F_Right_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="F_Top_1" file="meshes/F_Top_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="F_RightLink2_1" file="meshes/F_RightLink2_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="F_RightLink_1" file="meshes/F_RightLink_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="F_LeftLink_1" file="meshes/F_LeftLink_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="RightSlider1_1" file="meshes/RightSlider1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="LeftSlider1_1" file="meshes/LeftSlider1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Handle_1" file="meshes/Handle_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="HexNut_1" file="meshes/HexNut_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="NeedleBearing_1" file="meshes/NeedleBearing_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Bearing1_1" file="meshes/Bearing1_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Washer_1" file="meshes/Washer_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="RachetGear_1" file="meshes/RachetGear_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="PULLEY_1" file="meshes/PULLEY_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Shaft_copy_1" file="meshes/Shaft_copy_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_LeftLink2_copy_1" file="meshes/M_LeftLink2_copy_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="Crank_1" file="meshes/Crank_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Bottom_1" file="meshes/M_Bottom_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="ShaftHandle_1" file="meshes/ShaftHandle_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="PAWL_1" file="meshes/PAWL_1_ss.obj" scale="0.001 0.001 0.001"/>
+    <mesh name="base_link_hull" file="meshes/base_link_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Back_1_hull" file="meshes/M_Back_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Left2_1_hull" file="meshes/M_Left2_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Right2_1_hull" file="meshes/M_Right2_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="LeftSlider2_1_hull" file="meshes/LeftSlider2_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="RightSlider2_1_hull" file="meshes/RightSlider2_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Top_1_hull" file="meshes/M_Top_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_RightLink_1_hull" file="meshes/M_RightLink_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_LeftLink_1_hull" file="meshes/M_LeftLink_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Right1_1_hull" file="meshes/M_Right1_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Left1_1_hull" file="meshes/M_Left1_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="F_Back_1_hull" file="meshes/F_Back_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="F_Left_1_hull" file="meshes/F_Left_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="F_Right_1_hull" file="meshes/F_Right_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="F_Top_1_hull" file="meshes/F_Top_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="F_RightLink2_1_hull" file="meshes/F_RightLink2_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="F_RightLink_1_hull" file="meshes/F_RightLink_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="F_LeftLink_1_hull" file="meshes/F_LeftLink_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="RightSlider1_1_hull" file="meshes/RightSlider1_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="LeftSlider1_1_hull" file="meshes/LeftSlider1_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Handle_1_hull" file="meshes/Handle_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="HexNut_1_hull" file="meshes/HexNut_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="NeedleBearing_1_hull" file="meshes/NeedleBearing_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Bearing1_1_hull" file="meshes/Bearing1_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Washer_1_hull" file="meshes/Washer_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="RachetGear_1_hull" file="meshes/RachetGear_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="PULLEY_1_hull" file="meshes/PULLEY_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Crank_1_hull" file="meshes/Crank_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="Shaft_copy_1_hull" file="meshes/Shaft_copy_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_LeftLink2_copy_1_hull" file="meshes/M_LeftLink2_copy_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="M_Bottom_1_hull" file="meshes/M_Bottom_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="ShaftHandle_1_hull" file="meshes/ShaftHandle_1_hull.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="PAWL_1_hull" file="meshes/PAWL_1_hull.stl" scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="base_link"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="base_link_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="F_Back_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="F_Back_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="F_Left_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="F_Left_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="LeftSlider1_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="LeftSlider1_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="F_Right_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="F_Right_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="RightSlider1_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="RightSlider1_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="F_Top_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="F_Top_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="F_RightLink2_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="F_RightLink2_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="F_RightLink_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="F_RightLink_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="F_LeftLink_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="F_LeftLink_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Handle_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="Handle_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <geom contype="0" conaffinity="0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="PAWL_1"/>
+      <geom contype="0" conaffinity="0" type="mesh" mesh="PAWL_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+    <body name="Shaft_copy_1" pos="-0.074015 0.05922 0.01438">
+      <inertial pos="2.52826e-07 -0.0150371 0.00314531" quat="0.491861 0.508015 -0.507983 0.491881" mass="0.0951953" diaginertia="2.60744e-05 1.92834e-05 1.2709e-05"/>
+      <!-- pos: 원래 "0 0 0"이었으나, Shaft_copy_1.stl 단면 중심을 20개 슬라이스로
+           실측한 결과 실제 축 중심이 로컬 (-0.0309, 0.0066)에 있음(joint 원점과
+           31.6mm 어긋남). 회전축을 실제 샤프트 중심선에 맞춤. -->
+      <joint name="base_link_Shaft_copy_1" pos="-0.03092 0.00662 0" axis="0 0 1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Shaft_copy_1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" type="mesh" mesh="Shaft_copy_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="HexNut_1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" mesh="HexNut_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="NeedleBearing_1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" mesh="NeedleBearing_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Bearing1_1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" mesh="Bearing1_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Washer_1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" mesh="Washer_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="RachetGear_1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" mesh="RachetGear_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="PULLEY_1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" mesh="PULLEY_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="ShaftHandle_1"/>
+      <geom contype="0" conaffinity="0" pos="0.074015 -0.05922 -0.01438" quat="1 0 0 0" type="mesh" mesh="ShaftHandle_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <!-- Crank_1_b: PULLEY_1측 크랭크 인스턴스 복원(구 회전29). M_Top_1측
+           Crank_1(구 회전34)과 동일 물리 부품의 fusion2urdf 중복 export본.
+           원래 폐루프 메커니즘 재구성을 위해 다시 추가, 아래 equality connect로
+           M_Top_1측 Crank_1과 위치 결속 -->
+      <body name="Crank_1_b" pos="0.0425 0 0.0325">
+        <inertial pos="0.0300005 1.1808e-07 0.00298253" quat="0 0.707107 0 0.707107" mass="0.0525408" diaginertia="2.7e-05 2.6e-05 1e-06"/>
+        <joint name="PULLEY_1_Crank_1_b" pos="0 0 0" axis="0 0 -1"/>
+        <geom contype="0" conaffinity="0" pos="0.091515 -0.05922 -0.04088" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Crank_1"/>
+        <geom contype="0" conaffinity="0" pos="0.091515 -0.05922 -0.04088" quat="1 0 0 0" type="mesh" mesh="Crank_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      </body>
+    </body>
+    <body name="M_Bottom_1" pos="-0.160469 0.028926 0.092694">
+      <inertial pos="0.0185833 0.0810411 0.0453042" quat="0.340208 0.785238 0.420316 0.301652" mass="1.57533" diaginertia="0.0308964 0.0248286 0.00983334"/>
+      <joint name="base_link_M_Bottom_1" pos="0 0 0" axis="1 0 0" type="slide" actuatorfrcrange="-100 100"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_Bottom_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="M_Bottom_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_Back_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="M_Back_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_Top_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="M_Top_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_RightLink_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" type="mesh" mesh="M_RightLink_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_LeftLink_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" type="mesh" mesh="M_LeftLink_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_LeftLink2_copy_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" type="mesh" mesh="M_LeftLink2_copy_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_Right1_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="M_Right1_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_Left1_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="M_Left1_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_Left2_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="M_Left2_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="LeftSlider2_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="LeftSlider2_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="M_Right2_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="M_Right2_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="RightSlider2_1"/>
+      <geom contype="0" conaffinity="0" pos="0.160469 -0.028926 -0.092694" quat="1 0 0 0" type="mesh" mesh="RightSlider2_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      <body name="Crank_1" pos="0.128954 0.030294 -0.045814">
+        <inertial pos="-0.0299995 1.1808e-07 -0.00301747" quat="0 0.707107 0 0.707107" mass="0.0525408" diaginertia="2.7e-05 2.6e-05 1e-06"/>
+        <joint name="M_Top_1_Crank_1" pos="0 0 0" axis="0 0 1"/>
+        <geom contype="0" conaffinity="0" pos="0.031515 -0.05922 -0.04688" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Crank_1"/>
+      <geom contype="0" conaffinity="0" pos="0.031515 -0.05922 -0.04688" quat="1 0 0 0" type="mesh" mesh="Crank_1_hull" rgba="0.7 0.85 1.0 0.0"/>
+      </body>
+    </body>
+  </worldbody>
+
+  <!-- 폐루프(closed-loop) 닫힘: Crank_1_b(PULLEY_1측, 구 회전29)와 Crank_1(M_Top_1측,
+       구 회전34)는 fusion2urdf가 중복 export한 동일 물리 크랭크 암 -- 원래 Fusion
+       CAD에서는 하나의 Crank가 PULLEY_1/M_Top_1 두 부모 링크를 동시에 가지는 폐루프
+       였으나, URDF 트리 구조가 다중 부모를 표현할 수 없어 링크가 2개로 쪼개져
+       export됨. weld는 위치+방향을 전부 고정해 두 회전 자유도를 과도하게 묶어버리므로
+       (평면 내 상대 회전이 막힘), 위치만 고정하고 상대 회전은 자유로 두는 connect 사용.
+
+       anchor 유도(파일 내 정확값에서 대수적으로 계산, 근사 아님):
+       각 인스턴스의 joint origin이 곧 그 인스턴스의 "가까운 쪽" 핀 위치이므로
+       body origin = 그 핀 위치. 두 인스턴스 모두 동일 mesh(Crank_1.stl)를 회전 없이
+       (quat="1 0 0 0") pos 오프셋만으로 배치했으므로, raw mesh 좌표계가 두 인스턴스
+       에서 그대로 정렬됨. 따라서 "먼 쪽(반대편) 핀"의 위치, 즉 Crank_1_b 자기 좌표계
+       기준 anchor = (Crank_1_b의 geom offset) - (Crank_1의 geom offset)
+                    = (0.091515,-0.05922,-0.04088) - (0.031515,-0.05922,-0.04688)
+                    = (0.06, 0.0, 0.006)
+       -- Fusion에서 dump_joint_anchors로 직접 뽑은 실측 핀-핀 거리(0.060299m)와
+       이 anchor의 크기(√(0.06²+0.006²)=0.060299m)가 정확히 일치해 검증됨. -->
+  <equality>
+    <connect name="crank_loop_close" body1="Crank_1_b" body2="Crank_1" anchor="0.06 0.0 0.006"/>
+  </equality>
+
+  <!-- base_link_Shaft_copy_1: base_link(F프레임 바닥)과 Shaft_copy_1(메인 샤프트) 사이의
+       구동 조인트 -->
+  <actuator>
+    <motor name="base_link_Shaft_copy_1_motor" joint="base_link_Shaft_copy_1" ctrlrange="-100 100" ctrllimited="true"/>
+  </actuator>
+</mujoco>

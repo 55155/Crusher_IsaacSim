@@ -1,0 +1,39 @@
+[2026-07-22 13:40:48.065] [error] [class uipc::backend::cuda::SimplicialSurfaceDistanceCheck(3)]:
+Geometry(0) in Object[cloth_0_0(0)] is too close (distance=0.0009483525664174651, thickness=0.002) to Geometry(0) in Object[cloth_0_0(0)]
+Close mesh has 277 vertices, 612 edges, and 440 triangles.
+Close mesh is saved at C:\Users\simuser\AppData\Local\Temp\genesis_ipc_5424742-ec8d048a0b3f0004f472601ec\sanity_check\3\close_mesh.obj.
+Create mesh [close_mesh<SimplicialComplex>] for post-processing.
+Geometries:
+  - close_mesh: <SimplicialComplex>
+[2026-07-22 13:40:48.065] [error] World is not valid, skipping init.
+[2026-07-22 13:40:48.065] [error] World is not valid, skipping dump.
+============================================================
+ Tablet (fem) -> Samplebag Drop Test (viewer=False)
+============================================================
+  bag_variant=thin2mm (Samplebag_seal_pouch3_thin2mm.stl)
+  drop_h=15mm above bag mouth (z=105.0mm)  dt=0.005
+[tablet]  capsule verts=137 tets=288 (sliver-free medial-axis, TetGen 미사용)
+Traceback (most recent call last):
+  File "C:\Crusher_isaacsim\Crusher_Genesis\FEM\fem_tablet_drop.py", line 241, in <module>
+    main(use_viewer=os.environ.get("VIEWER") == "1")
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Crusher_isaacsim\Crusher_Genesis\FEM\fem_tablet_drop.py", line 209, in main
+    scene.build(n_envs=0)
+    ~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 132, in wrapper
+    return method(self, *args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\scene.py", line 892, in build
+    self._sim.build()
+    ~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\simulator.py", line 208, in build
+    self._coupler.build()
+    ~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\couplers\ipc_coupler\coupler.py", line 196, in build
+    self._init_accessors()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\couplers\ipc_coupler\coupler.py", line 726, in _init_accessors
+    body_count = self._abd_state_feature.body_count()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'body_count'
+
+[38;5;9m[Genesis] [13:40:48] [ERROR] AttributeError: 'NoneType' object has no attribute 'body_count'[0m

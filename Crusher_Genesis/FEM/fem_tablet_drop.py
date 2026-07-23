@@ -64,8 +64,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(_r), "utills"))
 from primitive_tablet_generator import make_capsule_tets_v2, add_analytic_fem_entity
 
 TABLET_MODE = os.environ.get("TABLET_MODE", "fem")  # "fem" | "rigid_sdf"
+BAG_VARIANT = os.environ.get("BAG_VARIANT", "orig")  # "orig"(6mm) | "thin2mm"(2mm)
 
-BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl")
+_BAG_FILES = {
+    "orig": "Samplebag_seal_pouch3.stl",
+    "thin2mm": "Samplebag_seal_pouch3_thin2mm.stl",
+    "thin4mm": "Samplebag_seal_pouch3_thin4mm.stl",
+}
+BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", _BAG_FILES[BAG_VARIANT])
 TABLET_MJCF = os.path.join(paths.ROBOTS_DIR, "tablet_disc_rigid.xml")
 
 DT = 2.0e-3 if TABLET_MODE == "rigid_sdf" else 5.0e-3
@@ -98,7 +104,7 @@ else:
     SHELF_POS = (BAG_POS[0], BAG_POS[1], SHELF_TOP - SHELF_SIZE[2] / 2)
 
 CLOTH_E, CLOTH_NU, CLOTH_RHO = 1.0e5, 0.499, 200.0
-CLOTH_THICK, CLOTH_BEND = 1.0e-3, 50.0
+CLOTH_THICK, CLOTH_BEND = float(os.environ.get("CLOTH_THICK_MM", "1.0")) * 1.0e-3, 50.0
 CLOTH_FRICTION = 0.8
 
 BAG_MOUTH_Z = BAG_POS[2] + BAG_HALF_H
@@ -110,7 +116,7 @@ TABLET_POS = (BAG_POS[0], BAG_POS[1], BAG_MOUTH_Z + TABLET_DROP_H)
 OUT_DIR = os.path.join(_DIR, "Result")
 os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
-MP4 = os.path.join(OUT_DIR, f"fem_tablet_bag_drop_{TABLET_MODE}_{_TS}.mp4")
+MP4 = os.path.join(OUT_DIR, f"fem_tablet_bag_drop_{TABLET_MODE}_{BAG_VARIANT}_{_TS}.mp4")
 
 CAM_POS, CAM_LOOK = (0.16, -0.16, 0.13), (BAG_POS[0], BAG_POS[1], BAG_MOUTH_Z - 0.01)
 
@@ -123,6 +129,7 @@ def main(use_viewer: bool = False):
     print("=" * 60)
     print(f" Tablet ({TABLET_MODE}) -> Samplebag Drop Test (viewer={use_viewer})")
     print("=" * 60)
+    print(f"  bag_variant={BAG_VARIANT} ({os.path.basename(BAG_STL)})  cloth_thickness={CLOTH_THICK*1e3:.2f}mm")
     print(f"  drop_h={TABLET_DROP_H*1e3:.0f}mm above bag mouth (z={BAG_MOUTH_Z*1e3:.1f}mm)  dt={DT}")
 
     import genesis as gs

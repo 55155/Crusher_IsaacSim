@@ -83,11 +83,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(_r), "utills"))
 from primitive_tablet_generator import make_capsule_tets_v2, add_analytic_fem_entity
 from fem_ipc_workarounds import patch_fem_vertex_constraints
 
+# Y_OFFSET_MM(2026-07-23, 사용자 지시): slot_fit_check.py 의 carrier 기반 스윕이
+# IPC 커플러 구조상 근본적으로 불가능하다고 확인된 뒤(soft constraint 는
+# `fem_solver.py substep_pre_coupling`이 IPC 커플러일 때 FEM 스텝 자체를 건너뛰어
+# 완전히 무반응이고, hard constraint 는 매 스텝 위치를 강제로 덮어써 충돌을 무시함
+# — 튜닝으로 해결 불가) — 실제 그리퍼가 마찰로 봉투를 쥐고 옮기는 이 파이프라인의
+# above/insert IK 타깃 Y 를 직접 스윕하는 것만이 물리적으로 신뢰 가능한 검증 방법.
+Y_OFFSET_MM = float(os.environ.get("Y_OFFSET_MM", "0"))
+Y_OFFSET = Y_OFFSET_MM * 1e-3
+
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RESULT")
 os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
-MP4_OVERVIEW = os.path.join(OUT_DIR, f"full_workflow_{_TS}_overview.mp4")
-MP4_BAGCAM = os.path.join(OUT_DIR, f"full_workflow_{_TS}_bagcam.mp4")
+MP4_OVERVIEW = os.path.join(OUT_DIR, f"full_workflow_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}_overview.mp4")
+MP4_BAGCAM = os.path.join(OUT_DIR, f"full_workflow_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}_bagcam.mp4")
 
 # ── Crusher + plate (scene_setup.py 동일) ───────────────────────────────────
 CRUSHER_SRC_XML = paths.MJCF_MAIN
@@ -520,6 +529,11 @@ def main(use_viewer: bool = False):
         p = _npy(bag.get_state().pos).squeeze()
         return p.mean(axis=0)
 
+    def _bag_extent():
+        """(width_y, height_z, bottom_z) — Y 스윕 판정용(사용자 지시, 2026-07-23)."""
+        p = _npy(bag.get_state().pos).squeeze()
+        return float(p[:, 1].max() - p[:, 1].min()), float(p[:, 2].max() - p[:, 2].min()), float(p[:, 2].min())
+
     def _tablet_z():
         p = _npy(tablet.get_state().pos).squeeze()
         return float(p[:, 2].mean())
@@ -583,6 +597,9 @@ def main(use_viewer: bool = False):
     run_arm("hold", q_lift, q_lift, FING_CLOSE, FING_CLOSE, N_HOLD,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
 
+    # Y 스윕 판정 기준선(삽입 시도 전, 사용자 지시 2026-07-23) — 이후 결과와 비교.
+    baseline_width_y, baseline_height_z, _ = _bag_extent()
+
     # ── Phase 7: above — 슬롯 바로 위로 이동 (IK) ──────────────────────────
     # **버그 발견(2026-07-16, 사용자 지적)**: 지금까지 IK 타깃 링크로 썼던
     # `gripper_body`는 실제 손가락(=봉투가 매달린 지점)과 무려 140mm(z),
@@ -616,9 +633,11 @@ def main(use_viewer: bool = False):
     # 접촉 7건 — 52mm가 안전한 최소 여유의 타이트한 값.
     INSERT_MARGIN_ABOVE_CENTER = 0.052
     insert_z = wall_center_z + INSERT_MARGIN_ABOVE_CENTER
-    target_xy = np.array([gap_cx, gap_cy])
+    # Y_OFFSET(사용자 지시, 2026-07-23): gap_cy 추정 위치 근방에서 Y 스윕 검증용.
+    target_xy = np.array([gap_cx, gap_cy + Y_OFFSET])
     print(f"[slot] wall_center_z={wall_center_z:.4f}  insert_z(finger)={insert_z:.4f}  "
           f"margin={INSERT_MARGIN_ABOVE_CENTER*1000:.0f}mm")
+    print(f"[sweep] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm -> target_xy={target_xy}  (gap_cy={gap_cy:.4f})")
 
     target_above = np.array([target_xy[0], target_xy[1], above_z])
     qpos_above = _npy(robot.inverse_kinematics(
@@ -657,6 +676,34 @@ def main(use_viewer: bool = False):
     # ── Phase 10: release — 그리퍼 개방, 고정은 이제 Left_Wall 이 담당 ───────
     run_arm("release", qpos_insert, qpos_insert, FING_CLOSE, FING_OPEN, N_RELEASE,
             crank_q=CRANK_START_Q, wall_q=CLAMP_TARGET, trace=True)
+
+    # ── Y 스윕 PASS/FAIL 판정(사용자 지시, 2026-07-23) ───────────────────────
+    # 실제 그리퍼 마찰 파지 경로라 slot_fit_check.py 의 carrier 판정보다 여유를
+    # 둔다: 도달 오차 30mm, 폭/높이는 삽입 시도 직전(hold 시점) 값 대비 상대 비교
+    # (탄성 흔들림은 정상, 붕괴/과신전만 이상 신호).
+    REACH_TOL = 0.03
+    WIDTH_TOL_FRAC = 0.6
+    HEIGHT_TOL_FRAC = 2.0
+    final_width_y, final_height_z, final_bottom_z = _bag_extent()
+    reached = abs(final_bottom_z - wall_center_z) < REACH_TOL
+    width_ok = final_width_y > baseline_width_y * WIDTH_TOL_FRAC
+    height_ok = final_height_z < baseline_height_z * HEIGHT_TOL_FRAC
+    verdict = "PASS" if (reached and width_ok and height_ok) else "FAIL"
+    reasons = []
+    if not reached:
+        reasons.append(f"미도달(bag_bottom_z={final_bottom_z:.4f} vs wall_center_z={wall_center_z:.4f}, "
+                        f"diff={abs(final_bottom_z-wall_center_z)*1000:.1f}mm>{REACH_TOL*1000:.0f}mm)")
+    if not width_ok:
+        reasons.append(f"폭 붕괴(현재 {final_width_y*1000:.1f}mm < 기준 {baseline_width_y*1000:.1f}mm의 "
+                        f"{WIDTH_TOL_FRAC*100:.0f}%, 걸림/구겨짐 의심)")
+    if not height_ok:
+        reasons.append(f"비정상 신전(높이 {final_height_z*1000:.1f}mm > 기준 {baseline_height_z*1000:.1f}mm의 "
+                        f"{HEIGHT_TOL_FRAC*100:.0f}%)")
+    reason_str = "; ".join(reasons) if reasons else "삽입 성공, 걸림/붕괴 없음"
+    print(f"\n[RESULT] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm  verdict={verdict}  ({reason_str})")
+    print(f"[RESULT] final_bottom_z={final_bottom_z:.4f}  wall_center_z={wall_center_z:.4f}  "
+          f"width_y={final_width_y*1000:.1f}mm(baseline {baseline_width_y*1000:.1f}mm)  "
+          f"height_z={final_height_z*1000:.1f}mm(baseline {baseline_height_z*1000:.1f}mm)")
 
     cam_over.stop_recording(save_to_filename=MP4_OVERVIEW, fps=30)
     cam_bag.stop_recording(save_to_filename=MP4_BAGCAM, fps=30)

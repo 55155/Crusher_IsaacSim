@@ -22,9 +22,16 @@ import full_workflow as fw
 
 import genesis as gs
 
+# Y_OFFSET_MM(2026-07-23, 사용자 지시): gap_cy(추정 위치) 근방에서 봉투를 world
+# Y 축으로 조금씩 옮겨가며 gap 통과 여부를 스캔한다 — 슬롯 gap 의 Y 방향 여유가
+# 봉투 폭(64mm) 대비 겨우 0.5mm/쪽(§full_workflow.py BAG_EULER 주석)이라, 추정
+# 위치를 그대로 써도 통과가 잘 안 되는 게 misalignment 때문인지 확인하는 용도.
+Y_OFFSET_MM = float(os.environ.get("Y_OFFSET_MM", "0"))
+Y_OFFSET = Y_OFFSET_MM * 1e-3
+
 OUT_DIR = fw.OUT_DIR
 _TS = fw._TS
-MP4 = os.path.join(OUT_DIR, f"slot_fit_check_{_TS}.mp4")
+MP4 = os.path.join(OUT_DIR, f"slot_fit_check_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}.mp4")
 
 gs.init(backend=gs.gpu, logging_level="warning", precision="32")
 fw.patch_fem_vertex_constraints()
@@ -74,10 +81,12 @@ wall_top_z = max(wb_hi[2], wl_hi[2])
 wall_center_z = (wall_top_z + wb_lo[2]) / 2.0
 print(f"[slot] gap_cx={gap_cx:.4f} gap_cy={gap_cy:.4f} gap_width={gap_width*1000:.1f}mm "
       f"wall_top_z={wall_top_z:.4f} wall_center_z={wall_center_z:.4f}")
+print(f"[sweep] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm -> bag_y_target={gap_cy+Y_OFFSET:.4f} "
+      f"(gap_cy={gap_cy:.4f})")
 
-# ── 봉투: gap 바로 위, mouth(입구) 를 gap 중심 위 여유높이에서 시작 ─────────
+# ── 봉투: gap 바로 위, mouth(입구) 를 gap 중심(+Y_OFFSET) 위 여유높이에서 시작 ─
 MOUTH_START_Z = wall_top_z + 0.30
-BAG_POS_TEST = (gap_cx, gap_cy, MOUTH_START_Z - fw.BAG_HALF_H)
+BAG_POS_TEST = (gap_cx, gap_cy + Y_OFFSET, MOUTH_START_Z - fw.BAG_HALF_H)
 BAG_MOUTH_Z_TEST = BAG_POS_TEST[2] + fw.BAG_HALF_H
 
 SHELF_SIZE = fw.SHELF_SIZE
@@ -184,12 +193,40 @@ for k in range(N_SETTLE_TABLET):
 tp = _npy(tablet.get_state().pos).squeeze()
 print(f"[phase] settle   @done  tablet_z={tp[:,2].mean()*1e3:+.2f}mm")
 
-bag.remove_vertex_constraints()
-print("[bag] shape 고정 해제")
+# **버그 발견 1(2026-07-23, Y 오프셋 스윕 검증 중)**: `remove_vertex_constraints()`를
+# 인자 없이 부르면 Genesis 내부적으로 모든 정점의 `is_constrained` 플래그를 한꺼번에
+# False 로 리셋한다(`fem_solver.py`의 `remove_vertex_constraints`/`is_constrained.fill`
+# 확인) — 그 뒤 `update_constraint_targets()`는 `target_pos` 값만 바꿀 뿐 `is_constrained`
+# 를 다시 켜주지 않으므로(`_kernel_update_constraint_targets` 확인), mouth carrier가
+# **전혀 적용되지 않고 봉투가 그 자리에 멈춰 선다**(실측: descend 4초 내내 bag_bottom_z/
+# bag_top_z 완전 고정, mouth_z 목표는 계속 내려갔는데도 무반응). 바닥+측면만 선택 해제하고,
+# mouth(캐리어로 쓸 정점)는 현재 위치를 target 으로 새로 등록해야 이후
+# update_constraint_targets 가 실제로 먹는다.
+#
+# **버그 발견 2(2026-07-23, 사용자 지적)**: 위 수정 후에도 `is_soft_constraint=False`
+# (hard constraint)로 두면 Genesis 가 매 스텝 mouth 정점 위치를 물리 계산과 무관하게
+# 강제로 덮어써버린다(`apply_hard_constraints`, 탄성/충돌 솔버 결과를 override) —
+# 벽을 그냥 통과하고, 나머지 봉투 몸통도 실제 탄성 저항 없이 늘어나기만 하는 비정상
+# 거동(실측: 4초 만에 90mm→330mm, 3.67배 "늘어남" — 찢어지거나 반발력이 커지는 정상
+# 탄성 거동이 아님)이 나왔고, 그 결과 Y 오프셋 ±2mm 를 스윕해도 9개 전부 비트단위로
+# 동일한 결과가 나와 이 테스트가 Y 위치에 전혀 민감하지 않았다. `is_soft_constraint=True`
+# (스프링, `apply_soft_constraints`)로 바꾸면 목표를 향해 당기는 힘일 뿐 위치를 직접
+# 덮어쓰지 않으므로 탄성 저항·벽 충돌 반응이 물리적으로 살아난다.
+# MOUTH_STIFFNESS: 질량 정규화된 임계감쇠 스프링(`apply_soft_constraints` 참고,
+# spring_force=-k*x, damping=2*sqrt(k)*v — m=1 가정)의 k=omega^2. omega=1/0.05s^-1
+# 근방(응답 시간 상수 ~0.05s, settle ~0.2s)이 되도록 400 선택 — descend 총 4s 대비
+# 충분히 빠르게 목표를 따라가면서도 explicit 솔버(dt=5ms) 안정성 여유를 둔 값.
+MOUTH_STIFFNESS = float(os.environ.get("MOUTH_STIFFNESS", "400.0"))
+bag.remove_vertex_constraints(verts_idx_local=bag_fixed_idx.tolist())
+bag.set_vertex_constraints(verts_idx_local=mouth_idx.tolist(), target_poss=mouth_pos0,
+                           is_soft_constraint=True, stiffness=MOUTH_STIFFNESS)
+print(f"[bag] 바닥/측면 고정 해제, 입구(mouth) constraint 를 soft carrier(k={MOUTH_STIFFNESS:.0f})로 전환")
 
 DESCEND_TARGET_Z = wall_center_z  # 완전히 포켓 중앙까지 내려가는지 확인(로봇 제약 없음)
 print(f"\n[phase] descend ({N_DESCEND*fw.DT:.1f}s) — mouth carrier {MOUTH_START_Z:.4f} -> "
       f"{DESCEND_TARGET_Z + (mouth_pos0[:,2].mean()-BAG_MOUTH_Z_TEST):.4f}(pocket 중앙 수준)")
+nominal_width_y = float(by.max() - by.min())  # 스윕 판정용: 초기(변형 전) 봉투 폭(world Y)
+_bottom_hist = []  # (k, bag_bottom_z) — 마지막 구간 진행량으로 걸림(stuck) 판정
 for k in range(N_DESCEND):
     s = (k + 1) / N_DESCEND
     delta_z = (DESCEND_TARGET_Z - MOUTH_START_Z) * s
@@ -202,12 +239,18 @@ for k in range(N_DESCEND):
     if k % 100 == 0:
         bp = _npy(bag.get_state().pos).squeeze()
         tp = _npy(tablet.get_state().pos).squeeze()
+        _bottom_hist.append((k, float(bp[:, 2].min())))
+        bag_height_now = float(bp[:, 2].max() - bp[:, 2].min())
         print(f"    [descend k={k:4d}] mouth_z={target[:,2].mean():.4f} "
-              f"bag_bottom_z={bp[:,2].min():.4f} tablet_z={tp[:,2].mean()*1e3:+.2f}mm")
+              f"bag_bottom_z={bp[:,2].min():.4f} bag_height={bag_height_now*1e3:.1f}mm(nominal 90mm) "
+              f"tablet_z={tp[:,2].mean()*1e3:+.2f}mm")
 bp = _npy(bag.get_state().pos).squeeze()
 tp = _npy(tablet.get_state().pos).squeeze()
+_bottom_hist.append((N_DESCEND, float(bp[:, 2].min())))
+descend_final_width_y = float(bp[:, 1].max() - bp[:, 1].min())
+descend_final_height_z = float(bp[:, 2].max() - bp[:, 2].min())
 print(f"[phase] descend  @done  bag_bottom_z={bp[:,2].min():.4f}  bag_top_z={bp[:,2].max():.4f}  "
-      f"tablet_z={tp[:,2].mean()*1e3:+.2f}mm")
+      f"bag_height={descend_final_height_z*1e3:.1f}mm(nominal 90mm)  tablet_z={tp[:,2].mean()*1e3:+.2f}mm")
 
 print(f"\n[phase] hold ({N_HOLD*fw.DT:.1f}s)")
 for k in range(N_HOLD):
@@ -226,8 +269,49 @@ for k in range(N_CLAMP):
     render()
 wq_final = _npy(crusher.get_dofs_position())[wall_dof]
 bp = _npy(bag.get_state().pos).squeeze()
-print(f"[phase] clamp    @done  wall={wq_final*1000:+.2f}mm  bag_bottom_z={bp[:,2].min():.4f} "
+clamp_bottom_z = float(bp[:, 2].min())
+print(f"[phase] clamp    @done  wall={wq_final*1000:+.2f}mm  bag_bottom_z={clamp_bottom_z:.4f} "
       f"bag_top_z={bp[:,2].max():.4f}")
+
+# ── PASS/FAIL 판정(사용자 지시, 2026-07-23): descend 종료 시 봉투 하단이
+# wall_center_z 근처(±15mm)까지 도달했고, 마지막 20% 구간에서 진행이 멈추지
+# 않았으며(걸림 없음), 폭(world Y)이 초기값 대비 크게 줄지 않았고(구겨짐/끼임 없음),
+# 높이(world Z, bag_top-bag_bottom)가 원래 치수(90mm) 대비 비정상적으로 늘어나지
+# 않았는지(soft carrier 로 바꾸기 전 hard constraint 버그 때 90mm->330mm 로 늘어났던
+# 것과 같은 비물리적 신축 재발 감지용)를 본다 — 네 조건 모두 만족해야 PASS.
+REACH_TOL = 0.015
+STUCK_TOL = 0.003
+WIDTH_TOL_FRAC = 0.85
+ELONGATION_TOL_FRAC = 1.5  # bag_height_final < 90mm*1.5 = 135mm 까지만 정상으로 인정
+
+descend_bottom_final = _bottom_hist[-1][1]
+reached = abs(descend_bottom_final - DESCEND_TARGET_Z) < REACH_TOL
+k_late, z_late = _bottom_hist[max(0, len(_bottom_hist) - 1 - max(1, len(_bottom_hist) // 5))]
+late_progress = abs(descend_bottom_final - z_late)
+not_stuck = reached or late_progress > STUCK_TOL
+width_ok = descend_final_width_y > nominal_width_y * WIDTH_TOL_FRAC
+nominal_height_z = 2 * fw.BAG_HALF_H
+elongation_ok = descend_final_height_z < nominal_height_z * ELONGATION_TOL_FRAC
+
+verdict = "PASS" if (reached and not_stuck and width_ok and elongation_ok) else "FAIL"
+reasons = []
+if not reached:
+    reasons.append(f"미도달(bag_bottom_z={descend_bottom_final:.4f} vs target={DESCEND_TARGET_Z:.4f}, "
+                    f"diff={abs(descend_bottom_final-DESCEND_TARGET_Z)*1000:.1f}mm>{REACH_TOL*1000:.0f}mm)")
+if not not_stuck:
+    reasons.append(f"걸림 의심(마지막 20% 구간 진행 {late_progress*1000:.2f}mm<{STUCK_TOL*1000:.1f}mm)")
+if not width_ok:
+    reasons.append(f"폭 붕괴(현재 {descend_final_width_y*1000:.1f}mm < 초기 {nominal_width_y*1000:.1f}mm의 "
+                    f"{WIDTH_TOL_FRAC*100:.0f}%, 구겨짐/끼임 의심)")
+if not elongation_ok:
+    reasons.append(f"비정상 신축(높이 {descend_final_height_z*1000:.1f}mm > 원래 {nominal_height_z*1000:.1f}mm의 "
+                    f"{ELONGATION_TOL_FRAC*100:.0f}%, hard constraint 버그 재발 의심)")
+reason_str = "; ".join(reasons) if reasons else "gap 통과 확인, 걸림/붕괴/비정상 신축 없음"
+print(f"\n[RESULT] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm  verdict={verdict}  ({reason_str})")
+print(f"[RESULT] descend_bottom_z={descend_bottom_final:.4f}  target={DESCEND_TARGET_Z:.4f}  "
+      f"width_y={descend_final_width_y*1000:.1f}mm(nominal {nominal_width_y*1000:.1f}mm)  "
+      f"height_z={descend_final_height_z*1000:.1f}mm(nominal {nominal_height_z*1000:.1f}mm)  "
+      f"clamp_bottom_z={clamp_bottom_z:.4f}")
 
 cam_side.stop_recording(save_to_filename=MP4.replace(".mp4", "_side.mp4"), fps=30)
 cam_over.stop_recording(save_to_filename=MP4.replace(".mp4", "_over.mp4"), fps=30)

@@ -1,0 +1,39 @@
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+[slot] gap_cx=-0.3303 gap_cy=-0.0473 gap_width=12.0mm wall_top_z=0.0864 wall_center_z=0.0504
+[sweep] Y_OFFSET_MM=-0.5mm -> bag_y_target=-0.0478 (gap_cy=-0.0473)
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [15:07:48] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [15:07:48] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.01`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+[build] 성공
+[bag] shape 고정: 303/771 정점(바닥+양측면)
+[bag] mouth carrier verts: 108
+
+[phase] settle (2.0s) — 정제 낙하, 봉투 형상 고정 유지
+[phase] settle   @done  tablet_z=+342.23mm
+[bag] 바닥/측면 고정 해제, 입구(mouth) constraint 를 carrier 로 전환
+
+[phase] descend (4.0s) — mouth carrier 0.3864 -> 0.0468(pocket 중앙 수준)
+    [descend k=   0] mouth_z=0.3824 bag_bottom_z=0.2960 tablet_z=+342.22mm
+    [descend k= 100] mouth_z=0.3404 bag_bottom_z=0.2960 tablet_z=+330.20mm
+    [descend k= 200] mouth_z=0.2984 bag_bottom_z=0.2939 tablet_z=+322.49mm
+    [descend k= 300] mouth_z=0.2564 bag_bottom_z=0.2519 tablet_z=+316.94mm
+    [descend k= 400] mouth_z=0.2144 bag_bottom_z=0.2099 tablet_z=+311.66mm
+    [descend k= 500] mouth_z=0.1724 bag_bottom_z=0.1679 tablet_z=+306.80mm
+    [descend k= 600] mouth_z=0.1304 bag_bottom_z=0.1259 tablet_z=+300.35mm
+    [descend k= 700] mouth_z=0.0884 bag_bottom_z=0.0839 tablet_z=+299.40mm
+[phase] descend  @done  bag_bottom_z=0.0423  bag_top_z=0.3725  tablet_z=+299.17mm
+
+[phase] hold (1.0s)
+
+[phase] clamp (2.0s) — Left_Wall +6.0mm -> -5.0mm
+[phase] clamp    @done  wall=-4.48mm  bag_bottom_z=0.0423 bag_top_z=0.3725
+
+[RESULT] Y_OFFSET_MM=-0.5mm  verdict=PASS  (gap 통과 확인, 걸림/붕괴 없음)
+[RESULT] descend_bottom_z=0.0423  target=0.0504  width_y=64.0mm(nominal 64.0mm)  clamp_bottom_z=0.0423
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT\slot_fit_check_yoff-0.5mm_20260723_150743_side.mp4
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT\slot_fit_check_yoff-0.5mm_20260723_150743_over.mp4
+완료.

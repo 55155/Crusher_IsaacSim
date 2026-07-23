@@ -1,0 +1,11 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "engine": "Python",
+  "author": "simuser",
+  "description": "폐루프 어셈블리에서 중복 export되는 부품(예: Crank)의 joint anchor 좌표를 월드/로컬 좌표로 뽑고, 핀-핀 거리(로드 길이)를 계산합니다. MJCF <connect anchor=.../> 값을 바로 얻기 위한 도구.",
+  "helpUrl": "",
+  "id": "dump_joint_anchors_addin",
+  "supportedOS": "windows|mac",
+  "version": "1.0"
+}
