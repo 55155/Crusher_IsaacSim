@@ -97,6 +97,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
 MP4_OVERVIEW = os.path.join(OUT_DIR, f"full_workflow_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}_overview.mp4")
 MP4_BAGCAM = os.path.join(OUT_DIR, f"full_workflow_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}_bagcam.mp4")
+MP4_SIDE = os.path.join(OUT_DIR, f"full_workflow_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}_sideview.mp4")
 
 # ── Crusher + plate (scene_setup.py 동일) ───────────────────────────────────
 CRUSHER_SRC_XML = paths.MJCF_MAIN
@@ -194,7 +195,7 @@ BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl
 # 충돌에 안 걸려서 더 이상 발생하지 않는다. 작업 구역(로봇/Crusher/슬롯)과 안
 # 겹치는 플레이트 위 한쪽에 배치, z는 조립체 최저점(~-0.117m)이 플레이트
 # 상단(z=0)보다 위로 오도록 여유를 둠.
-FIXTURE_MJCF = os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고정장치.xml")
+FIXTURE_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고정장치.xml"))
 FIXTURE_POS = (0.5, -0.3, 0.12)
 
 # 워크셀 정사각형 레이아웃(2026-07-27, 사용자 지시): PLATE_POSITIONS 4개가 이미
@@ -204,7 +205,7 @@ FIXTURE_POS = (0.5, -0.3, 0.12)
 # 비워둔다(사용자 확인). 석션V1은 base_link 자체가 조립체 최저점(world z≈0,
 # 별도 스크립트로 AABB 실측 확인)이라 고정장치와 달리 z 여유가 거의 필요 없다 —
 # Recovery2_only/recovery2_only.py 관례대로 z=0.001만 둔다.
-SUCTION_MJCF = os.path.join(paths.ROBOTS_DIR, "석션V1_description", "석션V1.xml")
+SUCTION_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "석션V1_description", "석션V1.xml"))
 SUCTIONV1_POS = (-0.5, 0.3, 0.001)
 
 # 회수장치2는 정사각형 레이아웃이 아니라 고정장치 위에 조립(2026-07-27, 사용자
@@ -224,7 +225,7 @@ SUCTIONV1_POS = (-0.5, 0.3, 0.001)
 # 나중에 맞추기로 해서 X,Y는 그대로 두고 Z만 +25mm 올려 Jig 스윕 최고점
 # (world z=0.2863, FIXTURE_POS=(0,0,0.12) 기준)보다 회수장치2 최저점이 위로
 # 오도록 함 — 0°/45°/90°/180°/-90° 재검증 결과 0/64로 완전히 해소.
-RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml")
+RECOVERY2_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml"))
 RECOVERY2_POS = (0.436015, -0.28672, 0.294524)
 # 실링부 색칠(2026-07-15 4차, 사용자 지시): Genesis 는 로드된 mesh 의
 # vertex_colors 를 그대로 렌더에 반영하지 않는다(격리 테스트로 확인 — PLY에
@@ -336,6 +337,10 @@ CAM_LOOK = tuple(FINGER_MID + np.array([0, 0, 0.03]))
 OVERVIEW_CAM_POS = (0.9, -1.7, 1.3)
 OVERVIEW_CAM_LOOK = (-0.15, -0.35, 0.15)
 BAGCAM_OFFSET = np.array([0.20, -0.20, 0.12])
+# 슬롯 삽입 사이드뷰(사용자 요청, 2026-07-27): gap(X, "슬롯 두께" 방향)과 삽입
+# 깊이(Z)를 정면 단면으로 보여주는 카메라 — 순수 -Y 방향에서 +Y 를 바라봐
+# X-Z 평면이 왜곡 없이 그대로 잡힌다(gap_cx/gap_cy 계산 후 set_pose 로 확정).
+SIDECAM_Y_OFFSET = -0.55
 
 
 def _npy(x):
@@ -522,6 +527,9 @@ def main(use_viewer: bool = False):
                                 fov=48, GUI=False)
     cam_bag = scene.add_camera(res=(960, 720), pos=tuple(np.array(BAG_POS) + BAGCAM_OFFSET),
                                lookat=BAG_POS, fov=40, GUI=False)
+    # 정확한 pos/lookat 은 gap_cx/gap_cy/wall_center_z 계산 후(Phase 7 직전) set_pose 로 확정 — 지금은 placeholder.
+    cam_side = scene.add_camera(res=(960, 720), pos=OVERVIEW_CAM_POS, lookat=OVERVIEW_CAM_LOOK,
+                                fov=45, GUI=False)
 
     print("\n[build] scene.build() 시작...")
     scene.build(n_envs=0)
@@ -581,6 +589,7 @@ def main(use_viewer: bool = False):
 
     cam_over.start_recording()
     cam_bag.start_recording()
+    cam_side.start_recording()
 
     def _bag_com():
         p = _npy(bag.get_state().pos).squeeze()
@@ -603,6 +612,7 @@ def main(use_viewer: bool = False):
         bc = _bag_com()
         cam_bag.set_pose(pos=tuple(bc + BAGCAM_OFFSET), lookat=tuple(bc), up=(0, 0, 1))
         cam_bag.render()
+        cam_side.render()
 
     def run_arm(name, q0, q1, f0, f1, n, crank_q=None, wall_q=None, trace=False):
         for k in range(n):
@@ -700,6 +710,16 @@ def main(use_viewer: bool = False):
           f"margin={INSERT_MARGIN_ABOVE_CENTER*1000:.0f}mm")
     print(f"[sweep] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm -> target_xy={target_xy}  (gap_cy={gap_cy:.4f})")
 
+    # 사이드뷰 카메라 확정 — gap(X, "슬롯 두께"=gap_width) vs 삽입 깊이(Z) 단면을
+    # -Y 에서 +Y 로 정면으로 잡아, above->insert 하강 중 봉투가 gap 폭 안에서
+    # 내려가는지(걸림/충돌) 육안으로 바로 판단 가능하게 한다(사용자 요청, 2026-07-27).
+    side_z = (above_z + wall_center_z) / 2.0
+    side_cam_pos = (gap_cx, gap_cy + SIDECAM_Y_OFFSET, side_z)
+    side_cam_look = (gap_cx, gap_cy, side_z)
+    cam_side.set_pose(pos=side_cam_pos, lookat=side_cam_look, up=(0, 0, 1))
+    print(f"[cam] side view 고정: pos={side_cam_pos} look={side_cam_look} "
+          f"(gap_width={gap_width*1000:.1f}mm, z범위 above={above_z:.4f}~insert={insert_z:.4f})")
+
     # 2026-07-24: local_point=FINGER_TCP_LOCAL 추가 — 이전엔 f1(left_link)
     # 원점 하나만 타겟이라 f1-f2 진짜 중앙과 20mm 어긋난 채로 목표를 풀고
     # 있었다(위 Q_GRASP/Q_LIFT 주석 참고). 이제 진짜 중앙이 target_xy/above_z/
@@ -774,8 +794,10 @@ def main(use_viewer: bool = False):
 
     cam_over.stop_recording(save_to_filename=MP4_OVERVIEW, fps=30)
     cam_bag.stop_recording(save_to_filename=MP4_BAGCAM, fps=30)
+    cam_side.stop_recording(save_to_filename=MP4_SIDE, fps=30)
     print(f"\n[saved] overview -> {MP4_OVERVIEW}")
     print(f"[saved] bagcam   -> {MP4_BAGCAM}")
+    print(f"[saved] sideview -> {MP4_SIDE}")
     print("완료.")
 
 
