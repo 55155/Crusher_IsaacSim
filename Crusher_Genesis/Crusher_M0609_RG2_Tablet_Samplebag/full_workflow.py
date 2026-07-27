@@ -196,6 +196,36 @@ BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl
 # 상단(z=0)보다 위로 오도록 여유를 둠.
 FIXTURE_MJCF = os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고정장치.xml")
 FIXTURE_POS = (0.5, -0.3, 0.12)
+
+# 워크셀 정사각형 레이아웃(2026-07-27, 사용자 지시): PLATE_POSITIONS 4개가 이미
+# Crusher(원점) 주변 정사각형 코너((±0.5,±0.5))를 이루고 있어 고정장치 자리
+# ((0.5,-0.5) 플레이트)와 대칭이 되도록 나머지 플레이트에 석션V1을 배치한다.
+# 로봇 베이스((-0.33,-0.65,0))와 가장 가까운 (-0.5,-0.5) 코너는 충돌 위험 때문에
+# 비워둔다(사용자 확인). 석션V1은 base_link 자체가 조립체 최저점(world z≈0,
+# 별도 스크립트로 AABB 실측 확인)이라 고정장치와 달리 z 여유가 거의 필요 없다 —
+# Recovery2_only/recovery2_only.py 관례대로 z=0.001만 둔다.
+SUCTION_MJCF = os.path.join(paths.ROBOTS_DIR, "석션V1_description", "석션V1.xml")
+SUCTIONV1_POS = (-0.5, 0.3, 0.001)
+
+# 회수장치2는 정사각형 레이아웃이 아니라 고정장치 위에 조립(2026-07-27, 사용자
+# 지시) — 각자의 원점(0,0,0) 기준 상대좌표로 준 두 정렬점을 world 좌표에서
+# 일치시킨다:
+#   고정장치 쪽: (-138.00, 72.50, 151.30)mm = ServoShaft 중심
+#   회수장치2 쪽: (-74.015, 59.22, 1.776)mm
+# 기구적으로 두 점이 정확히 한 점에서 만날 순 없다(사용자 지시) — Y,Z만 맞추면
+# 충분하지만, X도 맞춰서 손해볼 게 없어 그대로 3축 다 일치시켰다.
+#   world_target = FIXTURE_POS + (-0.138, 0.0725, 0.1513) = (0.362, -0.2275, 0.2713)
+#   RECOVERY2_POS = world_target - (-0.074015, 0.05922, 0.001776)
+#
+# 오버랩 해결(2026-07-27, 사용자 지시 "오버랩부터 해결"): Jig_1 충돌 hull이
+# scale 누락 버그로 1000배 커져 있던 걸 고정장치.xml에서 고친 뒤 재확인하니,
+# Jig_1(ServoShaft_1에 붙어 회전) hull 64개 중 35개가 회수장치2와 실제로
+# 겹쳤다(월드 AABB 기준, FIXTURE_POS=(0,0,0.12) 격리 테스트로 확인). 회전(요)은
+# 나중에 맞추기로 해서 X,Y는 그대로 두고 Z만 +25mm 올려 Jig 스윕 최고점
+# (world z=0.2863, FIXTURE_POS=(0,0,0.12) 기준)보다 회수장치2 최저점이 위로
+# 오도록 함 — 0°/45°/90°/180°/-90° 재검증 결과 0/64로 완전히 해소.
+RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml")
+RECOVERY2_POS = (0.436015, -0.28672, 0.294524)
 # 실링부 색칠(2026-07-15 4차, 사용자 지시): Genesis 는 로드된 mesh 의
 # vertex_colors 를 그대로 렌더에 반영하지 않는다(격리 테스트로 확인 — PLY에
 # vertex_colors 를 구워도 단색으로만 나옴). UV + ImageTexture 조합만 동작
@@ -234,17 +264,33 @@ FEM_DAMPING = 0.2
 # Y축으로 벌어짐(box 실험 시절의 "네이티브" 축은 X, 봉투 두께=Y 시절에만
 # +90°가 필요했다).
 FINGER_LINKS = ("f1_flex_finger", "f2_flex_finger")
-Q_GRASP = np.array([0, -0.40, 1.30, 0, 2.00, 0.0], float)
-Q_LIFT = np.array([0, -0.11, 0.60, 0, 2.41, 0.0], float)
+# 2026-07-24 재계산(사용자 지시, DigitalTwin.md 조합9 후속3/4): 기존 Q_GRASP/
+# Q_LIFT는 IK가 아니라 손튜닝값이라 FK 실측 결과 핑거 진행축이 완전 수직에서
+# 13.8도 어긋나 있었다(파지 시 봉투 비틀림의 유력 원인). 또한 IK가 지금까지
+# `left_link`(f1) "하나"만 타겟으로 잡고 있어 f1-f2 진짜 중앙(TCP)과 20mm(핑거
+# 간격 40mm의 절반) 어긋나 있었다(신규 발견) — f1 로컬 프레임 기준 오프셋은
+# 정확히 [-20mm,0,0](FING_CLOSE 고정 상태에서 Q_GRASP/Q_LIFT 양쪽 모두 0.12mm
+# 이내로 일치, config-불변 확인).
+# 기존 두 자세의 "진짜 중앙" 위치는 그대로 유지한 채(이미 물리 검증된 위치),
+# orientation만 완전 수직(Y축 180도 회전, quat=[0,0,1,0])으로 강제해 다시 풀었다
+# (init_qpos=기존값으로 워밍스타트 -> 같은 분기해로 수렴, 조인트 한계 여유 충분
+# 확인: joint3 사용량 1.17rad/0.31rad vs 한계 ±2.618rad). q2+q3+q5 합이
+# GRASP_NEW/LIFT_NEW 양쪽에서 거의 동일(3.1414 vs 3.1414)해서 기존 설계의
+# "리프트 중 orientation 불변" 트릭도 그대로 유지됨을 확인했다.
+FINGER_TCP_LOCAL = np.array([-0.020, 0.0, 0.0])  # f1 로컬 프레임 기준 f1-f2 진짜 중앙 오프셋
+VERTICAL_QUAT = np.array([0.0, 0.0, 1.0, 0.0])   # 완전 수직(핑거 진행축이 world -Z와 정확히 반대)
+Q_GRASP = np.array([-0.00063, -0.23137, 1.17360, 0.00050, 2.19917, -0.00054], float)
+Q_LIFT = np.array([-0.00063, 0.11974, 0.31246, 0.00097, 2.70918, 0.00005], float)
 FING_OPEN, FING_CLOSE = 1.00, 1.20
 
 # 슬롯(약 (-0.33,-0.05,0.09))에서 0.87m 떨어진 원래 위치((0,0.7,0))는 orientation
 # 고정 IK 오차가 12cm 까지 났다 — 슬롯에 훨씬 가까운 위치로 재배치(오차 <0.001m
 # 확인, 이 스크립트 개발 중 격리 테스트로 검증).
 ROBOT_OFFSET = np.array([-0.330, -0.65, 0.0])
-# wrist=0(위 변경) 기준으로 FK 재실측(Q_GRASP+FING_CLOSE=1.20) — 이전 값은
-# wrist=+90°에서 잰 것이라 손목 회전만큼(수 mm 수준) 어긋난다.
-FINGER_MID_BASE = np.array([0.20339339, 0.00618061, 0.43607193])
+# 2026-07-24 재계산: Q_GRASP_NEW에서 f1-f2 진짜 중앙(FINGER_TCP_LOCAL 적용)을
+# FK로 실측한 값 - ROBOT_OFFSET (이전 FINGER_MID_BASE는 f1 단독 기준이라 위
+# 20mm 어긋남 버그를 그대로 포함하고 있었다).
+FINGER_MID_BASE = np.array([0.20346321, 0.00617990, 0.43625346])
 FINGER_MID = FINGER_MID_BASE + ROBOT_OFFSET
 
 BAG_SCALE = 1.0
@@ -423,6 +469,17 @@ def main(use_viewer: bool = False):
 
     scene.add_entity(
         gs.morphs.MJCF(file=FIXTURE_MJCF, pos=FIXTURE_POS, decimate=False),
+        material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
+    )
+    # 워크셀 정사각형 레이아웃(2026-07-27): 고정장치와 대칭인 나머지 두 플레이트에
+    # 회수장치2/석션V1을 정적 소품으로 배치 — 둘 다 아직 로봇과 실제로 상호작용하지
+    # 않는 시각 전용 배치(고정장치와 동일한 취급).
+    scene.add_entity(
+        gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False),
+        material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
+    )
+    scene.add_entity(
+        gs.morphs.MJCF(file=SUCTION_MJCF, pos=SUCTIONV1_POS, decimate=False),
         material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
 
@@ -613,9 +670,13 @@ def main(use_viewer: bool = False):
     #
     # (2026-07-16 9차: Q_GRASP/Q_LIFT 의 wrist 가 이미 0으로 바뀌어서 — 위
     # BAG_EULER 수정과 함께 — 더 이상 "손목만 0으로 되돌리는" 임시 조회가
-    # 필요 없다. 그냥 현재 상태의 손가락 quat 을 그대로 above/insert 목표
-    # orientation 으로 쓴다.)
-    q_insert_quat = _npy(left_link.get_quat()).squeeze()
+    # 필요 없다.)
+    # 2026-07-24: 예전엔 여기서 현재 손가락 quat 을 그대로 캡처해 썼는데, 그
+    # quat 자체가 13.8도 기울어져 있었다(Q_GRASP/Q_LIFT 가 IK가 아니라
+    # 손튜닝값이었기 때문). Q_GRASP/Q_LIFT 를 완전 수직으로 재계산한 지금은
+    # VERTICAL_QUAT 상수를 그대로 목표로 쓴다(위 hold 종료 시점 실제 quat과
+    # 사실상 동일 - IK가 그 값으로 수렴하도록 풀었으므로).
+    q_insert_quat = VERTICAL_QUAT
 
     # ── 목표 위치(2026-07-16 6차, docs/Crusher.md §5·§11-5 + 사용자 지시) ────
     # X/Y: 로봇은 봉투를 포켓 깊숙이 밀어넣을 필요 없이 gap 근처까지만
@@ -639,9 +700,14 @@ def main(use_viewer: bool = False):
           f"margin={INSERT_MARGIN_ABOVE_CENTER*1000:.0f}mm")
     print(f"[sweep] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm -> target_xy={target_xy}  (gap_cy={gap_cy:.4f})")
 
+    # 2026-07-24: local_point=FINGER_TCP_LOCAL 추가 — 이전엔 f1(left_link)
+    # 원점 하나만 타겟이라 f1-f2 진짜 중앙과 20mm 어긋난 채로 목표를 풀고
+    # 있었다(위 Q_GRASP/Q_LIFT 주석 참고). 이제 진짜 중앙이 target_xy/above_z/
+    # insert_z 에 정확히 도달하도록 푼다.
     target_above = np.array([target_xy[0], target_xy[1], above_z])
     qpos_above = _npy(robot.inverse_kinematics(
-        link=left_link, pos=target_above, quat=q_insert_quat, dofs_idx_local=np.arange(6)))[:6]
+        link=left_link, pos=target_above, quat=q_insert_quat, local_point=FINGER_TCP_LOCAL,
+        dofs_idx_local=np.arange(6)))[:6]
     print(f"\n[ik] above-slot target={target_above}  arm_q={qpos_above}")
     run_arm("above", q_lift, qpos_above, FING_CLOSE, FING_CLOSE, N_ABOVE,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
@@ -649,7 +715,8 @@ def main(use_viewer: bool = False):
     # ── Phase 8: insert — 슬롯 입구까지 하강(gap 근방, 느리게) ───────────────
     target_insert = np.array([target_xy[0], target_xy[1], insert_z])
     qpos_insert = _npy(robot.inverse_kinematics(
-        link=left_link, pos=target_insert, quat=q_insert_quat, dofs_idx_local=np.arange(6)))[:6]
+        link=left_link, pos=target_insert, quat=q_insert_quat, local_point=FINGER_TCP_LOCAL,
+        dofs_idx_local=np.arange(6)))[:6]
     print(f"[ik] insert target={target_insert}  arm_q={qpos_insert}")
     run_arm("insert", qpos_above, qpos_insert, FING_CLOSE, FING_CLOSE, N_INSERT,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)

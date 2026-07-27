@@ -1,67 +1,78 @@
 <mujoco model="석션V1">
-  <compiler angle="radian"/>
+  <compiler angle="radian" />
 
   <asset>
-    <mesh name="base_link" content_type="model/stl" file="meshes/base_link.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="LSM-NK174218-1204_100MM__1" content_type="model/stl" file="meshes/LSM-NK174218-1204_100MM__1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Dummy_1" content_type="model/stl" file="meshes/Dummy_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Hbeam_B_1" content_type="model/stl" file="meshes/Hbeam_B_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Hbeam_R_1" content_type="model/stl" file="meshes/Hbeam_R_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Hbeam_L_1" content_type="model/stl" file="meshes/Hbeam_L_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Hbeam_M_1" content_type="model/stl" file="meshes/Hbeam_M_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Adjust_Plate_01_1" content_type="model/stl" file="meshes/Adjust_Plate_01_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Plate_01_1" content_type="model/stl" file="meshes/Plate_01_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Step_Motor_01_1" content_type="model/stl" file="meshes/Step_Motor_01_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="m1.0000mm_z10,_P0_1" content_type="model/stl" file="meshes/m1.0000mm_z10,_P0_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="R_E-SMLG9H-100-ES10_2_1" content_type="model/stl" file="meshes/R_E-SMLG9H-100-ES10_2_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="L_E-SMLG9H-100-ES10_2_1" content_type="model/stl" file="meshes/L_E-SMLG9H-100-ES10_2_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="m1.0000mm_z10_2" content_type="model/stl" file="meshes/m1.0000mm_z10_2.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="m1.0000mm_z10_1" content_type="model/stl" file="meshes/m1.0000mm_z10_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Gripper_Tip_03_1" content_type="model/stl" file="meshes/Gripper_Tip_03_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Gripper_Tip_03_2" content_type="model/stl" file="meshes/Gripper_Tip_03_2.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="GPL0601_2" content_type="model/stl" file="meshes/GPL0601_2.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="GPL0601_1" content_type="model/stl" file="meshes/GPL0601_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Suction_Cup_M5_0.8mm_15mm_2" content_type="model/stl" file="meshes/Suction_Cup_M5_0.8mm_15mm_2.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="Suction_Cup_M5_0.8mm_15mm_1" content_type="model/stl" file="meshes/Suction_Cup_M5_0.8mm_15mm_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="L_E-SMLG9H-100-ES10_1_1" content_type="model/stl" file="meshes/L_E-SMLG9H-100-ES10_1_1.stl" scale="0.001 0.001 0.001"/>
-    <mesh name="R_E-SMLG9H-100-ES10_1_1" content_type="model/stl" file="meshes/R_E-SMLG9H-100-ES10_1_1.stl" scale="0.001 0.001 0.001"/>
-  </asset>
+    <mesh name="base_link" content_type="model/stl" file="meshes/base_link_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="LSM-NK174218-1204_100MM__1" content_type="model/stl" file="meshes/LSM-NK174218-1204_100MM__1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Dummy_1" content_type="model/stl" file="meshes/Dummy_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Hbeam_B_1" content_type="model/stl" file="meshes/Hbeam_B_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Hbeam_R_1" content_type="model/stl" file="meshes/Hbeam_R_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Hbeam_L_1" content_type="model/stl" file="meshes/Hbeam_L_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Hbeam_M_1" content_type="model/stl" file="meshes/Hbeam_M_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Adjust_Plate_01_1" content_type="model/stl" file="meshes/Adjust_Plate_01_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Plate_01_1" content_type="model/stl" file="meshes/Plate_01_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Step_Motor_01_1" content_type="model/stl" file="meshes/Step_Motor_01_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="m1.0000mm_z10,_P0_1" content_type="model/stl" file="meshes/m1.0000mm_z10,_P0_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="R_E-SMLG9H-100-ES10_2_1" content_type="model/stl" file="meshes/R_E-SMLG9H-100-ES10_2_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="L_E-SMLG9H-100-ES10_2_1" content_type="model/stl" file="meshes/L_E-SMLG9H-100-ES10_2_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="m1.0000mm_z10_2" content_type="model/stl" file="meshes/m1.0000mm_z10_2_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="m1.0000mm_z10_1" content_type="model/stl" file="meshes/m1.0000mm_z10_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Gripper_Tip_03_1" content_type="model/stl" file="meshes/Gripper_Tip_03_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Gripper_Tip_03_2" content_type="model/stl" file="meshes/Gripper_Tip_03_2_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="GPL0601_2" content_type="model/stl" file="meshes/GPL0601_2_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="GPL0601_1" content_type="model/stl" file="meshes/GPL0601_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Suction_Cup_M5_0.8mm_15mm_2" content_type="model/stl" file="meshes/Suction_Cup_M5_0.8mm_15mm_2_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="Suction_Cup_M5_0.8mm_15mm_1" content_type="model/stl" file="meshes/Suction_Cup_M5_0.8mm_15mm_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="L_E-SMLG9H-100-ES10_1_1" content_type="model/stl" file="meshes/L_E-SMLG9H-100-ES10_1_1_ss.obj" scale="0.001 0.001 0.001" />
+    <mesh name="R_E-SMLG9H-100-ES10_1_1" content_type="model/stl" file="meshes/R_E-SMLG9H-100-ES10_1_1_ss.obj" scale="0.001 0.001 0.001" />
+  <mesh name="Suction_Cup_M5_0.8mm_15mm_1_collision" file="meshes/Suction_Cup_M5_0.8mm_15mm_1.stl" scale="0.001 0.001 0.001" /><mesh name="Suction_Cup_M5_0.8mm_15mm_2_collision" file="meshes/Suction_Cup_M5_0.8mm_15mm_2.stl" scale="0.001 0.001 0.001" /></asset>
 
   <worldbody>
-    <geom type="mesh" rgba="0.7 0.7 0.7 1" mesh="base_link"/>
-    <geom type="mesh" rgba="0.7 0.7 0.7 1" mesh="LSM-NK174218-1204_100MM__1"/>
+    <geom type="mesh" rgba="0.7 0.7 0.7 1" mesh="base_link" contype="0" conaffinity="0" />
+    <geom type="mesh" rgba="0.7 0.7 0.7 1" mesh="LSM-NK174218-1204_100MM__1" contype="0" conaffinity="0" />
     <body name="Dummy_1" pos="0.079095 0.0675 0.0505">
-      <inertial pos="-0.0370876 -0.0300576 0.0785227" quat="0.641213 0.761307 -0.0957904 0.00906535" mass="0.367875" diaginertia="0.00482764 0.00270782 0.00239686"/>
-      <joint name="LSM-NK174218-1204_100MM__1_Dummy_1" pos="0 0 0" axis="1 0 0" type="slide" actuatorfrcrange="-100 100"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Dummy_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Hbeam_B_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Hbeam_R_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Adjust_Plate_01_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Plate_01_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Step_Motor_01_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="m1.0000mm_z10,_P0_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="L_E-SMLG9H-100-ES10_1_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="R_E-SMLG9H-100-ES10_1_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Hbeam_L_1"/>
-      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Hbeam_M_1"/>
+      <inertial pos="-0.0370876 -0.0300576 0.0785227" quat="0.641213 0.761307 -0.0957904 0.00906535" mass="0.367875" diaginertia="0.00482764 0.00270782 0.00239686" />
+      <joint name="LSM-NK174218-1204_100MM__1_Dummy_1" pos="0 0 0" axis="1 0 0" type="slide" actuatorfrcrange="-100 100" />
+      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Dummy_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Hbeam_B_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Hbeam_R_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Adjust_Plate_01_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Plate_01_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Step_Motor_01_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="m1.0000mm_z10,_P0_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="L_E-SMLG9H-100-ES10_1_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="R_E-SMLG9H-100-ES10_1_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Hbeam_L_1" contype="0" conaffinity="0" />
+      <geom pos="-0.079095 -0.0675 -0.0505" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Hbeam_M_1" contype="0" conaffinity="0" />
       <body name="L_E-SMLG9H-100-ES10_2_1" pos="-0.073 0.00345 0.257039">
-        <inertial pos="-0.0168996 0.00383107 -0.0219068" quat="0.481628 0.531095 -0.414129 0.560776" mass="0.083123" diaginertia="0.000109298 8.50411e-05 3.71004e-05"/>
-        <joint name="L_E-SMLG9H-100-ES10_1_1_L_E-SMLG9H-100-ES10_2_1" pos="0 0 0" axis="0 1 0" type="slide" actuatorfrcrange="-100 100"/>
-        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="L_E-SMLG9H-100-ES10_2_1"/>
-        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="m1.0000mm_z10_2"/>
-        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Gripper_Tip_03_1"/>
-        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="GPL0601_1"/>
-        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Suction_Cup_M5_0.8mm_15mm_1"/>
-      </body>
+        <inertial pos="-0.0168996 0.00383107 -0.0219068" quat="0.481628 0.531095 -0.414129 0.560776" mass="0.083123" diaginertia="0.000109298 8.50411e-05 3.71004e-05" />
+        <joint name="L_E-SMLG9H-100-ES10_1_1_L_E-SMLG9H-100-ES10_2_1" pos="0 0 0" axis="0 1 0" type="slide" actuatorfrcrange="-100 100" limited="true" range="-0.05 0" />
+        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="L_E-SMLG9H-100-ES10_2_1" contype="0" conaffinity="0" />
+        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="m1.0000mm_z10_2" contype="0" conaffinity="0" />
+        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Gripper_Tip_03_1" contype="0" conaffinity="0" />
+        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="GPL0601_1" contype="0" conaffinity="0" />
+        <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Suction_Cup_M5_0.8mm_15mm_1" contype="0" conaffinity="0" group="1" />
+      <geom pos="-0.006095 -0.07095 -0.307539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Suction_Cup_M5_0.8mm_15mm_1_collision" contype="1" conaffinity="1" group="0" /></body>
       <body name="R_E-SMLG9H-100-ES10_2_1" pos="-0.073 -0.00345 0.221039">
-        <inertial pos="-0.0149706 -0.0202317 0.0161774" quat="0.231608 0.312507 -0.654221 0.648608" mass="0.083123" diaginertia="0.000107572 9.19687e-05 5.18104e-05"/>
-        <joint name="R_E-SMLG9H-100-ES10_1_1_R_E-SMLG9H-100-ES10_2_1" pos="0 0 0" axis="0 -1 0" type="slide" actuatorfrcrange="-100 100"/>
-        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="R_E-SMLG9H-100-ES10_2_1"/>
-        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="m1.0000mm_z10_1"/>
-        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Gripper_Tip_03_2"/>
-        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="GPL0601_2"/>
-        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Suction_Cup_M5_0.8mm_15mm_2"/>
-      </body>
+        <inertial pos="-0.0149706 -0.0202317 0.0161774" quat="0.231608 0.312507 -0.654221 0.648608" mass="0.083123" diaginertia="0.000107572 9.19687e-05 5.18104e-05" />
+        <joint name="R_E-SMLG9H-100-ES10_1_1_R_E-SMLG9H-100-ES10_2_1" pos="0 0 0" axis="0 -1 0" type="slide" actuatorfrcrange="-100 100" limited="true" range="-0.05 0" />
+        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="R_E-SMLG9H-100-ES10_2_1" contype="0" conaffinity="0" />
+        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="m1.0000mm_z10_1" contype="0" conaffinity="0" />
+        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Gripper_Tip_03_2" contype="0" conaffinity="0" />
+        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="GPL0601_2" contype="0" conaffinity="0" />
+        <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Suction_Cup_M5_0.8mm_15mm_2" contype="0" conaffinity="0" group="1" />
+      <geom pos="-0.006095 -0.06405 -0.271539" quat="1 0 0 0" type="mesh" rgba="0.7 0.7 0.7 1" mesh="Suction_Cup_M5_0.8mm_15mm_2_collision" contype="1" conaffinity="1" group="0" /></body>
     </body>
   </worldbody>
+
+  <!-- 미믹(2026-07-27, 사용자 지시): 조(jaw) 슬라이더 2개는 원래 완전 독립 DOF였는데,
+       실제 장치(E-SMLG9H 평행 그리퍼류)는 모터 하나가 양쪽을 동시에 구동하므로
+       R을 L에 종속시킨다. 두 joint의 axis가 이미 서로 반대(+Y/-Y)라 world 기준
+       대칭 개폐가 되도록 설계돼 있어, polycoef 비율은 1:1(같은 값)이면 된다 -
+       qpos(R) = qpos(L). L만 액추에이트하고 R은 이 제약으로 따라간다. -->
+  <equality>
+    <joint joint1="R_E-SMLG9H-100-ES10_1_1_R_E-SMLG9H-100-ES10_2_1"
+           joint2="L_E-SMLG9H-100-ES10_1_1_L_E-SMLG9H-100-ES10_2_1"
+           polycoef="0 1 0 0 0"/>
+  </equality>
 </mujoco>
