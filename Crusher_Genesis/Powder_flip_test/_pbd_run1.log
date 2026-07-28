@@ -1,0 +1,72 @@
+Traceback (most recent call last):
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\powder_containment_test.py", line 196, in <module>
+    main()
+    ~~~~^^
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\powder_containment_test.py", line 110, in main
+    sand = scene.add_entity(
+        material=gs.materials.MPM.Sand(E=2e5, nu=0.2, rho=1500.0, friction_angle=45.0),
+        morph=gs.morphs.Box(pos=SAND_BOX_POS, size=SAND_BOX_SIZE),
+        surface=gs.surfaces.Default(color=(0.85, 0.75, 0.55)),
+    )
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 132, in wrapper
+    return method(self, *args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\scene.py", line 494, in add_entity
+    entity = self._sim._add_entity(morph, material, surface, visualize_contact, name)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\simulator.py", line 174, in _add_entity
+    entity = self.mpm_solver.add_entity(self.n_entities, material, morph, surface, name=name)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\solvers\mpm_solver.py", line 282, in add_entity
+    entity = MPMEntity(
+        scene=self._scene,
+    ...<9 lines>...
+        name=name,
+    )
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\mpm_entity.py", line 69, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        scene,
+        ^^^^^^
+    ...<10 lines>...
+        name=name,
+        ^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\particle_entity.py", line 106, in __init__
+    self.sample()
+    ~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\particle_entity.py", line 337, in sample
+    gs.raise_exception(
+    ~~~~~~~~~~~~~~~~~~^
+        "Entity has particles outside solver boundary. Note that for MPMSolver, boundary is slightly "
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        f"max: {particles.max(0)}\n"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 35, in raise_exception
+    raise gs.GenesisException(msg)
+genesis.GenesisException: Entity has particles outside solver boundary. Note that for MPMSolver, boundary is slightly tighter than the specified domain due to safety padding.
+
+Current boundary:
+<genesis.engine.boundaries.boundaries.CubeBoundary>
+lower       : <numpy.ndarray>: array([-0.0565625, -0.0565625,  0.0234375], dtype=float32)
+upper       : <numpy.ndarray>: array([0.0565625, 0.0565625, 0.1965625], dtype=float32)
+restitution : <float>: 0.0
+
+Entity to be added:
+min: [-0.00993648 -0.00998591  0.22003204]
+max: [0.0099765  0.00994027 0.23999174]
+
+
+[38;5;9m[Genesis] [10:57:55] [ERROR] GenesisException: Entity has particles outside solver boundary. Note that for MPMSolver, boundary is slightly tighter than the specified domain due to safety padding.
+
+Current boundary:
+<genesis.engine.boundaries.boundaries.CubeBoundary>
+lower       : <numpy.ndarray>: array([-0.0565625, -0.0565625,  0.0234375], dtype=float32)
+upper       : <numpy.ndarray>: array([0.0565625, 0.0565625, 0.1965625], dtype=float32)
+restitution : <float>: 0.0
+
+Entity to be added:
+min: [-0.00993648 -0.00998591  0.22003204]
+max: [0.0099765  0.00994027 0.23999174]
+[0m

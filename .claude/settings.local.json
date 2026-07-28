@@ -154,7 +154,8 @@
       "PowerShell(Get-ChildItem \"$env:APPDATA\\\\Autodesk\\\\Autodesk Fusion 360\\\\API\\\\Scripts\\\\fusion_sample_bag_surface\", C:\\\\Crusher_isaacsim\\\\utills | Select-Object FullName, Length)",
       "Bash(python -c \"import json; json.load\\(open\\(r'.claude/settings.local.json', encoding='utf-8-sig'\\)\\)\")",
       "Bash(git fetch *)",
-      "Bash(awk '{print $1}')"
+      "Bash(awk '{print $1}')",
+      "Bash(awk '{print $2}')"
     ]
   }
 }

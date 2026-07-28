@@ -1,0 +1,31 @@
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py:245: DeprecationWarning: keyword.__init__ got an unexpected keyword argument 'ctx'. Support for arbitrary keyword arguments is deprecated and will be removed in Python 3.15.
+  kwarg_node = ast.keyword(
+
+[build] backend=pbd scene.build() 시작...
+[build] 성공
+[bag] 바닥+양측면 고정: 1574개, 입구 벌림 고정: 286개(중심x=0.0000, 목표 입구두께=20mm)
+
+[phase] settle (0.3s) — 봉투만 중력으로 처짐
+[bag] settle 후 바닥 z=0.0650  입구 중심=(0.0001,0.0002)  입구두께 실측=20.0mm  노즐지름=12.0mm  노즐높이 z=0.1850
+
+[phase] rigid_probe (0.5s) — 큐브 1개를 노즐 위치에서 낙하
+[t=  0.05s] probe_z=0.1727  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.10s] probe_z=0.1882  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.15s] probe_z=0.3492  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.20s] probe_z=0.4858  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.25s] probe_z=0.5978  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.30s] probe_z=0.6853  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.35s] probe_z=0.7483  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.40s] probe_z=0.7868  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.45s] probe_z=0.8007  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+[t=  0.50s] probe_z=0.7901  (mouth_top_z=0.1550, bag_bottom_z=0.0650)
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\RESULT\powder_containment_pbd_20260728_140409.mp4
+
+============================================================
+[RESULT] backend=pbd  probe_cube=4mm
+[RESULT] final_z=0.7901  mouth_top_z=0.1550  bag_bottom_z=0.0650
+[RESULT] verdict=STUCK_ON_TOP
+============================================================

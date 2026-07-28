@@ -1,0 +1,40 @@
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+
+[build] COUPLER=ipc  N_GRAINS=40  scene.build() 시작...
+[build] 성공
+[bag] 바닥+양측면 고정: 303개, 입구 벌림 고정: 78개
+
+[phase] settle (0.5s) — 봉투만 중력으로 처짐(알갱이는 아직 위에서 낙하 중)
+[bag] settle 후 바닥 z=0.0150
+
+[phase] drop (4.0s) — 알갱이 40개 낙하 + 누출 관찰
+[t=  0.20s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  0.40s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  0.60s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  0.80s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  1.00s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  1.20s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  1.40s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  1.60s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  1.80s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  2.00s] grains min_z=0.0053  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  2.20s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  2.40s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  2.60s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  2.80s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  3.00s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  3.20s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  3.40s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  3.60s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  3.80s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+[t=  4.00s] grains min_z=0.0052  leaked=0/40(0.0%)  bag_bottom_z=0.0150
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\RESULT\powder_containment_pbd_20260728_182040.mp4
+
+============================================================
+[RESULT] COUPLER=ipc  N_GRAINS=40  grain_radius=1.5mm
+[RESULT] leaked=0/40 (0.0%)  threshold=5%
+[RESULT] verdict=CONTAINED
+============================================================

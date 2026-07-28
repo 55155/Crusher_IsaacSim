@@ -1,0 +1,182 @@
+
+[build] backend=fem scene.build() 시작...
+Traceback (most recent call last):
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\powder_containment_test.py", line 248, in <module>
+    main()
+    ~~~~^^
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\powder_containment_test.py", line 162, in main
+    scene.build(n_envs=0)
+    ~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 132, in wrapper
+    return method(self, *args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\scene.py", line 900, in build
+    self._sim.step()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\simulator.py", line 287, in step
+    self.substep(self.cur_substep_local)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\simulator.py", line 322, in substep
+    self.substep_pre_coupling(f)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\simulator.py", line 334, in substep_pre_coupling
+    solver.substep_pre_coupling(f)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\solvers\fem_solver.py", line 984, in substep_pre_coupling
+    self.compute_vel(f)
+    ~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\_quadrants_callable.py", line 111, in __call__
+    return self.wrapper(self.instance, *args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\kernel_impl.py", line 164, in wrapped_classkernel
+    return wrapped_func(*args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\kernel_impl.py", line 151, in wrapped_func
+    raise type(e)("\n" + str(e)) from None
+quadrants.lang.exception.QuadrantsSyntaxError: 
+quadrants stack trace:
+===
+Traceback (most recent call last):
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer_utils.py", line 40, in __call__
+    res = method(ctx, node)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer.py", line 491, in build_Call
+    return CallTransformer.build_Call(ctx, node, build_stmt, build_stmts)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py", line 377, in build_Call
+    node.ptr = func(*py_args, **py_kwargs)
+               ~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\_quadrants_callable.py", line 111, in __call__
+    return self.wrapper(self.instance, *args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\func.py", line 89, in __call__
+    ret = transform_tree(tree, ctx)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\transform.py", line 8, in transform_tree
+    ASTTransformer()(ctx, tree)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer_utils.py", line 51, in __call__
+    raise e.with_traceback(None)
+quadrants.lang.exception.QuadrantsSyntaxError: quadrants stack trace:
+===
+Traceback (most recent call last):
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer_utils.py", line 37, in __call__
+    raise QuadrantsSyntaxError(error_msg)
+quadrants.lang.exception.QuadrantsSyntaxError: Unsupported node "Raise"
+
+===
+
+Your code:
+File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\materials\FEM\base.py", line 94, in _update_stress_noop:
+        raise NotImplementedError
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+Unsupported node "Raise"
+
+
+===
+
+Your code:
+File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\solvers\fem_solver.py", line 448, in compute_vel:
+                    stress = self._mats_update_stress[mat_idx](
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        mu=self.elements_i[i_e].mu,
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        lam=self.elements_i[i_e].lam,
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        J=J,
+                        ^^^^
+                        F=F,
+                        ^^^^
+                        actu=self.elements_el[f, i_e, i_b].actu,
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        m_dir=self.elements_i[i_e].muscle_direction,
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    )
+                    ^
+quadrants stack trace:
+===
+Traceback (most recent call last):
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer_utils.py", line 37, in __call__
+    raise QuadrantsSyntaxError(error_msg)
+quadrants.lang.exception.QuadrantsSyntaxError: Unsupported node "Raise"
+
+===
+
+Your code:
+File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\materials\FEM\base.py", line 94, in _update_stress_noop:
+        raise NotImplementedError
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+Unsupported node "Raise"
+
+
+
+[38;5;9m[Genesis] [11:18:58] [ERROR] QuadrantsSyntaxError: 
+quadrants stack trace:
+===
+Traceback (most recent call last):
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer_utils.py", line 40, in __call__
+    res = method(ctx, node)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer.py", line 491, in build_Call
+    return CallTransformer.build_Call(ctx, node, build_stmt, build_stmts)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformers\call_transformer.py", line 377, in build_Call
+    node.ptr = func(*py_args, **py_kwargs)
+               ~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\_quadrants_callable.py", line 111, in __call__
+    return self.wrapper(self.instance, *args, **kwargs)
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\func.py", line 89, in __call__
+    ret = transform_tree(tree, ctx)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\transform.py", line 8, in transform_tree
+    ASTTransformer()(ctx, tree)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer_utils.py", line 51, in __call__
+    raise e.with_traceback(None)
+quadrants.lang.exception.QuadrantsSyntaxError: quadrants stack trace:
+===
+Traceback (most recent call last):
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer_utils.py", line 37, in __call__
+    raise QuadrantsSyntaxError(error_msg)
+quadrants.lang.exception.QuadrantsSyntaxError: Unsupported node "Raise"
+
+===
+
+Your code:
+File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\materials\FEM\base.py", line 94, in _update_stress_noop:
+        raise NotImplementedError
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+Unsupported node "Raise"
+
+
+===
+
+Your code:
+File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\solvers\fem_solver.py", line 448, in compute_vel:
+                    stress = self._mats_update_stress[mat_idx](
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        mu=self.elements_i[i_e].mu,
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        lam=self.elements_i[i_e].lam,
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        J=J,
+                        ^^^^
+                        F=F,
+                        ^^^^
+                        actu=self.elements_el[f, i_e, i_b].actu,
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        m_dir=self.elements_i[i_e].muscle_direction,
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    )
+                    ^
+quadrants stack trace:
+===
+Traceback (most recent call last):
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\lang\ast\ast_transformer_utils.py", line 37, in __call__
+    raise QuadrantsSyntaxError(error_msg)
+quadrants.lang.exception.QuadrantsSyntaxError: Unsupported node "Raise"
+
+===
+
+Your code:
+File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\materials\FEM\base.py", line 94, in _update_stress_noop:
+        raise NotImplementedError
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+Unsupported node "Raise"
+
+[0m

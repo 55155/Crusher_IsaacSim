@@ -89,9 +89,9 @@ def run(context):
         utils.update_cmakelists(save_dir, package_name)
         utils.update_package_xml(save_dir, package_name)
 
-        # Generate STl files        
+        # Generate DAE files (surface별 색상 정보 포함)
         utils.copy_occs(root)
-        utils.export_stl(design, save_dir, components)   
+        utils.export_dae(design, save_dir, components)
         
         ui.messageBox(msg, title)
         
