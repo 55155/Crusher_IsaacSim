@@ -4,13 +4,17 @@ Servo3_ServoShaft(Jig_1이 매달린 유일한 회전 DOF)를 한 바퀴(0 -> 2p
 CLI 시뮬레이션. 사용자가 아나콘다 프롬프트에서 직접 실행해 Jig-회수장치2
 오버랩이 실제로 해소됐는지 눈으로 확인하기 위한 용도.
 
-배치(2026-07-27):
+배치(2026-07-27~29):
   - FIXTURE_POS=(0,0,0.12) — fixture_only.py와 동일(단독 실행 관례).
   - RECOVERY2_POS — 정렬점(고정장치 ServoShaft 중심 vs 회수장치2 자체 정렬점)을
-    X,Y,Z 모두 일치시킨 뒤, Jig_1 회전 스윕 시 겹치는 문제(hull scale 누락
-    버그를 고치고 나서 발견 — 64개 중 35개 겹침) 때문에 Z만 +25mm 올렸다.
-    회전(요, yaw)은 아직 안 맞춰져 있음(사용자가 추후 지시 예정) — 지금은
-    오버랩 해소만 확인하는 용도.
+    X,Y,Z 모두 일치시킨 원래 위치. 한때 Jig_1 hull과 회수장치2 "시각적" 형상이
+    35/64개 겹쳐서 Z를 +25mm 띄웠었으나, Jig hull 실제 형상을 렌더링해 확인한
+    결과 Jig는 담아 고정하는 컵이 아니라 **양쪽 기둥 2개로 회수장치2의 Shaft
+    Handle(ShaftHandle_1)을 돌려주는 포크/렌치 구조**였다(사용자 확인) — 즉
+    샤프트 쪽과 근접/접촉하는 건 의도된 동력전달이라 인위적 간격을 걷어냈다.
+    ShaftHandle_1 자체(실제 충돌 hull 활성화 후)는 이 위치에서 Jig와 전혀 안
+    겹친다(0/64, 전 회전각) — 요(yaw)를 아직 안 맞춰서(사용자가 추후 지시
+    예정) 기둥이 손잡이를 실제로 미는 각도까지는 아니다.
   - 회수장치2의 Gear(RachetGear_1)/Crank(Crank_1) 부품은 검정색으로 변경(사용자 지시).
   - T1 충돌은 되돌림(2026-07-27): T1과 Jig_1이 CAD상 원래부터 맞닿아있는 구조라
     (샤프트-브라켓 관계로 추정) 둘 다 collision을 켜면 IPC build 자체가
@@ -56,7 +60,7 @@ FIXTURE_MJCF = os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고�
 FIXTURE_POS = (0.0, 0.0, 0.12)
 
 RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml")
-RECOVERY2_POS = (-0.063985, 0.01328, 0.294524)  # +25mm 오버랩 해소(full_workflow.py 주석 참고)
+RECOVERY2_POS = (-0.063985, 0.01328, 0.269524)  # 원래 정렬점 복귀(full_workflow.py 주석 참고)
 
 DT = 5e-3
 IPC_D_HAT = 1.0e-4
@@ -116,24 +120,36 @@ def main(use_viewer: bool = False):
     print(f"[build] 성공  fixture n_dofs={fixture.n_dofs}  recovery2 n_dofs={recovery.n_dofs}")
 
     jig_geoms = [g for g in fixture.geoms if g.link.name == "ServoShaft_1" and g.contype == 1]
+    # ShaftHandle_1_hull(실제 충돌 활성화된 유일한 회수장치2 부품) - Jig 포크가
+    # 실제로 밀어야 할 대상. whole-body 시각 AABB는 참고용으로만 같이 본다
+    # (M_Bottom_1/Shaft_copy_1과 겹치는 건 의도된 근접이라 더 이상 "버그"가 아님).
+    sh_geoms = [g for g in recovery.geoms if g.contype == 1]
     rec_aabb = recovery.get_vAABB()
     rec_aabb = rec_aabb.cpu().numpy() if hasattr(rec_aabb, "cpu") else np.asarray(rec_aabb)
 
     def _npy(x):
         return x.cpu().numpy() if hasattr(x, "cpu") else np.asarray(x)
 
+    def _aabb_overlap(a, b):
+        return all(a[0][i] <= b[1][i] and b[0][i] <= a[1][i] for i in range(3))
+
     def check_overlap():
-        n = 0
+        n_body = 0
+        n_handle = 0
         for g in jig_geoms:
             bb = _npy(g.get_AABB())
-            if all(bb[0][i] <= rec_aabb[1][i] and rec_aabb[0][i] <= bb[1][i] for i in range(3)):
-                n += 1
-        return n
+            if _aabb_overlap(bb, rec_aabb):
+                n_body += 1
+            for sh in sh_geoms:
+                shbb = _npy(sh.get_AABB())
+                if _aabb_overlap(bb, shbb):
+                    n_handle += 1
+        return n_body, n_handle
 
     if cam is not None:
         cam.start_recording()
 
-    print(f"\n[spin] Servo3_ServoShaft 0 -> 2pi ({N_SPIN}스텝) — Jig-회수장치2 오버랩 실시간 확인")
+    print(f"\n[spin] Servo3_ServoShaft 0 -> 2pi ({N_SPIN}스텝) — Jig 포크와 ShaftHandle 접촉 확인")
     for k in range(N_SPIN):
         q = 2 * np.pi * (k + 1) / N_SPIN
         fixture.set_dofs_position(np.array([q]))
@@ -141,9 +157,10 @@ def main(use_viewer: bool = False):
         if cam is not None:
             cam.render()
         if k % 30 == 0:
-            n_ov = check_overlap()
-            flag = "OK" if n_ov == 0 else f"!! 오버랩 {n_ov}/{len(jig_geoms)}"
-            print(f"    k={k:4d} q={q:.3f}rad  {flag}")
+            n_body, n_handle = check_overlap()
+            print(f"    k={k:4d} q={q:.3f}rad  body겹침(참고용)={n_body}/{len(jig_geoms)}  "
+                  f"ShaftHandle접촉={n_handle}/{len(jig_geoms)}"
+                  f"{' (요 회전 미조정 - 아직 안 닿음, 정상)' if n_handle == 0 else ''}")
 
     print(f"[hold] 정지 유지 ({N_HOLD}스텝)")
     for k in range(N_HOLD):

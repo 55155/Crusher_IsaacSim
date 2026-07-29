@@ -35,8 +35,10 @@ FIXTURE_POS = (0.0, 0.0, 0.12)
 RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml")
 # world_target = FIXTURE_POS + (-0.138, 0.0725, 0.1513) = (-0.138, 0.0725, 0.2713)
 # RECOVERY2_POS = world_target - (-0.074015, 0.05922, 0.001776)
-# +25mm Z 오버랩 해결(2026-07-27) - full_workflow.py RECOVERY2_POS 주석 참고.
-RECOVERY2_POS = (-0.063985, 0.01328, 0.294524)
+# 2026-07-29: +25mm 인위적 간격 제거 - Jig는 담아 고정하는 컵이 아니라 기둥
+# 2개로 ShaftHandle_1을 돌리는 포크 구조임을 확인(full_workflow.py 주석 참고),
+# ShaftHandle 자체는 Jig와 안 겹쳐서 원래 정렬점으로 복귀.
+RECOVERY2_POS = (-0.063985, 0.01328, 0.269524)
 
 DT = 5e-3
 IPC_D_HAT = 1.0e-4

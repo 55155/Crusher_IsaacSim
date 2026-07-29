@@ -198,15 +198,31 @@ BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl
 FIXTURE_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고정장치.xml"))
 FIXTURE_POS = (0.5, -0.3, 0.12)
 
-# 워크셀 정사각형 레이아웃(2026-07-27, 사용자 지시): PLATE_POSITIONS 4개가 이미
-# Crusher(원점) 주변 정사각형 코너((±0.5,±0.5))를 이루고 있어 고정장치 자리
-# ((0.5,-0.5) 플레이트)와 대칭이 되도록 나머지 플레이트에 석션V1을 배치한다.
-# 로봇 베이스((-0.33,-0.65,0))와 가장 가까운 (-0.5,-0.5) 코너는 충돌 위험 때문에
-# 비워둔다(사용자 확인). 석션V1은 base_link 자체가 조립체 최저점(world z≈0,
-# 별도 스크립트로 AABB 실측 확인)이라 고정장치와 달리 z 여유가 거의 필요 없다 —
-# Recovery2_only/recovery2_only.py 관례대로 z=0.001만 둔다.
+# 석션V1 배치(2026-07-29 재작성, 사용자 지시): 더 이상 정사각형 레이아웃의
+# 대칭 위치가 아니다 — 실제 작업 구조("회수장치2가 봉투를 고정하고, 석션V1의
+# 흡착컵 2개가 봉투를 양옆으로 당겨서 여는 구조")에 맞춰, 회수장치2의
+# F_LeftLink_1-F_RightLink_1 중점에 석션V1의 흡착컵 2개(Suction_Cup_M5_
+# 0.8mm_15mm_1/2) 중점이 오도록 정렬한다.
+#   F_LeftLink_1/F_RightLink_1 중점(회수장치2 원점 기준, trimesh bounds 실측):
+#     (-0.08845, 0.06513, 0.098)
+#   흡착컵 중점(석션V1 원점 기준, q=(0,0,0) 기본자세, genesis 충돌 geom 실측):
+#     (-0.07790, 0.06750, 0.28594)
+#   world_target = RECOVERY2_POS + F링크중점 = (0.347565, -0.22159, 0.367524)
+#   SUCTIONV1_POS = world_target - 흡착컵중점 = (0.42547, -0.28909, 0.08158)
+# X는 Y,Z와 달리 자유도(요 회전 미정과 동일한 이유) — 위 X 그대로 두면 석션V1의
+# 몸체(Dummy_1 등)가 고정장치 본체(world: T1/L1/R1/base_link)와 실측 겹침이
+# 확인돼(link 단위 vAABB 대조) X를 +0.25 밀어 물리적 간섭을 제거했다.
+# **미해결 이슈**: 이 세 조립체(고정장치+회수장치2+석션V1)를 전부 한 IPC 씬에
+# 넣으면, 서로 안 겹치는 상태에서도 build 가 "Intersection detected" 로 죽는다
+# — 원인은 회수장치2 "자체 내부"의 Shaft_copy_1↔M_Bottom_1 겹침(둘 다 처음부터
+# CAD상 맞닿아있는 구조, 고정장치+회수장치2 둘만 있을 땐 안 걸리다가 3번째
+# entity가 추가되면 갑자기 잡힘 — IPC 유효성 검사가 씬의 전체 entity 수에 따라
+# 관대함이 달라지는 것으로 추정). contype/conaffinity 비트마스크, MJCF
+# <contact><exclude> 전부 시도했으나 해결 못함(exclude는 Genesis mjcf.py 파싱
+# 자체가 깨짐). 사용자 확인 필요 - 아래 SUCTIONV1_POS는 좌표 계산은 맞지만
+# 현재 이 상태로는 전체 파이프라인이 build 단계에서 죽는다.
 SUCTION_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "석션V1_description", "석션V1.xml"))
-SUCTIONV1_POS = (-0.5, 0.3, 0.001)
+SUCTIONV1_POS = (0.675, -0.28909000, 0.08158463)
 
 # 회수장치2는 정사각형 레이아웃이 아니라 고정장치 위에 조립(2026-07-27, 사용자
 # 지시) — 각자의 원점(0,0,0) 기준 상대좌표로 준 두 정렬점을 world 좌표에서
@@ -218,15 +234,18 @@ SUCTIONV1_POS = (-0.5, 0.3, 0.001)
 #   world_target = FIXTURE_POS + (-0.138, 0.0725, 0.1513) = (0.362, -0.2275, 0.2713)
 #   RECOVERY2_POS = world_target - (-0.074015, 0.05922, 0.001776)
 #
-# 오버랩 해결(2026-07-27, 사용자 지시 "오버랩부터 해결"): Jig_1 충돌 hull이
-# scale 누락 버그로 1000배 커져 있던 걸 고정장치.xml에서 고친 뒤 재확인하니,
-# Jig_1(ServoShaft_1에 붙어 회전) hull 64개 중 35개가 회수장치2와 실제로
-# 겹쳤다(월드 AABB 기준, FIXTURE_POS=(0,0,0.12) 격리 테스트로 확인). 회전(요)은
-# 나중에 맞추기로 해서 X,Y는 그대로 두고 Z만 +25mm 올려 Jig 스윕 최고점
-# (world z=0.2863, FIXTURE_POS=(0,0,0.12) 기준)보다 회수장치2 최저점이 위로
-# 오도록 함 — 0°/45°/90°/180°/-90° 재검증 결과 0/64로 완전히 해소.
+# 2026-07-27~29 경위: 처음엔 Jig_1 hull(scale 누락 버그 수정 후) 35/64개가
+# 회수장치2 "시각적" 형상과 겹쳐서 Z를 +25mm 띄웠었다. 그런데 이후 Jig hull
+# 실제 형상을 렌더링해서 확인해보니 — Jig는 "담아 고정"하는 컵이 아니라
+# **양쪽 기둥 2개로 회수장치2의 Shaft Handle(ShaftHandle_1)을 돌려주는
+# 포크/렌치 구조**였다(사용자 확인). 즉 Jig와 회수장치2 샤프트 쪽이 근접/접촉
+# 하는 건 회피해야 할 버그가 아니라 원래 의도된 동력전달 방식 — ShaftHandle_1
+# 자체는 hull 충돌 활성화 후 재검증해도 Jig와 전혀 안 겹쳤다(0/64, 전 회전각).
+# 그래서 인위적인 +25mm 간격을 걷어내고 원래 정렬점(X,Y,Z 전부 일치)으로
+# 되돌린다 — 요(yaw) 회전은 아직 안 맞춰서(사용자가 추후 지시 예정) 완벽한
+# "기둥이 손잡이를 미는" 배치는 아니지만, 최소한 불필요한 뜬 간격은 없앤 상태.
 RECOVERY2_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml"))
-RECOVERY2_POS = (0.436015, -0.28672, 0.294524)
+RECOVERY2_POS = (0.436015, -0.28672, 0.269524)
 # 실링부 색칠(2026-07-15 4차, 사용자 지시): Genesis 는 로드된 mesh 의
 # vertex_colors 를 그대로 렌더에 반영하지 않는다(격리 테스트로 확인 — PLY에
 # vertex_colors 를 구워도 단색으로만 나옴). UV + ImageTexture 조합만 동작

@@ -83,12 +83,12 @@
   <worldbody>
     <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="base_link" />
     <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="L1_1" />
-    <geom type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="L1_1_hull_000" /><geom type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="L1_1_hull_001" /><geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Back_1" />
+    <geom type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="L1_1_hull_000" /><geom type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="L1_1_hull_001" /><geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Back_1" />
     <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="R1_1" />
-    <geom type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="R1_1_hull_000" /><geom type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="R1_1_hull_001" /><geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="F1_1" />
+    <geom type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="R1_1_hull_000" /><geom type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="R1_1_hull_001" /><geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="F1_1" />
     <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="MotorDriver_1" />
     <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="T1_1" />
-    <geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_000" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_001" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_002" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_003" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_004" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_005" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_006" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_007" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_008" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 1" mesh="T1_1_hull_009" /><geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Servo3_1" />
+    <geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_000" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_001" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_002" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_003" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_004" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_005" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_006" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_007" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_008" /><geom type="mesh" contype="0" conaffinity="0" group="0" rgba="0.75 0.55 0.2 0.0" mesh="T1_1_hull_009" /><geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Servo3_1" />
     <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Servo1_1" />
     <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="Servo2_1" />
     <body name="ServoShaft_1" pos="-0.138 0.0725 0.132">
@@ -96,70 +96,70 @@
       <joint name="Servo3_ServoShaft" pos="0 0 0" axis="0 0 1" />
       <geom pos="0.138 -0.0725 -0.132" type="mesh" contype="0" conaffinity="0" group="1" rgba="0.08 0.08 0.09 1" mesh="ServoShaft_1" />
       <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="0" conaffinity="0" group="1" rgba="0.75 0.76 0.78 1" mesh="Jig_1" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_000" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_001" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_002" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_003" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_004" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_005" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_006" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_007" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_008" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_009" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_010" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_011" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_012" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_013" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_014" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_015" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_016" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_017" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_018" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_019" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_020" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_021" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_022" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_023" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_024" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_025" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_026" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_027" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_028" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_029" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_030" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_031" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_032" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_033" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_034" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_035" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_036" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_037" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_038" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_039" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_040" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_041" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_042" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_043" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_044" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_045" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_046" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_047" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_048" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_049" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_050" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_051" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_052" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_053" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_054" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_055" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_056" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_057" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_058" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_059" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_060" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_061" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_062" />
-      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 1" mesh="Jig_1_hull_063" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_000" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_001" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_002" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_003" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_004" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_005" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_006" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_007" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_008" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_009" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_010" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_011" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_012" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_013" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_014" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_015" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_016" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_017" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_018" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_019" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_020" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_021" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_022" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_023" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_024" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_025" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_026" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_027" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_028" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_029" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_030" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_031" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_032" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_033" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_034" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_035" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_036" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_037" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_038" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_039" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_040" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_041" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_042" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_043" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_044" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_045" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_046" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_047" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_048" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_049" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_050" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_051" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_052" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_053" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_054" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_055" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_056" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_057" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_058" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_059" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_060" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_061" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_062" />
+      <geom pos="0.138 -0.0725 -0.132" quat="1 0 0 0" type="mesh" contype="1" conaffinity="1" group="0" rgba="0.75 0.55 0.2 0.0" mesh="Jig_1_hull_063" />
     </body>
   </worldbody>
 </mujoco>
