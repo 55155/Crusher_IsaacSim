@@ -1453,6 +1453,88 @@ ElementTree로 넣으니 무관한 파서 버그(`KeyError: 'vmesh'`) 유발, �
 작업에서 진행. 이 문제가 풀리기 전까지 고정장치+회수장치2+석션V1을 모두
 포함하는 `full_workflow.py`의 최종 영상 재생성은 보류 상태.
 
+### 조합 10 — 파우더 담기: MPM(과립) + {FEM/PBD}(봉투) + Legacy 커플러 **부분 해결**
+(2026-07-28~30)
+
+(`Powder_flip_test/powder_containment_test.py`)
+
+**목표**: 회수장치로 파우더를 봉투에 담는 실험(§8 목표)의 사전 단계로, 로봇팔/
+회수장치는 배제하고 "MPM.Sand 파우더가 봉투 내부 공간에 실제로 들어가는가"만
+격리 검증. `BAG_BACKEND`(pbd/fem) × `TEST_MODE`(pour/rigid_probe/legacy_sanity)
+env var로 조합 전환.
+
+**시도 1 — FEM.Cloth(봉투) + MPM.Sand, `fem_mpm` 커플러 → build crash**
+(`_fem_run1.log`, BAG_BACKEND=fem). `scene.build()` 중
+`QuadrantsSyntaxError: ... Unsupported node "Raise"`
+(`FEM/base.py:_update_stress_noop`에서 발생). 원인은 커플러 옵션이 아니라
+**재질 자체의 설계 제약**이었다 — `genesis/engine/materials/FEM/cloth.py`의
+`Cloth` 클래스 docstring에 "Only works with IPCCoupler enabled"라고 명시돼
+있고, `update_stress`를 오버라이드하지 않는다. Legacy 커플러는 명시적
+substep(`fem_solver.compute_vel` → `_mats_update_stress[mat_idx]` dispatch)를
+타는데 Cloth는 이 경로용 함수가 없어 base의 noop(raise)이 그대로 호출된다 —
+Cloth는 애초에 IPC 전용 설계라 Legacy와는 재질 수준에서 호환 불가.
+(Genesis 공식 GitHub `examples/coupling/`에도 fem_mpm 조합 예제는 없음 —
+cloth_on_rigid / cloth_attached_to_rigid / fem_cube_linked_with_arm /
+sand_wheel / flush_cubes / cut_dragon / water_wheel / sph_mpm / sph_rigid /
+grasp_soft_cube 전부 rigid↔fem 또는 rigid↔mpm 조합뿐.)
+
+**시도 2 — FEM.Elastic 평판 + MPM.Sand, `fem_mpm` 커플러(TEST_MODE=legacy_sanity)
+→ build 성공, 그러나 커플링 완전 무반응**. Cloth 대신 TetGen이 안전하게
+다루는 두께 있는 Box(FEM.Elastic)를 얹어 `fem_mpm` 코드 경로 자체가 동작하는지
+격리 검증. `scene.build()`는 성공했지만, 파우더 94.5~94.6%가 평판을 완전히
+무시하고 자유낙하 — 낙하한 입자의 `min_z`가 정확히
+`MPM_LOWER.z + 3*dx = -0.03 + 3*(1/128) ≈ -0.0066`(MPM 도메인의 3*dx
+세이프티 패딩을 뺀 유효 바닥)로, 평판 두께를 6mm→30mm(5배)로 늘려도 **토씨 하나
+안 틀리고 동일** — "판이 얇아서 새는" 게 아니라 **커플링 자체가 전혀 발동하지
+않고 있음**을 의미. 유력한 원인: `gs.morphs.Box`를 TetGen 기본 설정으로
+사면체화하면 극도로 거친 메시(정점 9개, tet 12개 — 사실상 박스 모서리
+8개뿐)가 나오는데, `fem_mpm` 커플링은 FEM 표면 정점 단위로 주변 MPM 그리드를
+보정하는 방식이라(§조합9후속4 인접 섹션 아님, `legacy_coupler.py` 581~635줄)
+평판 중앙처럼 정점이 없는 넓은 영역은 전혀 보정되지 않는 것으로 추정 —
+확정 검증은 보류.
+
+**시도 3 — PBD.Cloth(실제 봉투 메시) + MPM.Sand, `mpm_pbd` 커플러(TEST_MODE=pour,
+기본 모드) → 부분 작동, 경계선상 누출**. `_pbd_run4_openmouth.log`: 누출
+141/8523(1.7%) → CONTAINED. `_pbd_run5_taper.log`: 544/8477(6.4%) → LEAK.
+재현 실행(2026-07-30): 407/8534(4.8%) → CONTAINED(임계값 5% 바로 아래). 세 번
+모두 실제로 새는 입자는 시도 2와 동일하게 `min_z≈-0.0066`(도메인 유효
+바닥)까지 정확히 떨어짐.
+
+**원인 분석(사용자 관찰 — "컨택은 발생하는 것 같은데 내부로 못 들어가고 상단에
+쌓인다" — 코드 확인으로 확정, 2026-07-30)**: `legacy_coupler.py` 452~498줄의
+`mpm_pbd` 커플링은 **표면/법선 개념이 전혀 없는 순수 근접-기반 속도평균
+스킴**이다 — MPM 그리드 노드가 PBD 입자(=봉투 정점) 중 `|Δpos|_inf <
+mpm_solver.dx*0.5` 안에 있는 것들을 찾아 그 속도의 평균으로 강제 스냅하고,
+반작용 momentum을 그 정점들에 되돌려준다. 안/밖 구분이나 표면 방향 판정이
+전혀 없다(`fem_mpm`은 최소한 signed-distance+normal 기반이라 이 문제가 덜함,
+단 시도2처럼 메시가 너무 거칠면 그마저도 무용지물). 수치 확인:
+봉투 STL(`Samplebag_seal_pouch3.stl`, 4512 vertices, 64×90×6mm)의 실측 정점
+간격은 약 1.7~2mm인데, 이 커플링의 포착 반경은 `dx*0.5 ≈ 3.9mm`(그리드
+dx=7.8mm 기준) — 정점 간격이 포착 반경보다 훨씬 촘촘해 입구 테두리를 따라
+포착 영역이 전부 겹쳐서, **실제로는 뚜껑 없는 열린 튜브 구멍인데도 입구
+평면 전체가 방향 무관 "속도-감쇠 커튼"으로 작동**한다. 낟알이 입구를
+향해 내려가도 이 커튼 근처에서 속도가 정점 속도(≈0)로 스냅되어 감속·정지하고,
+뒤따르는 낟알이 이미 멈춘 낟알 위에 일반 MPM 입자-입자 역학으로 계속
+쌓인다(관찰된 "상단에 쌓임"과 정확히 일치). 소수(1~6%)가 새는 건 더미가
+쌓이며 정점 배치가 국소적으로 밀리거나 포착망의 우연한 틈으로 빠지는
+경우로 추정.
+
+**§조합5/6/9(FEM 정제+FEM 봉투+IPC)가 성공했던 이유와의 결정적 차이**: 그
+조합은 IPC의 CCD(연속충돌감지) 기반이라 실제 메시 표면에 대해 진짜
+geometric 침투 판정을 하고, 무엇보다 정제가 **하나의 일관된 물체를 IK로
+미리 계산한 경로를 따라 입구를 정확히 겨냥해** 내려보낸 것이었다 — "다수의
+자유낙하 입자가 좁은 틈을 확률적으로 찾아 들어가야 하는" 지금 상황과
+근본적으로 다른 문제다. `mpm_pbd`는 방향 정보가 없는 구조적 한계상 다수
+입자 스트림 담기 용도로는 부적합.
+
+**결론**: FEM.Cloth+MPM(재질 자체 비호환) / FEM.Elastic+MPM(무반응) 둘 다
+탈락. `PBD.Cloth+MPM`만 실질적으로 작동하나 누출률이 임계값(5%) 바로 근처를
+오르내려(1.7%~6.4%) 안정적이라 보기 어렵다. 커플러 옵션은 필요한 것 하나만
+켜고 나머지 전부 False로 끄는 최적화(계산비용 절감) 적용 완료. 다음 단계
+후보: 마우스 테이퍼 형상 조정으로 누출을 임계값 아래로 확실히 낮추거나,
+이 파우더 담기 용도는 이미 검증된 IPC 커플러(정제처럼 "담긴 알갱이 여러 개
+= 작은 FEM.Elastic 엔티티"로 표현, `main_ipc()` 함수 참고)로 가는 방안.
+
 ---
 
 ## 10. 피드백

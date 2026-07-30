@@ -1,0 +1,77 @@
+parsing switches
+success
+Delaunizing vertices...
+Delaunay seconds:  0
+Creating surface mesh ...
+Surface mesh seconds:  0
+Recovering boundaries...
+Boundary recovery seconds:  0
+Removing exterior tetrahedra ...
+Exterior tets removal seconds:  0
+Suppressing Steiner points ...
+Steiner suppression seconds:  0
+Recovering Delaunayness...
+Delaunay recovery seconds:  0
+Refining mesh...
+  11 insertions, added 0 points, 1 tetrahedra in queue.
+  3 insertions, added 0 points, 0 tetrahedra in queue.
+  4 insertions, added 0 points, 0 tetrahedra in queue.
+  5 insertions, added 0 points, 0 tetrahedra in queue.
+Refinement seconds:  0
+Smoothing vertices...
+Mesh smoothing seconds:  0.001
+Improving mesh...
+Mesh improvement seconds:  0
+
+Writing nodes.
+Writing elements.
+
+Writing faces.
+Writing edges.
+
+Output seconds:  0
+Total running seconds:  0.001
+Statistics:
+
+  Input points: 8
+  Input facets: 12
+  Input segments: 18
+  Input holes: 0
+  Input regions: 0
+
+  Mesh points: 9
+  Mesh tetrahedra: 12
+  Mesh faces: 30
+  Mesh faces on exterior boundary: 12
+  Mesh faces on input facets: 12
+  Mesh edges on input segments: 18
+  Steiner points inside domain: 1
+
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+
+[build] TEST_MODE=legacy_sanity (LegacyCoupler, fem_mpm=True 단독) scene.build() 시작...
+[build] 성공
+[plate] 가장자리 고정: 8개  top_z=0.0530
+
+[phase] pour (1.2s) — 파우더 스트림 낙하 (FEM.Elastic 평판 위, fem_mpm 코드 경로 검증)
+[t=  0.10s] sand N=1261  below_plate_top=432( 34.3%)  min_z=-0.0008  plate_top_z=0.0530
+[t=  0.20s] sand N=2551  below_plate_top=1694( 66.4%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  0.30s] sand N=3799  below_plate_top=2979( 78.4%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  0.40s] sand N=5036  below_plate_top=4226( 83.9%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  0.50s] sand N=6308  below_plate_top=5477( 86.8%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  0.60s] sand N=7567  below_plate_top=6744( 89.1%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  0.70s] sand N=8818  below_plate_top=8017( 90.9%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  0.80s] sand N=10064  below_plate_top=9269( 92.1%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  0.90s] sand N=11334  below_plate_top=10519( 92.8%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  1.00s] sand N=12617  below_plate_top=11791( 93.5%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  1.10s] sand N=13832  below_plate_top=13036( 94.2%)  min_z=-0.0066  plate_top_z=0.0530
+[t=  1.20s] sand N=15080  below_plate_top=14252( 94.5%)  min_z=-0.0066  plate_top_z=0.0530
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\RESULT\powder_containment_legacy_sanity_20260730_144007.mp4
+
+============================================================
+[RESULT] TEST_MODE=legacy_sanity  total_sand=15080
+[RESULT] below_plate_top=14252 (94.5%)  threshold=5%
+[RESULT] verdict=PARTICLES_FELL_THROUGH
+============================================================

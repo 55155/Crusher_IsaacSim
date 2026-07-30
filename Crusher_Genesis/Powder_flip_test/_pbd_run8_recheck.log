@@ -1,0 +1,31 @@
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+
+[build] backend=pbd scene.build() 시작...
+[build] 성공
+[bag] 바닥+양측면 고정: 1574개, 입구 벌림 고정: 286개(중심x=0.0000, 목표 입구두께=20mm)
+
+[phase] settle (0.3s) — 봉투만 중력으로 처짐
+[bag] settle 후 바닥 z=0.0650  입구 중심=(0.0001,0.0002)  입구두께 실측=20.0mm  노즐지름=12.0mm  노즐높이 z=0.1850
+
+[phase] pour (1.2s) — 파우더 스트림 낙하 + 누출 관찰
+[t=  0.10s] sand N=724  leaked=0(  0.0%)  min_z=0.1576  bag_bottom_z=0.0650
+[t=  0.20s] sand N=1435  leaked=0(  0.0%)  min_z=0.1561  bag_bottom_z=0.0650
+[t=  0.30s] sand N=2136  leaked=0(  0.0%)  min_z=0.1555  bag_bottom_z=0.0650
+[t=  0.40s] sand N=2863  leaked=0(  0.0%)  min_z=0.1553  bag_bottom_z=0.0650
+[t=  0.50s] sand N=3579  leaked=0(  0.0%)  min_z=0.1538  bag_bottom_z=0.0650
+[t=  0.60s] sand N=4280  leaked=0(  0.0%)  min_z=0.1480  bag_bottom_z=0.0650
+[t=  0.70s] sand N=4986  leaked=0(  0.0%)  min_z=0.1369  bag_bottom_z=0.0650
+[t=  0.80s] sand N=5698  leaked=0(  0.0%)  min_z=0.0983  bag_bottom_z=0.0650
+[t=  0.90s] sand N=6412  leaked=15(  0.2%)  min_z=-0.0064  bag_bottom_z=0.0650
+[t=  1.00s] sand N=7117  leaked=91(  1.3%)  min_z=-0.0066  bag_bottom_z=0.0650
+[t=  1.10s] sand N=7825  leaked=239(  3.1%)  min_z=-0.0066  bag_bottom_z=0.0650
+[t=  1.20s] sand N=8534  leaked=407(  4.8%)  min_z=-0.0066  bag_bottom_z=0.0650
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\RESULT\powder_containment_pbd_20260730_144911.mp4
+
+============================================================
+[RESULT] backend=pbd  grid_dx=7.8mm  grain=2.0mm  nozzle=12.0mm
+[RESULT] total_sand=8534  leaked=407 (4.8%)  threshold=5%
+[RESULT] verdict=CONTAINED
+============================================================

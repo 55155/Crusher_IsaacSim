@@ -74,14 +74,36 @@ assert BAG_BACKEND in ("pbd", "fem"), f"BAG_BACKEND must be pbd/fem, got {BAG_BA
 # 본다. 통과 못 하면 입구/노즐 기하 문제, 통과하면 문제는 MPM 쪽(파티클
 # 방출·커플링)에 있는 것으로 원인을 분리할 수 있다.
 TEST_MODE = os.environ.get("TEST_MODE", "pour").lower()
-assert TEST_MODE in ("pour", "rigid_probe"), f"TEST_MODE must be pour/rigid_probe, got {TEST_MODE!r}"
+assert TEST_MODE in ("pour", "rigid_probe", "legacy_sanity"), \
+    f"TEST_MODE must be pour/rigid_probe/legacy_sanity, got {TEST_MODE!r}"
 PROBE_CUBE_SIZE = 0.004  # 자연 상태 입구 두께(6mm)보다도 작게 — 통과 실패시 순수 기하 문제로 확정.
 N_PROBE = 500
+
+# TEST_MODE=legacy_sanity(사용자 지시, 2026-07-30): FEM<->MPM Legacy 커플러 재도전용.
+# _fem_run1.log 크래시 재분석 결과, 원인은 coupler 옵션이 아니라 재질 자체였다 —
+# genesis/engine/materials/FEM/cloth.py 의 Cloth 클래스 docstring에 "Only works
+# with IPCCoupler enabled" 라고 명시돼 있고, FEM/base.py 를 보면 Cloth는
+# update_stress 를 오버라이드하지 않아 Legacy의 명시적 substep 경로
+# (fem_solver.compute_vel -> _mats_update_stress dispatch)를 타면 base.py의
+# noop(raise NotImplementedError)이 호출된다 — Cloth는 설계상 IPC 전용이라
+# Legacy와는 애초에 호환 불가. 봉투(두께 0 쉘) 대신 TetGen이 안전하게
+# 사면체화하는 두께 있는 FEM.Elastic 평판을 얹어, fem_mpm 코드 경로 자체는
+# 정상 동작하는지만 격리 검증한다.
+# (참고: Genesis 공식 examples/coupling/ 에는 fem_mpm 조합 전용 예제가 없다 —
+# GitHub 확인, 2026-07-30: cloth_on_rigid/cloth_attached_to_rigid/
+# fem_cube_linked_with_arm/sand_wheel/flush_cubes/cut_dragon/water_wheel/
+# sph_mpm/sph_rigid/grasp_soft_cube 전부 rigid<->fem 또는 rigid<->mpm 조합뿐.)
+# PLATE_THICKNESS_MM 로 두께만 오버라이드 가능 — grid dx(=1000/GRID_DENSITY mm)
+# 대비 평판 두께 가설(그리드보다 얇으면 터널링) 검증용, 2026-07-30.
+PLATE_THICKNESS_M = float(os.environ.get("PLATE_THICKNESS_MM", "6")) * 1e-3
+PLATE_SIZE = (0.06, 0.06, PLATE_THICKNESS_M)   # x,y,z(두께) — Box라 TetGen에 안전.
+PLATE_POS = (0.0, 0.0, 0.05)
 
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RESULT")
 os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
-MP4_PATH = os.path.join(OUT_DIR, f"powder_containment_{BAG_BACKEND}_{_TS}.mp4")
+_MODE_TAG = TEST_MODE if TEST_MODE == "legacy_sanity" else BAG_BACKEND
+MP4_PATH = os.path.join(OUT_DIR, f"powder_containment_{_MODE_TAG}_{_TS}.mp4")
 
 # full_workflow.py 와 동일한 실측 봉투 에셋 재사용(사용자 지시 — 새로 만들지 않는다).
 BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl")
@@ -259,6 +281,113 @@ def main_ipc():
     print("\n" + "=" * 60)
     print(f"[RESULT] COUPLER=ipc  N_GRAINS={N_GRAINS}  grain_radius={GRAIN_RADIUS_MM}mm")
     print(f"[RESULT] leaked={n_leak}/{N_GRAINS} ({frac*100:.1f}%)  threshold={LEAK_FRAC_THRESHOLD*100:.0f}%")
+    print(f"[RESULT] verdict={verdict}")
+    print("=" * 60)
+
+
+def main_legacy_sanity():
+    """TEST_MODE=legacy_sanity(사용자 지시, 2026-07-30): "FEM-MPM Legacy coupler
+    다시 시도해보자"에 대한 실제 재도전. 이전 시도(BAG_BACKEND=fem, TEST_MODE=pour,
+    _fem_run1.log)가 crash한 진짜 원인은 fem_mpm 커플러 옵션이 아니라 봉투 재질로
+    쓴 FEM.Cloth 자체였다 — genesis/engine/materials/FEM/cloth.py docstring에
+    "Only works with IPCCoupler enabled"라고 명시돼 있고, Cloth는 update_stress를
+    오버라이드하지 않아 Legacy의 명시적 substep(fem_solver.compute_vel)을 타면
+    base.py의 noop이 NotImplementedError를 던진다(Cloth는 설계상 IPC 전용).
+    그래서 여기서는 봉투 대신 TetGen이 안전하게 다루는 FEM.Elastic 평판(두께
+    6mm Box)을 얹어, fem_mpm 코드 경로 자체가 정상 동작하는지만 격리 검증한다.
+    사용자 지시대로(Genesis 공식 레포 권고) coupler_options에서 fem_mpm 외
+    나머지 커플링은 전부 False로 꺼서 계산 비용을 줄인다."""
+    import genesis as gs
+    gs.init(backend=gs.gpu, logging_level="warning", precision="32")
+
+    scene = gs.Scene(
+        sim_options=gs.options.SimOptions(dt=DT, substeps=SUBSTEPS, gravity=(0, 0, -9.81)),
+        coupler_options=gs.options.LegacyCouplerOptions(
+            rigid_mpm=False, rigid_sph=False, rigid_pbd=False, rigid_fem=False,
+            mpm_sph=False, mpm_pbd=False, fem_sph=False,
+            fem_mpm=True,  # 이 스크립트가 검증하려는 유일한 커플링(나머지는 계산비용 절감을 위해 전부 off).
+        ),
+        mpm_options=gs.options.MPMOptions(
+            particle_size=GRAIN_SIZE, grid_density=GRID_DENSITY,
+            lower_bound=MPM_LOWER, upper_bound=MPM_UPPER,
+        ),
+        fem_options=gs.options.FEMOptions(damping=0.2),
+        show_viewer=False,
+    )
+
+    plate = scene.add_entity(
+        material=gs.materials.FEM.Elastic(
+            E=1.0e6, nu=0.4, rho=1000.0, friction_mu=0.5, model="stable_neohookean",
+        ),
+        morph=gs.morphs.Box(pos=PLATE_POS, size=PLATE_SIZE),
+        surface=gs.surfaces.Default(color=(0.7, 0.55, 0.35)),
+    )
+
+    emitter = scene.add_emitter(
+        material=gs.materials.MPM.Sand(E=2e5, nu=0.2, rho=1500.0, friction_angle=45.0),
+        max_particles=20000,
+        surface=gs.surfaces.Default(color=(0.85, 0.75, 0.55, 1.0)),
+    )
+    sand = emitter.entity
+
+    cam = scene.add_camera(res=(1024, 768), pos=(0.25, -0.25, PLATE_POS[2] + 0.15),
+                           lookat=PLATE_POS, fov=40, GUI=False)
+
+    print(f"\n[build] TEST_MODE=legacy_sanity (LegacyCoupler, fem_mpm=True 단독) scene.build() 시작...")
+    scene.build(n_envs=0)
+    print("[build] 성공")
+
+    # 평판 가장자리만 고정 — 낙하로 밀려나지 않게 하되, 표면 접촉 응답 자체는
+    # fem_solver의 정상 dynamics(update_stress dispatch)로 계산되게 한다.
+    pos0 = _npy(plate.get_state().pos)
+    px, py, pz = pos0[:, 0], pos0[:, 1], pos0[:, 2]
+    edge_mask = (
+        (px < px.min() + 0.006) | (px > px.max() - 0.006) |
+        (py < py.min() + 0.006) | (py > py.max() - 0.006)
+    )
+    edge_idx = np.where(edge_mask)[0].tolist()
+    plate.set_vertex_constraints(verts_idx_local=edge_idx, is_soft_constraint=False)
+    plate_top_z = float(pz.max())
+    print(f"[plate] 가장자리 고정: {len(edge_idx)}개  top_z={plate_top_z:.4f}")
+
+    nozzle_pos = (PLATE_POS[0], PLATE_POS[1], plate_top_z + NOZZLE_CLEARANCE_Z + 0.02)
+    nozzle_diam = 0.015
+
+    cam.start_recording()
+    print(f"\n[phase] pour ({N_POUR*DT:.1f}s) — 파우더 스트림 낙하 (FEM.Elastic 평판 위, fem_mpm 코드 경로 검증)")
+    for k in range(N_POUR):
+        emitter.emit(
+            droplet_shape=POUR_DROPLET_SHAPE,
+            droplet_size=nozzle_diam,
+            pos=nozzle_pos,
+            direction=(0, 0, -1),
+            speed=POUR_SPEED,
+        )
+        scene.step()
+        cam.render()
+        if (k + 1) % LOG_EVERY == 0:
+            active = _npy(sand.get_particles_active()).astype(bool)
+            sp = _npy(sand.get_particles_pos())[active]
+            if len(sp) == 0:
+                print(f"[t={(k+1)*DT:6.2f}s] sand N=0 (아직 방출 없음)")
+                continue
+            below = sp[:, 2] < (plate_top_z - LEAK_TOL_Z)
+            n_below = int(below.sum())
+            print(f"[t={(k+1)*DT:6.2f}s] sand N={len(sp)}  below_plate_top={n_below}"
+                  f"({100*n_below/len(sp):5.1f}%)  min_z={sp[:,2].min():.4f}  plate_top_z={plate_top_z:.4f}")
+
+    cam.stop_recording(save_to_filename=MP4_PATH, fps=30)
+    print(f"\n[saved] {MP4_PATH}")
+
+    active = _npy(sand.get_particles_active()).astype(bool)
+    sp = _npy(sand.get_particles_pos())[active]
+    below = sp[:, 2] < (plate_top_z - LEAK_TOL_Z)
+    n_below = int(below.sum())
+    frac = n_below / len(sp) if len(sp) else 0.0
+    verdict = "FEM_MPM_COUPLING_OK" if frac < LEAK_FRAC_THRESHOLD else "PARTICLES_FELL_THROUGH"
+    print("\n" + "=" * 60)
+    print(f"[RESULT] TEST_MODE=legacy_sanity  total_sand={len(sp)}")
+    print(f"[RESULT] below_plate_top={n_below} ({frac*100:.1f}%)  threshold={LEAK_FRAC_THRESHOLD*100:.0f}%")
     print(f"[RESULT] verdict={verdict}")
     print("=" * 60)
 
@@ -467,4 +596,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main_ipc() if COUPLER == "ipc" else main()
+    if COUPLER == "ipc":
+        main_ipc()
+    elif TEST_MODE == "legacy_sanity":
+        main_legacy_sanity()
+    else:
+        main()
