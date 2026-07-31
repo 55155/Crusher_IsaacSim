@@ -1,0 +1,21 @@
+
+[build] TEST_MODE=sanity  N_GRAINS=60  scene.build() 시작...
+[build] 성공
+[t=  0.20s] grains min_z=0.0020  max_z=0.0054  mean_z=0.0022  nan=False
+[t=  0.40s] grains min_z=0.0019  max_z=0.0050  mean_z=0.0022  nan=False
+[t=  0.60s] grains min_z=0.0020  max_z=0.0046  mean_z=0.0021  nan=False
+[t=  0.80s] grains min_z=0.0020  max_z=0.0031  mean_z=0.0020  nan=False
+[t=  1.00s] grains min_z=0.0020  max_z=0.0020  mean_z=0.0020  nan=False
+[t=  1.20s] grains min_z=0.0020  max_z=0.0020  mean_z=0.0020  nan=False
+[t=  1.40s] grains min_z=0.0020  max_z=0.0020  mean_z=0.0020  nan=False
+[t=  1.60s] grains min_z=0.0020  max_z=0.0020  mean_z=0.0020  nan=False
+[t=  1.80s] grains min_z=0.0020  max_z=0.0020  mean_z=0.0020  nan=False
+[t=  2.00s] grains min_z=0.0020  max_z=0.0020  mean_z=0.0020  nan=False
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\RESULT\ipc_grain_sanity_20260731_120904.mp4
+
+============================================================
+[RESULT] TEST_MODE=sanity  N_GRAINS=60  final min_z=0.0020
+[RESULT] below_ground(z<-1mm)=0/60  nan=False
+[RESULT] verdict=OK
+============================================================

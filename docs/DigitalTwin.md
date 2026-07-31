@@ -1535,6 +1535,91 @@ geometric 침투 판정을 하고, 무엇보다 정제가 **하나의 일관된 
 이 파우더 담기 용도는 이미 검증된 IPC 커플러(정제처럼 "담긴 알갱이 여러 개
 = 작은 FEM.Elastic 엔티티"로 표현, `main_ipc()` 함수 참고)로 가는 방안.
 
+### 조합 11 — pyuipc 네이티브 Particle 커플러 자작 + IPC 바닥면 위치 버그 발견 (2026-07-31)
+
+(`Powder_flip_test/ipc_grain_coupler.py`, `Powder_flip_test/sand_wheel_repro.py`)
+
+**배경**: 조합10에서 Legacy 계열(`fem_mpm`/`mpm_pbd`)이 전부 봉투 담기에 부적합함을
+확인한 뒤, "Genesis의 IPC 커플러는 FEM-Rigid만 알고 다른 재질 커플링은 아예
+없는데, 그 밑단의 pyuipc(libuipc) 자체는 더 다양한 재질을 지원하지 않느냐"는
+질문에서 출발. 실제로 `uipc.constitution.Particle`("point-mass simulation")
++ `uipc.geometry.pointcloud()`(dim()==0 SimplicialComplex)가 존재하고,
+`Particle.apply_to(sc, mass_density, thickness)`로 접촉용 "두께"(유효 반경)를
+가진 점질량을 만들 수 있으며, libuipc의 GUI/SceneVisitor 코드도 pointcloud를
+tetmesh(FEM 체적)/trimesh(FEM.Cloth)/linemesh(rod)와 나란히 1급 지오메트리로
+다룬다 — 즉 FEM.Cloth와 **같은 IPC Scene 안에서 동일한 CCD 기반 접촉**으로
+알갱이를 표현할 길이 있었다.
+
+**구현**: Genesis 설치 패키지를 직접 고치지 않고, `genesis.engine.couplers.
+ipc_coupler.coupler.IPCCoupler`를 상속하는 `GrainIPCCoupler`를 별도 스크립트
+(`ipc_grain_coupler.py`)로 작성 — `_add_fem_entities_to_ipc`/`_register_
+contact_pairs`/`_retrieve_fem_states` 패턴을 그대로 따라 `_add_grain_
+entities_to_ipc`(pointcloud+Particle 등록)/오버라이드한 `_register_contact_
+pairs`(알갱이-cloth/rigid/ground/알갱이끼리 접촉쌍 추가)/`_retrieve_grain_
+states`(dim()==0 지오메트리 상태 회수)를 추가했다. Genesis는 `coupler_options`
+타입만 보고 내부적으로 `IPCCoupler`를 직접 생성하므로(`simulator.py`), `gs.
+Scene()` 생성 직후 `scene.build()` 전에 `scene._sim._coupler`를 이 서브클래스
+인스턴스로 바꿔치기하는 방식으로 끼워 넣었다.
+
+**시행착오 2건(둘 다 코드 레벨에서 원인 확정)**:
+1. 첫 sanity 테스트(강체 바닥+알갱이)가 crash 없이 통과했지만 알갱이가
+   바닥을 완전히 무시하고 자유낙하 — 원인은 다른 모든 지오메트리(FEM 314줄,
+   Rigid 462줄)와 달리 pointcloud에 `uipc.geometry.label_surface(mesh)`를
+   빠뜨렸기 때문(직접 재현: `label_surface` 호출 전엔 `is_surf` 속성이
+   없어 접촉 판정 대상에서 아예 빠짐, 호출 후엔 정상). 추가 후 알갱이가
+   정확히 반지름 위치에서 멈춤 확인.
+2. 영상에 알갱이가 하나도 안 보임 — 알갱이는 Genesis 엔티티가 아니라
+   `scene.draw_debug_spheres()`로 그린 마커뿐이라, `genesis/vis/
+   rasterizer.py:76`의 `skip_markers = not camera.debug`에 걸려 기본
+   카메라 렌더에서 통째로 스킵됐다. `scene.add_camera(..., debug=True)`로
+   해결(직접 최소 재현으로 확인).
+
+**성공 신호**: 실제 봉투(FEM.Cloth)+알갱이(Particle) 조합에서 낙하한 알갱이
+대부분이 봉투 내부 바닥 쪽에 정상적으로 쌓였다(영상 프레임으로 시각 확인) —
+mpm_pbd처럼 입구 위에 쌓이는 현상과 다름. 다만 누출률이 3.3~11.7% 사이에서
+런마다 흔들려(GPU 부동소수점 비결정성 추정) 조합10과 마찬가지로 임계값
+근처를 오갔다.
+
+**별개의 근본 원인 추가 발견(사용자 관찰 "봉투가 바닥까지 늘어나며 찢어지는
+것 같다"에서 출발)**: `BAG_CONSTRAINT_MODE` 변인통제(바닥/옆면/입구 고정을
+"기존대로"/"입구 벌림 생략하고 원위치만 고정"/"아예 제약 없음" 세 가지로
+전환 가능하게 계측 추가)로 확인한 결과, **제약(vertex constraint)이 원인이
+아니었다** — 제약을 하나도 안 걸어도 봉투 전체가 똑같이 붕괴했다. 대신
+직접 속성 조회로 확인한 진짜 원인: `genesis/engine/couplers/ipc_coupler/
+coupler.py`의 `_add_rigid_geoms_to_ipc()`가 바닥면(Plane) 높이를
+`height = np.dot(geom.init_pos, normal)`로 계산하는데, `geom.init_pos`는
+링크-로컬 좌표라 항상 `[0,0,0]`이다(링크의 실제 월드 위치 `link.pos`는 이
+계산에 안 들어감 — 다른 일반 메시 지오메트리는 `trans_view[0] = link_T`로
+월드 변환을 따로 적용하는데 Plane 전용 분기만 이 단계가 빠짐). 결과적으로
+**`gs.morphs.Plane(pos=...)`에 뭘 넣든 IPC 안에서는 항상 world z=0에 바닥이
+생긴다** — 봉투(바닥이 로컬로 약 z=0.065)가 진짜 바닥(z=0)까지 6.5cm를
+허공에서 그냥 떨어져 늘어진 뒤에야 멈춘 것이었다. 이건 mpm_pbd/fem_mpm/
+Particle 등 커플링 방식과 완전히 무관하게 조합10·11 실험 전체에 공통으로
+영향을 준 원인이었다.
+
+**Genesis 버전 업그레이드로 재확인(2026-07-31)**: 사용자가 "이 버그가 Genesis
+1.2.3에서 이미 발견됐다"고 언급해 `genesis-world` 1.1.0 → 1.3.1(quadrants
+0.8.0 → 1.2.0 동반)로 업그레이드했으나, **`coupler.py:424`의 해당 줄은
+1.3.1에서도 완전히 동일**하고 재현 실험 결과도 소수점 4자리까지 이전과
+일치 — 이 특정 버그는 아직 안 고쳐진 것으로 확인. 업그레이드 과정에서
+`Camera.start_recording`/`stop_recording` API가 바뀐 것도 확인(파일명/fps가
+`start_recording`으로 이동, `stop_recording()`은 인자 없음) — 스크립트
+수정 완료.
+
+**Rigid-MPM 베이스라인 재확인**: Genesis 공식 예제 `examples/coupling/
+sand_wheel.py`를 headless/GPU 환경으로 이식해 재현(`sand_wheel_repro.py`) —
+모래가 각 바퀴 십자 날개에 정확히 부딪혀 튕기며 흘러내림을 영상으로 확인,
+crash/관통 없음. `rigid_mpm` 커플링 자체는 안정적이라는 근거 확보 — 문제는
+"양쪽 다 변형체/입자"인 조합(`mpm_pbd`, `fem_mpm`)에 국한됨을 뒷받침.
+
+**결론 및 다음 단계**: (1) Particle 기반 접근은 방향성이 맞다(FEM.Cloth와
+같은 CCD 경로를 타므로 mpm_pbd의 근본적 한계가 없음) — 다만 바닥면 버그
+때문에 이번 실험만으로는 완전한 결론을 못 냄. (2) 바닥면 버그는 Genesis에
+직접 보고 예정(GitHub enhancement 문의 초안 작성 완료 — Legacy 커플러의
+재질 조합 확장 계획 문의에 포함). (3) 바닥면 버그를 피하려면 봉투를 실제
+바닥(항상 world z=0) 바로 위에 오도록 배치하거나, 버그가 고쳐진 이후 버전을
+기다려야 함.
+
 ---
 
 ## 10. 피드백

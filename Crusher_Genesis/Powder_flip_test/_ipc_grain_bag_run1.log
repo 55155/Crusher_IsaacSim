@@ -1,0 +1,20 @@
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+
+[build] TEST_MODE=bag  N_GRAINS=60  scene.build() 시작...
+[build] 성공
+Traceback (most recent call last):
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\ipc_grain_coupler.py", line 471, in <module>
+    main_sanity() if TEST_MODE == "sanity" else main_bag()
+                                                ~~~~~~~~^^
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\ipc_grain_coupler.py", line 430, in main_bag
+    bag.set_vertex_constraints(verts_idx_local=static_idx, is_soft_constraint=False)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\fem_entity.py", line 901, in set_vertex_constraints
+    gs.raise_exception("This method is only supported by IPC coupler.")
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 35, in raise_exception
+    raise gs.GenesisException(msg)
+genesis.GenesisException: This method is only supported by IPC coupler.
+
+[38;5;9m[Genesis] [12:09:52] [ERROR] GenesisException: This method is only supported by IPC coupler.[0m

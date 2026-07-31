@@ -1,0 +1,31 @@
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+
+[build] TEST_MODE=bag  N_GRAINS=60  scene.build() 시작...
+[build] 성공
+[bag] 바닥+양측면 고정: 303개, 입구 벌림 고정: 78개
+[bag] 계측 기준값 — 고정band z=[0.0659,0.1559]  자유벨리(390개) 최저z=0.0794
+
+[phase] settle (0.5s) — 봉투만 중력으로 처짐
+[bag] settle 후 바닥 z=0.0150
+
+[phase] drop (2.5s) — 알갱이 60개 낙하 + 누출 관찰
+[t=  0.20s] grains min_z=0.0047  leaked=4/60(6.7%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  0.40s] grains min_z=0.0046  leaked=4/60(6.7%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  0.60s] grains min_z=0.0046  leaked=4/60(6.7%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  0.80s] grains min_z=0.0046  leaked=3/60(5.0%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  1.00s] grains min_z=0.0046  leaked=3/60(5.0%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  1.20s] grains min_z=0.0046  leaked=3/60(5.0%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  1.40s] grains min_z=0.0046  leaked=4/60(6.7%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  1.60s] grains min_z=0.0046  leaked=5/60(8.3%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  1.80s] grains min_z=0.0046  leaked=5/60(8.3%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  2.00s] grains min_z=0.0046  leaked=6/60(10.0%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  2.20s] grains min_z=0.0046  leaked=6/60(10.0%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+[t=  2.40s] grains min_z=0.0046  leaked=6/60(10.0%)  bag_bottom_z=0.0150  고정band z=[0.0659,0.1559](기준[0.0659,0.1559])  자유벨리최저z=0.0150(기준0.0794)
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Powder_flip_test\RESULT\ipc_grain_bag_20260731_160152.mp4
+
+============================================================
+[RESULT] TEST_MODE=bag  N_GRAINS=60  leaked=6(10.0%)  verdict=LEAK
+============================================================
