@@ -18,6 +18,8 @@
 8. [발생할 수 있는 문제 사항](#8-발생할-수-있는-문제-사항)
 9. [Solver / Coupler 조합 실험 기록](#9-solver--coupler-조합-실험-기록)
 10. [피드백](#10-피드백)
+11. [Visualization options](#11-visualization-options)
+12. [공정 검증 전략 — 전(全) Rigid 선행 모드](#12-공정-검증-전략--전全-rigid-선행-모드)
 
 ---
 
@@ -130,6 +132,16 @@ conda env는 이름이 비슷해 헷갈리지만 실제로는 NVIDIA Isaac Sim 5
 `C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe <script>`
 를 직접 호출할 것(conda activate 불필요/무의미).
 
+**[재정정] 현재 인터프리터는 conda env `crusher_genesis` (2026-08-03 확인)**:
+위 두 경로(`C:\Users\user\...`, `C:\Users\simuser\...`) 모두 지금은 존재하지
+않는다. Genesis 1.3.1 + quadrants 1.2.0 스택이 실제로 설치된 인터프리터는
+
+```
+C:\Users\simuser\miniconda3\envs\crusher_genesis\python.exe
+```
+
+이다. 실행 로그(`_run_reposition_check.log` 등)의 site-packages 경로로 확인.
+
 ### 5-2. 실링부 마찰 파지 — *해결됨* (2026-07-13)
 
 M0609+RG2 로 봉투 옆면 실링부(~1cm)를 순수 접촉+마찰로 파지(weld 없이).
@@ -222,6 +234,51 @@ fan tetrahedralization은 "형상을 수식으로 정의"해서 **TetGen을 대�
 (정점+사면체)를 만드는** FEM 전용 기법이다. 이름의 "수식적 정의"라는 표현이
 같아서 헷갈렸지만 서로 대체재가 아니라 각각 다른 문제(강체 충돌 vs 변형체
 메쉬 생성)를 푼다.
+
+#### `gs.morphs.Box`/`Sphere` 는 FEM 에서 primitive 가 아니다 — 실측 재확인 (2026-08-03)
+
+"정제를 Genesis 의 Box 엔티티처럼 primitive 로 만들면 되지 않나"는 질문이
+반복해서 나오는데(파일 이름이 `primitive_tablet_generator.py` 라 더 헷갈린다),
+**FEM 경로에서는 아니다.** Genesis 1.3.1 에서 직접 측정:
+
+| morph | 입력 형상 | 실제 FEM 엔티티 |
+| --- | --- | --- |
+| `gs.morphs.Box(size=4.8mm)` | 정점 8 / 면 12 | **정점 9 / tet 12** |
+| `gs.morphs.Sphere(r=2mm)` | — | **정점 966 / tet 3791** |
+| 우리 해석적 캡슐(§6-2) | — | 정점 137 / tet 288 |
+
+둘 다 TetGen 산출물이다. **1.3.1 에서는 이게 더 분명해졌다** — `genesis/utils/
+element.py` 에 `mesh_to_elements` **하나만** 남았고(예전의 `box_to_elements`/
+`sphere_to_elements` 는 아예 없어짐), `FEMEntity.sample()` 이 모든 morph 를
+동일하게 처리한다:
+
+```
+meshes = gs.Mesh.from_morph_surface(morph, surface)   # 형상 → 표면 메시
+surface_trimesh = trimesh.Trimesh(...)
+verts, elems = eu.mesh_to_elements(surface_trimesh, tet_cfg)   # → TetGen
+```
+
+즉 `gs.morphs.Box` 는 "박스 표면 메시를 만들어주는 편의 함수"이지 해석적
+primitive 가 아니다. `primitive_tablet_generator.py` 의 "primitive" 도
+**"primitive *형상*"(캡슐·박스)** 이라는 뜻이며, 그 파일이 존재하는 이유
+자체가 "Box/Sphere 가 FEM 에선 primitive 가 아니더라"는 발견이다.
+
+**Box 를 쓰면 오히려 나쁘다.** 위의 `정점 9 / tet 12` 가 §조합10 에서 파우더
+담기가 무반응이었던 원인이다 — 박스 모서리 8개 + 내부점 1개뿐이라 판 중앙처럼
+정점이 없는 넓은 영역은 커플링 보정이 전혀 안 된다.
+
+**진짜 primitive 경로는 강체 쪽에만 있다**: MJCF `type="capsule"` geom
+(= SDF, §조합6) — `full_workflow_rigid.py` 가 쓰는 방식이다. 정제는 결국
+용도에 따라 두 가지 표현이 공존한다:
+
+| | 파일 | 방식 | 진짜 primitive? |
+| --- | --- | --- | --- |
+| FEM 정제 | `full_workflow.py` | medial-axis 사면체화 → 몽키패치 주입 | ✗ (메시 — FEM 은 원리상 불가) |
+| Rigid 정제 | `full_workflow_rigid.py` | MJCF `type="capsule"` | ✓ SDF primitive |
+
+부수 효과: 1.3.1 에서 `mesh_to_elements` 가 **모든 FEM morph 의 단일 관문**이
+되면서, §12-9 의 몽키패치가 예전보다 오히려 견고해졌다 — 형상 종류에 따라
+다른 함수로 새는 경로가 없다.
 
 ### 6-3. Crusher와의 상호작용 — 실측 반력 프로파일 구동 FEM (2026-07-04)
 
@@ -1606,6 +1663,48 @@ Particle 등 커플링 방식과 완전히 무관하게 조합10·11 실험 전�
 `start_recording`으로 이동, `stop_recording()`은 인자 없음) — 스크립트
 수정 완료.
 
+> **[추가 발견 2026-08-03] 이 업그레이드가 `full_workflow.py` FEM 경로를
+> 깨뜨려 놨었다 (§12-6 rigid 모드 작업 중 회귀 검증에서 발견).** 두 군데:
+> (1) 위 녹화 API 변경이 `full_workflow.py`에는 반영이 안 돼 있어
+> `stop_recording(save_to_filename=...)` 에서 `TypeError` — **수정 완료**.
+> (2) `utills/primitive_tablet_generator.py`의 `add_analytic_fem_entity`
+> (TetGen 우회용 `mesh_to_elements` 몽키패치)가 **0바이트 더미 STL**을
+> 만들어 두고 `gs.morphs.Mesh(file=...)`의 파일 존재 검사만 통과시키는
+> 구조인데, Genesis 1.3.1의 `FEMEntity.sample()`이 새로 추가한
+> `gs.Mesh.from_morph_surface(morph, surface)`(**시각 geom**을 morph 파일에서
+> 직접 로드)가 그 빈 파일을 읽어 빈 리스트를 돌려주고
+> `merge_submeshes` 가 `ValueError: need at least one array to concatenate`
+> 로 죽는다. 1.1.0에서는 sample()이 패치된 `mesh_to_elements` 경로만 탔기
+> 때문에 빈 더미로도 통과했었다. **마지막 성공 실행(2026-07-29, b2ba7cb)
+> 이후 업그레이드(07-31)가 있었고 그 사이 FEM 모드를 아무도 안 돌려서
+> 지금까지 안 보였던 것.**
+>
+> **[정정] "더미 STL만 채우면 된다"는 진단은 불완전했다.** 실제로 실물
+> 캡슐 표면 메시(watertight, 264면)를 그 자리에 써 넣고 재실행하니 한 줄
+> 더 가서 **다른 지점**에서 죽었다 — `fem_entity.py:531`:
+> ```
+> verts, elems = eu.mesh_to_elements(surface_trimesh, tet_cfg=self.tet_cfg)
+>   → primitive_tablet_generator.py:325  _orig(file, pos=pos, scale=scale, ...)
+> TypeError: mesh_to_elements() got an unexpected keyword argument 'pos'
+> ```
+> **`mesh_to_elements` 의 시그니처가 바뀌었다**: 1.1.0 `(file, pos, scale,
+> tet_cfg)` → 1.3.1 **`(mesh, tet_cfg)`**. 파일 경로가 아니라 trimesh 객체를
+> 받는다. 그런데 몽키패치는 `if file in _ANALYTIC_CACHE` 로 **경로 문자열을
+> 캐시 키**로 쓰므로 이제 캐시가 절대 안 맞고, 폴백 호출도 없어진 인자를
+> 넘겨 죽는다. 즉 **TetGen 우회 메커니즘 자체를 1.3.1 시그니처에 맞춰 다시
+> 써야 한다**(캐시 키를 morph 파일 경로가 아닌 다른 것으로 잡거나, 우회
+> 지점을 `FEMEntity` 쪽으로 옮기는 등). 한 줄 수정이 아니다.
+> 이 유틸은 `add_analytic_fem_entity` 를 쓰는 13개 스크립트가 공유한다
+> (`FEM/fem_tablet_*.py` · `Legacy_vs_IPC/pipeline_ipc.py` ·
+> `Recovery2_only/recovery2_tablet_drop.py` · `Powder_flip_test/` ·
+> `scene_setup.py` · `slot_fit_check.py` 등).
+>
+> **단, 이건 정제(FEM.Elastic) 한정 문제다.** 봉투(`FEM.Cloth`)는 이 유틸을
+> 안 쓰고 일반 `gs.morphs.Mesh` 경로라 무관하다 — 봉투+IPC 자체의 건전성은
+> `SKIP_TABLET=1` 로 분리 검증했다(§12-8).
+>
+> **→ 해결 (2026-08-03), §12-9 참고.**
+
 **Rigid-MPM 베이스라인 재확인**: Genesis 공식 예제 `examples/coupling/
 sand_wheel.py`를 headless/GPU 환경으로 이식해 재현(`sand_wheel_repro.py`) —
 모래가 각 바퀴 십자 날개에 정확히 부딪혀 튕기며 흘러내림을 영상으로 확인,
@@ -1638,3 +1737,363 @@ crash/관통 없음. `rigid_mpm` 커플링 자체는 안정적이라는 근거 �
 ## 11. Visualization options
 
 **고정장치/M0609 렌더링 스파이크 아티팩트 — 해결(2026-07-21)**: `smooth=True`(기본값)에서 볼트머리 등 작은 디테일 부근에 별모양 스파이크 발생, `smooth=False`는 형상 자체가 깨짐, `decimate`는 무영향 — 같은 STL을 MuJoCo 자체 렌더러로 찍으면 정상이라 Genesis 쪽 문제로 특정. 원인: `pyrender/mesh.py`의 smooth 셰이딩이 `trimesh.vertex_normals`를 크리스 각도 구분 없이 그대로 씀(hard-edge 개념 없음), MuJoCo는 날카로운 모서리에서 정점을 분리해 평균을 안 냄. 해결: `trimesh` `mesh.smooth_shaded`(크리스 각도 기준 정점 분리 후 스무싱)로 재수출한 `_ss.obj`를 시각 전용 geom에만 적용(충돌 geom은 원본 STL 유지, non-watertight라 충돌엔 부적합) — 고정장치 12개, M0609 링크 10개 메시에 적용 완료.
+
+---
+
+## 12. 공정 검증 전략 — 전(全) Rigid 선행 모드
+
+*(2026-08-03, 사용자 전략 지시)*
+
+### 12-1. 왜 바꾸나 — 재료 충실도와 공정 검증의 분리
+
+§9 조합9까지 오면서 `full_workflow.py`(정제 낙하 → 봉투 파지 → 리프트 → 슬롯
+삽입)는 물리적으로는 성공했지만 **한 번 돌리는 비용이 너무 크다**. 실측:
+IPC + FEM.Cloth(봉투) + FEM.Elastic(정제) 조합에서 빌드 + 전체 스텝 + 인코딩
+합쳐 **16분 18초**(`IPC_D_HAT=1e-4` 기준), `d_hat`을 5e-5로 낮추면 build 내부
+warm-start 솔브만 **30분+** 로 폭증(§full_workflow.py `IPC_D_HAT` 주석).
+기구 배치를 1mm 옮길 때마다, IK 타깃을 한 번 바꿀 때마다 이 비용을 낸다.
+
+그런데 지금 반복적으로 검증하고 있는 것들(§조합9 후속 1~4의 대부분)은
+**재료 물성과 무관한 항목**이다:
+
+- 기구(고정장치/회수장치2/석션V1/Crusher)의 배치와 상호 간섭
+- IK 도달성 — 목표 자세가 조인트 한계·특이점 안에 있는가
+- 매니퓰레이터 조작정책 — 어느 순서로, 어느 경로로, 어느 속도로 움직이는가
+- 그리퍼-Crusher 충돌 여유(핑거 폭 vs gap 12mm 같은 기하 제약)
+
+**전략: 공정 검증(rigid)과 재료 충실도(FEM/IPC)를 두 단계로 분리한다.**
+
+| 단계 | 재료 | 검증 대상 | 비용 |
+| --- | --- | --- | --- |
+| 1. 공정 검증 | **전부 rigid** | 배치·IK 도달성·조작정책·간섭·시퀀스 | 낮음(IPC/FEM 없음) |
+| 2. 재료 검증 | FEM.Cloth + FEM.Elastic + IPC | 파지 성립성·봉투 변형·정제 응력 | 높음 |
+
+1단계에서 확정된 궤적·자세·타이밍은 **그대로** 2단계로 넘어간다. 이를 위해
+`DT`와 페이즈 스텝수(`N_*`)를 rigid 모드에서도 동일하게 유지한다 — 같은
+스텝에서 같은 관절각을 명령하므로 두 모드의 궤적이 1:1 대응한다.
+
+### 12-2. 이 전략이 트윈에서 갖는 의미
+
+기존 산업용 로봇 도입 절차는 (a) 기구를 물리적으로 배치하고 → (b) 사람이
+로봇을 직접 티칭하고 → (c) 배치가 바뀌면 티칭을 다시 하는 순환이다. 위
+2단 파이프라인이 성립하면 **(a)~(c) 전부를 시뮬레이션 안에서 끝내고, 검증된
+결과를 그대로 실기에 올린다**:
+
+- 별도의 로봇 티칭 절차가 필요 없다 — 조작정책이 시뮬에서 나온다.
+- 기구 배치가 바뀔 때마다 사람이 다시 해야 하는 일이 없다 — 배치 상수만
+  고치고 1단계를 다시 돌린다(싸므로 반복 가능).
+- §2에서 Genesis를 고른 이유("Twin인 만큼 공정 시뮬레이션에 집중")와 §10
+  피드백("화학자들이 무엇을 얻는가")에 직접 대응하는 축이다 — 재료 파쇄
+  물리(§6~7)와는 **다른 축의 산출물**이다.
+
+### 12-3. 봉투 애셋은 그대로 rigid 로 못 쓴다 — 실측과 프록시 설계
+
+**실측** (`Samplebag_seal_pouch3.stl`, trimesh):
+
+| 항목 | 값 |
+| --- | --- |
+| 정점 / 면 | 771 / 1504 |
+| 크기(로컬) | X 64mm(폭) × Y 90mm(높이) × Z 6mm(두께), 원점 중심 |
+| watertight | **False** — 경계 엣지 36개 = 입구(로컬 y=+45mm) |
+| 부피 | 계산 불가(닫힌 볼륨 아님) |
+| 표면적 | 12,984 mm² |
+| convex hull | 정점 8 / 면 12 = **속 꽉 찬 64×90×6mm 슬래브** |
+
+이 애셋은 §5-2에서 IPC self-intersection 을 피하려고 만든 **두께 0의 5-panel
+cloth 표면 메시**다(front/back 11520mm² + 좌우 1080mm² + 바닥 384mm², 상단만
+open — 면 법선 그룹으로 확인). FEM.Cloth 는 두께를 재료 파라미터
+(`CLOTH_THICK=1mm`)로 받으므로 표면만 있으면 되지만, rigid body 는 성립하지
+않는다:
+
+1. **질량/관성 미정의** — 닫힌 볼륨이 없어 density 기반 추정이 불가
+2. **`convexify=True` 는 입구를 막는다** — hull 이 속 찬 슬래브라 정제가
+   안으로 못 들어감(drop 페이즈가 죽음)
+3. **볼록분해도 무의미** — 두께 0 조각은 부피가 0이라 퇴화
+
+**채택: 같은 치수에서 절차적으로 생성한 5-panel box primitive 프록시**
+(한 MJCF body 안에 `type="box"` geom 5개 + freejoint). box 는 §6-1의 analytic
+SDF primitive 라 메시 충돌보다 빠르고 터널링에도 강해 rigid 모드의 목적과
+정확히 맞는다.
+
+**벽 두께 성장 방향 — 슬롯 여유가 결정한다.** 벽에 두께 `t`를 줄 때 안/밖
+어느 쪽으로 키우냐가 자유롭지 않다:
+
+| 패널 | 성장 방향 | 근거 |
+| --- | --- | --- |
+| front/back (로컬 Z=두께축 → world X) | **바깥** | 안쪽으로 키우면 공동이 6→4mm 인데 정제 캡슐 지름이 정확히 4mm 라 여유 0. 바깥으로 키우면 외형 8mm 이나 슬롯 gap 12mm 대비 여전히 2mm/쪽 여유 |
+| 좌우 (로컬 X=폭축 → world Y) | **안쪽** | 폭 64mm 가 슬롯 Y 여유 65mm 대비 **0.5mm/쪽**밖에 안 됨(§full_workflow.py `BAG_EULER` 주석). 바깥으로 1mm 키우면 66mm > 65mm 로 **삽입 자체가 불가능**해진다 |
+| 바닥 (로컬 Y=높이축) | 바깥 | 공동 높이 90mm 보존, 슬롯 폭/두께 여유와 무관 |
+
+**질량 일치 트릭.** 5개 박스의 총 부피는 `t × 12984mm²` = `t × A`(A = cloth
+표면적)이고, FEM 봉투의 질량은 `CLOTH_RHO × CLOTH_THICK × A` 다. 따라서
+
+```
+t = CLOTH_THICK  이면  density = CLOTH_RHO × CLOTH_THICK / t = CLOTH_RHO
+```
+
+즉 **벽 두께를 `CLOTH_THICK`(1mm), density 를 `CLOTH_RHO`(200)로 두면 rigid
+프록시 질량이 FEM 봉투와 자동으로 정확히 일치**한다(2.597 g). 관성도 MuJoCo
+가 5개 박스에서 셸 관성으로 제대로 계산한다 — 슬래브 근사가 아니다. 상수를
+따로 관리할 필요가 없어지므로 이 방식을 쓴다.
+
+**정제**: FEM 캡슐(`make_capsule_tets_v2`, R=2mm/실린더 1mm) 대신 MJCF
+`type="capsule"` geom — §조합6에서 이미 검증된 SDF primitive 경로. `density`
+는 `TABLET_RHO`(1300) 그대로.
+
+### 12-4. 구동 방식 전환 — 텔레포트 금지, PD 로
+
+현재 `full_workflow.py`는 로봇을 매 스텝 `set_dofs_position`(하드 텔레포트)로
+움직인다. IPC 모드에서 이게 통했던 건 `two_way_soft_constraint`가 반력을 자체
+처리했기 때문이다(§5-2). **rigid 모드에서는 그대로 쓰면 안 된다** — §7-7이
+정확히 이 경우를 다룬다: 위치 강제는 속도/가속도와 일관되지 않아 접촉
+임펄스가 정상적으로 흐르지 않고, 핑거가 봉투를 뚫거나 봉투를 튕겨낸다.
+
+→ rigid 모드에서는 팔·그리퍼 전부 **`control_dofs_position`(PD)** 로 구동하고,
+로봇 재료에 `gravity_compensation=1.0`을 준다(산업용 서보의 중력보상에 대응 —
+안 주면 PD 정상상태 오차로 팔이 처져 IK 목표에서 벗어난다).
+
+두 가지 주의:
+- **마찰 항이 바뀐다.** IPC 모드의 `coup_friction`은 커플러 전용이라 rigid
+  모드에서는 아무 효과가 없다 — 리지드 솔버가 쓰는 `friction`을 봉투/핑거
+  양쪽에 명시해야 파지가 성립한다.
+- **RG2 mimic 은 여전히 수동.** MJCF 의 `<equality><joint>` 5개를 Genesis 가
+  안 지키는 문제(§`m0609_rg2_v2.xml` 주석)는 rigid 모드에서도 같으므로,
+  6개 핑거 DOF 에 같은 목표각을 넣는 기존 방식을 그대로 유지한다.
+
+**봉투 자립 문제.** FEM 모드는 `set_vertex_constraints`로 봉투 형상을
+붙잡아두다 `close` 직전에 풀었다. rigid 봉투는 64×8mm 바닥면에 90mm 높이로
+서 있어 그대로 두면 넘어진다 — 같은 역할로 **prep~close 구간 동안 매 스텝
+pose 를 고정**하고, 핑거가 이미 닫힌 뒤(`grasp` 시작)에 놓아준다(FEM 모드보다
+한 페이즈 늦게 푸는 것 — 붙잡을 게 이미 있는 상태에서 풀기 위함).
+
+### 12-5. 알려진 이슈 — Left_Wall 충돌이 꺼져 있다
+
+`Crusher_IsaacSim_colored.xml` 의 `L2_Left_Wall1_1` geom 은
+`contype="0" conaffinity="0"`(충돌 OFF)이고 `WALL_GEOMS_TO_ENABLE`
+(= base_link / L1_Wall1_1 / L1_Wall2_1 / L2_Wall3_1)에도 들어있지 않다. IPC
+모드에서는 IPC 가 MuJoCo 스타일 필터링을 무시하는 것으로 보여(§조합9 후속4)
+클램프가 동작했지만, **rigid 모드에서는 리지드 솔버가 이 필터를 지키므로
+clamp 페이즈에서 벽이 봉투를 그냥 통과한다.** rigid 모드에서만
+`L2_Left_Wall1_1` 을 활성 집합에 추가해 우회한다(§3-2 의 "Left_Wall 은 충돌이
+켜져 있어야 한다"와도 일치). 다만 비볼록 메시라 `convexify=True` 의 hull 로
+클램프하게 되므로 접촉 위치가 실제보다 거칠 수 있다 — 정밀 클램프력이
+필요해지면 §3-2 처럼 볼록분해가 필요하다.
+
+> **[정정 2026-08-03] 이 우회는 기구를 잼시킨다 — 기본 OFF 로 되돌렸다.**
+> "거칠 수 있다"는 정도가 아니라, 부풀린 hull 이 다른 크러셔 부품과 간섭해
+> 슬라이드 조인트를 -10mm 에 고정시켜 **슬롯이 아예 안 열린다**. 상세는
+> §12-7. 켜려면 `RB_LEFTWALL_COLLISION=1` 이되 **볼록분해가 선행돼야 한다.**
+
+### 12-6. 1차 구현 결과 (2026-08-03)
+
+**파일 분리(사용자 지시)**: 처음엔 `full_workflow.py` 안에 `RIGID_MODE=1` env
+스위치로 넣었으나, FEM 실험과 섞이지 않도록 분리했다.
+
+| | 파일 | 출력 |
+| --- | --- | --- |
+| FEM + IPC (재료 검증) | `full_workflow.py` | `RESULT/` |
+| **RIGID (공정 검증)** | **`full_workflow_rigid.py`** | **`Result_NoCoupling_OnlyRigidbody/`** |
+
+`full_workflow_rigid.py` 는 `import full_workflow as fw` 로 **배치·자세·페이즈
+상수를 전부 공유**하고(궤적 1:1 대응의 전제), 자기 파일에는 "rigid 로 바꾸느라
+달라진 것"만 둔다 — `slot_fit_check.py` 가 쓰는 것과 같은 패턴.
+`full_workflow.py` 에 남긴 변경은 **녹화 API 수정 한 건뿐**이다(아래 1번,
+FEM 모드도 그것 때문에 죽고 있었음).
+
+env: `WALL_OPEN_MM`(슬롯 개방 mm, 기본 6) / `Y_OFFSET_MM` /
+`RB_TABLET_CARGO`(기본 1) / `RB_LEFTWALL_COLLISION`(기본 0) / `VIEWER`.
+
+**속도 — 목표 달성.**
+
+| | build | steps(2230) | 합계 |
+| --- | --- | --- | --- |
+| FEM + IPC | — | — | **16분 18초**(기존 실측) |
+| **RIGID** | **7.4s** | **72.8s** (32.7ms/step) | **약 80초** |
+
+**약 12배**. 배치 상수를 고치고 다시 돌리는 반복이 실용적인 영역에 들어왔다.
+(1회차는 build 가 154.9s 였는데 커널 컴파일 캐시가 없어서였고, 2회차부터
+7.4s 로 떨어졌다.)
+
+**시행착오 3건 — 전부 코드/로그로 원인 확정.**
+
+1. **Genesis 1.3.1 녹화 API 미반영으로 크래시.** `stop_recording(
+   save_to_filename=..., fps=...)` → `TypeError`. 조합11 에서 이미 발견해
+   기록해 둔 변경(파일명/fps 가 `start_recording` 으로 이동,
+   `stop_recording()` 은 인자 없음)이 `full_workflow.py` 에는 반영이 안 돼
+   있었다. **이건 rigid 모드만의 문제가 아니라 FEM 모드도 같이 죽는
+   상태였다** — 양쪽 다 고쳐졌다.
+
+   → 회귀 검증으로 FEM 모드를 돌려보니 **같은 업그레이드가 깨뜨린 두 번째
+   지점**이 더 있었다(`add_analytic_fem_entity` 의 0바이트 더미 STL을 1.3.1
+   의 새 시각 geom 로더가 읽으려다 실패). 상세·수정 방향은 §조합11 의
+   "추가 발견 2026-08-03" 노트 참고 — **아직 미적용이라 FEM 모드는 현재
+   실행 불가**다(공유 유틸이라 별도 작업으로 분리).
+
+2. **정제가 hold 해제 순간 봉투를 뚫고 튀어나감.** 1차엔 바닥 패널이 1mm 라
+   두께 문제로 보고 4mm(안쪽 성장)로 키웠는데 증상이 그대로였다. 봉투 로컬
+   프레임 진단(`tablet_local`)을 넣으니 원인이 정확히 보였다 — 정제는
+   prep~close 내내 `(+0.0,-39.5,+0.0)mm IN` 으로 공동 바닥에 안정적으로
+   있다가, hold 해제 직후 **로컬 z 가 0.2초 만에 0 → +59mm**(공동 두께는
+   ±3mm뿐)로 튀었다. 즉 바닥 관통이 아니라 **두께 방향 측면 사출**이고,
+   기여 요인은 (a) 공동 두께 6mm 에 캡슐 지름 4mm — 여유 1mm/쪽, (b) 그리퍼가
+   *고정된*(텔레포트로 pin 된) 봉투를 누르며 쌓인 접촉 에너지가 해제 순간
+   한꺼번에 풀림.
+   → **정제를 화물(cargo)로 봉투에 종속**시켜 해결(`RB_TABLET_CARGO`,
+   기본 1). "정제가 봉투에 담기는가"는 §조합5/6/9 에서 이미 검증된 항목이라
+   rigid 모드에서 다시 풀 이유가 없다. 담기 물리를 다시 보려면 0 으로 끈다.
+
+3. **PD 추종 지연.** `kp=4500` 에서 above/lift 같은 빠른 구간의 추종 오차가
+   74~82mrad(4~4.7°)까지 벌어졌고, above 종료 시점에도 안 가라앉아 슬롯
+   정렬(gap 12mm 대비 봉투 8mm = 여유 2mm/쪽)에 그대로 실렸다.
+   `kp=20000/kv=1200` 으로 올려 종료 시점 오차 1.65~3.4mrad 로 수렴.
+
+### 12-7. 슬롯 삽입 — 잼 오진 → 개방 상태 검증 (2026-08-03, 사용자 지시)
+
+**처음엔 "봉투가 회전해 벽 윗면에 얹혔다"로 오진했다.** 1차 결과가
+`bag_bottom_z=0.0858` ≈ `wall_top_z=0.0864` 였고 width/height 가 뒤바뀌어
+있어(90.3 / 64.8) 마찰 파지가 자세를 못 잡는 문제로 결론지었다. 사용자가
+**"슬롯을 완전히 연 상태에서 들어가는지부터 테스트해야 한다"** 고 지시해
+개방 상태를 직접 계측하니, **애초에 슬롯이 열리지 않고 있었다.**
+
+```
+[phase] prep @done  wall=-10.16mm      ← 지령은 +6.00mm(개방)
+```
+
+지령과 부호부터 반대다. 마지막 정상 FEM 실행(2026-07-29)의 같은 지점은
+`wall=+5.43mm` 로 정상이었다. **원인은 §12-5 에서 내가 켠
+`L2_Left_Wall1_1` 충돌 자체**였다 — 비볼록 메시가 `convexify` 되며 부풀린
+hull 이 다른 크러셔 부품과 간섭해, 슬라이드 조인트를 -10mm 에 물리적으로
+잼시켰다. 액추에이터가 `actuatorfrcrange="-100 100"` 으로 제한돼 이 접촉을
+못 이긴다. 즉 §12-5 에서 "거칠 수 있다"고만 적어둔 위험이 실제로는
+**기구를 통째로 멈추는** 수준이었다. → `RB_LEFTWALL_COLLISION` 기본 **OFF**.
+
+**끄자마자 봉투가 슬롯에 들어간다.** 개방량을 스윕한 결과:
+
+| `WALL_OPEN_MM` 지령 | 실제 wall | 실제 통로 | 최종 tilt | width_y | height_z | bag_bottom_z |
+| --- | --- | --- | --- | --- | --- | --- |
+| +6 | +5.43mm | 17.4mm | — | 78.0mm | 97.9mm | 0.0120 |
+| +20 | **+7.14mm** | 19.1mm | 8.6° | 74.7mm | 97.6mm | 0.0104 |
+| +10 | **+7.03mm** | 19.0mm | **4.3°** | **64.5mm** | **90.7mm** | 0.0099 |
+
+- **슬롯 최대 개방은 +7.1mm 다 — 하드 스톱.** +10 을 줘도 +20 을 줘도 같은
+  +7.0~7.1mm 에서 멈춘다(조인트에 `range` 속성이 없으니 조인트 한계가 아니라
+  기구 간섭이다). 따라서 **이 설계에서 슬롯 통로의 물리적 상한은 약 19.1mm**
+  (정지 12mm + 개방 7.1mm)다. 봉투 8mm 대비 여유 5.5mm/쪽.
+- **완전 개방 시 봉투는 거의 완벽히 수직으로 들어간다.** +10 실행의 최종
+  `width_y=64.5mm`/`height_z=90.7mm` 는 봉투 실치수(64 / 91mm)와 사실상
+  일치한다 = 기울지 않았다는 뜻. tilt 4.3° / twist 4.3°.
+- **AABB 폭·높이는 자세 판정에 쓰면 안 된다.** 회전이 섞이면 Z-extent 가
+  실제 높이 91mm 를 넘어버려(97.9mm) 해석이 안 된다. 봉투 높이축(로컬 +Y)과
+  world +Z 사이 각(`tilt`), 두께축(로컬 +Z)과 world X 사이 각(`twist`)을
+  직접 재는 지표를 추가했다.
+- 삽입 중 tilt 가 1.6°→26.3° 로 단조 증가했다가 정착하며 4~11° 로 풀리는
+  패턴이 보인다 — 하강 중 어딘가에 끌리다가 놓이는 것으로, 통로 여유가
+  5.5mm/쪽이나 되는데도 남는 현상이라 파지 자세 구속의 여지는 여전히 있다.
+
+**판정 기준 — rigid 전용으로 새로 정의.** `full_workflow.py` 의 판정식은
+`abs(final_bottom_z - wall_center_z) < 30mm` 라는 **양방향** 창이라, 봉투가
+포켓 바닥까지 제대로 내려가면 오히려 FAIL 이 뜬다("못 미쳤다"가 아니라 "더
+깊이 들어갔다"). 봉투가 매달려 있던 FEM 시절 설계다. 파일이 분리됐으므로
+`full_workflow_rigid.py` 는 **FEM 쪽을 건드리지 않고** 자기 기준을 쓴다:
+
+```
+entered = bottom_z < wall_top_z - 20mm      # 벽 위에 얹히지 않았나
+seated  = bottom_z < wall_center_z + 10mm   # 포켓 안까지 내려왔나
+upright = tilt < 15deg and twist < 15deg    # 서 있나
+```
+
+**분리 후 재검증(`WALL_OPEN_MM=10`, 즉 완전 개방):**
+
+```
+[RESULT] verdict=PASS  (삽입 성공, 자세 정상)
+[RESULT] wall_open 지령=+10.0mm 실제=+7.03mm  통로=19.0mm
+[RESULT] bag_bottom_z=0.0146  (wall_top=0.0864 wall_center=0.0504 pocket_floor=0.0144)
+[RESULT] tilt=4.8deg  twist=5.5deg
+```
+
+봉투 바닥이 **포켓 바닥(0.0144)의 0.2mm 위**에 안착했다 — 완전 착저. 벽 하드
+스톱(+7.03mm)도 그대로 재현. build 7.5s + steps 75.3s.
+
+### 12-8. FEM 봉투 + IPC 커플러 격리 검증 — **정상 확인** (2026-08-03)
+
+rigid 작업 중 FEM 모드가 안 도는 것을 발견했는데, 실패 지점이 **정제**여서
+"FEM 모드 전체가 죽었다"로 뭉뚱그려 보고했다가 혼선이 있었다. 실제로 확인이
+필요했던 건 **봉투(FEM.Cloth) + IPC 커플러가 이 환경에서 건전한가** 였고,
+정제는 그 검증의 대상이 아니다. `SKIP_TABLET=1`(`full_workflow.py`)로 정제만
+빼고 분리 검증했다.
+
+**결과 — 전 구간 정상, `verdict=PASS`.**
+
+```
+[tablet] SKIP_TABLET=1 — 정제 제외, 봉투(FEM.Cloth)+IPC 만 검증
+[build] 성공
+[bag] shape 고정: 339/771 정점(바닥+양측면), 입구는 자유
+[phase] prep @done  crank=-3.000rad  wall=+5.43mm
+... drop → settle → close → grasp → lift → hold → above → insert → settle2 → clamp → release
+[RESULT] verdict=PASS  (삽입 성공, 걸림/붕괴 없음)
+[RESULT] final_bottom_z=0.0761  wall_center_z=0.0504
+         width_y=51.7mm(baseline 64.1mm)  height_z=78.2mm(baseline 91.2mm)
+```
+
+세 가지가 한 번에 확정됐다:
+
+1. **봉투 FEM.Cloth + IPC 커플러는 Genesis 1.3.1 에서 정상이다.** `339/771 정점`은
+   마지막 정상 실행(2026-07-29 `_run_reposition_check.log`)과 **정확히 같은
+   수치**다. IPC 코드도 실제로 돈다(`ipc_coupler/utils.py` 의
+   NumbaPerformanceWarning 이 그 증거 — 경고일 뿐 오류 아님).
+2. **§조합9 후속4 의 석션V1 조 자기교차는 이 씬에 영향이 없다.** `build()` 를
+   통과했고 `Intersection detected` 도 `body_count` AttributeError 도 없다.
+   1.3.1 에서도 07-29 와 같은 거동 — 그 이슈는 `Fixture_only` 격리 씬 한정이다.
+   (§조합9 후속4 의 "최종 영상 재생성 보류" 상태는 이로써 해제해도 된다.)
+3. **`full_workflow.py` 를 막는 것은 정제 하나뿐이다** — 위 조합11 추가 발견 노트의
+   `mesh_to_elements` 시그니처 변경. 봉투/IPC/석션과 무관한 별개 부품이다.
+
+**FEM vs rigid 비교(같은 궤적, 같은 스텝수)** — 삽입 깊이가 크게 다르다:
+
+| | bag_bottom_z | 폭 변화 | 높이 변화 |
+| --- | --- | --- | --- |
+| FEM.Cloth | 0.0761 (벽 윗면 0.0864 아래 10mm) | 64.1 → **51.7mm** | 91.2 → **78.2mm** |
+| rigid 프록시 | **0.0146** (포켓 바닥 0.0144) | 64.0 유지 | 91 유지 |
+
+FEM 쪽은 천이 구겨지며 폭·높이가 20% 가까이 줄고 그만큼 얕게 들어간다. rigid
+프록시는 안 구겨지니 끝까지 내려간다. **공정 검증(도달성·간섭)에는 rigid 가,
+실제 삽입 깊이·구김 예측에는 FEM 이 맞다** — §12-1 의 2단 분리가 의도한 그대로다.
+
+### 12-9. 정제 TetGen 우회 유틸 — Genesis 1.3.1 대응 재작성 (2026-08-03)
+
+`utills/primitive_tablet_generator.py`. §조합11 추가 발견의 블로커를 해소했다.
+**세 군데**를 고쳐야 했는데, 세 번째는 실행해보기 전에는 안 보였다.
+
+| # | 무엇이 깨졌나 | 고친 방법 |
+| --- | --- | --- |
+| 1 | `sample()` 이 `gs.Mesh.from_morph_surface()` 로 **morph 파일을 실제로 읽어** 시각 geom 을 만들게 바뀜 → 0바이트 더미로는 `merge_submeshes` 가 죽음 | tet 메시의 경계면을 뽑아(`_boundary_faces`) **실제 표면 STL 을 쓴다**. 시뮬용 tet 은 여전히 패치가 주입하므로 TetGen 은 안 탄다 |
+| 2 | `mesh_to_elements` 시그니처 `(file, pos, scale, tet_cfg)` → **`(mesh, tet_cfg)`** — 경로가 아니라 trimesh 객체. 경로를 캐시 키로 쓰던 패치가 무력화 | 캐시 키를 경로 문자열 → **일회성 큐**(`_ANALYTIC_PENDING`)로 교체. `scene.add_entity` 가 동기적으로 `sample()` → `mesh_to_elements` 를 부르므로 안전하고, `finally` 로 실패 시 큐를 비운다. `pos` 는 1.3.1 이 사면체화 **이후에** 더하므로 패치에서 더하지 않는다 |
+| 3 | **정점 순서 계약** — 1.3.1 은 `FEMVisGeom.sim_verts_idx` 가 "표면 정점이 앞에, 입력 순서 그대로"를 가정(`sample()` docstring). 그런데 `make_capsule_tets_v2` 는 medial-axis 앵커(반구 중심·원기둥 축점) 같은 **내부 정점을 표면 정점 사이에 섞어** 만든다 | `_align_to_surface()` — Genesis 가 읽은 표면 정점과 우리 정점을 **위치로 매칭**(STL 왕복의 float32 오차 대비 형상 크기 비례 tol)해, 표면을 Genesis 순서 그대로 앞에 놓고 내부 앵커를 뒤에 붙인 뒤 elems 를 remap |
+
+시그니처가 또 바뀌면 조용히 깨지지 않도록 `_ensure_patched()` 에 **버전 가드**를
+넣었다(첫 인자명이 `mesh` 가 아니면 명시적 에러).
+
+**격리 검증** (캡슐 R=2mm/실린더 1mm, pos=(0.10,-0.20,0.35)):
+
+```
+[ours]   verts=137 tets=288
+[entity] n_vertices=137 n_elements=288      ← 우리 메시와 정확히 일치(TetGen 리파인먼트 없음)
+[entity] size_mm=[4.0 4.0 5.0]  center=[0.1 -0.2 0.35]   → 크기·중심 OK
+20 step 후 낙하 Δz=-51.5mm (자유낙하 기대 -49.1mm)        → 얼어붙음/폭발 없음
+```
+
+**전체 파이프라인 복구 확인** — `full_workflow.py` 를 정제 포함으로 완주,
+`verdict=PASS`. 정제가 전 구간 봉투 안에 남는다:
+
+| 페이즈 | tablet_z | bag_com z |
+| --- | --- | --- |
+| drop | 375.6mm | 398.5mm |
+| grasp | 364.0mm | 398.1mm |
+| **lift** | **483.3mm (+119)** | **523.6mm (+125)** |
+| insert | 92.8mm | 91.8mm |
+
+lift 에서 정제가 봉투와 **함께 119mm 상승** — 담긴 채로 운반된다.
+
+호출부 13곳은 **시그니처를 안 바꿨으므로 자동 복구**된다(개별 검증은 안 함).
+커밋돼 있던 0바이트 `RESULT/_analytic_capsule_v2.stl` 은 이제 실제 표면
+메시(13,284 B)로 갱신된다.
