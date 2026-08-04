@@ -451,11 +451,33 @@ def add_analytic_fem_entity(scene, key, verts_mm, elems, material, scale=1e-3, p
         kwargs = dict(material=material, morph=gs.morphs.Mesh(file=key, scale=scale, pos=pos))
         if surface is not None:
             kwargs["surface"] = surface
-        return scene.add_entity(**kwargs)
+        entity = scene.add_entity(**kwargs)
     finally:
         # add_entity 가 중간에 실패하면 큐가 남아 다음 엔티티를 오염시킨다.
         if _ANALYTIC_PENDING:
             _ANALYTIC_PENDING.clear()
+
+    # ── 사후 가드: "조용한 실패" 방지 ────────────────────────────────────────
+    # 몽키패치는 라이브러리 계약을 우리가 지켜야 하는데, 어긋나도 **안 죽고 잘못
+    # 동작할 수** 있다. 실제로 1.1.0 시절 패치가 반환값 3개 중 세 번째를 None 으로
+    # 지어냈고, 크래시 없이 정제만 깨져 렌더돼 3개월 가까이 못 잡았다(§7-15 오진).
+    # 시뮬 tet 과 시각 메시가 둘 다 기대치와 맞는지 여기서 즉시 확인한다.
+    # 정점 수는 비교 대상이 아니다 — Genesis 는 시각 메시를 면마다 정점 분리해
+    # 만들어서(실측: vverts = 3 x vfaces) STL 정점 수와 다른 게 정상이다. 면 수로 본다.
+    n_surf_f = len(surf.faces)
+    if entity.n_vfaces != n_surf_f or entity.n_vverts == 0:
+        raise RuntimeError(
+            f"시각 메시가 표면 STL 과 다르다 (vfaces {entity.n_vfaces} vs {n_surf_f}, "
+            f"vverts {entity.n_vverts}) — Genesis 가 morph 파일을 제대로 못 읽었거나 "
+            f"시각 geom 경로가 바뀐 것이다."
+        )
+    if entity.n_vertices != len(verts_mm) or entity.n_elements != len(elems):
+        raise RuntimeError(
+            f"시뮬 tet 메시가 주입값과 다르다 (verts {entity.n_vertices} vs {len(verts_mm)}, "
+            f"elems {entity.n_elements} vs {len(elems)}) — 몽키패치가 안 먹었거나 "
+            f"Genesis 가 사면체를 추가로 손댔다(TetGen 경유 의심)."
+        )
+    return entity
 
 
 def main():
