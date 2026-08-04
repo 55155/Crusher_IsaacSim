@@ -4,7 +4,7 @@
 import adsk, adsk.core, adsk.fusion, traceback
 import os
 import sys
-from .utils import utils
+from .utils import utils, Constraint
 from .core import Link, Joint, Write
 
 """
@@ -71,8 +71,29 @@ def run(context):
             ui.messageBox(msg, title)
             return 0
         
+        # --------------------
+        # 폐루프 처리: equality constraint 로 쓸 조인트를 골라 URDF 에서 뺀다.
+        # URDF 는 링크마다 부모가 하나여야 하는데, Write.write_link_urdf 가
+        # "조인트마다 링크 하나"를 찍기 때문에 폐루프가 있으면 같은 링크가 두 번
+        # 정의된 불법 URDF 가 나온다(예: 회수장치2 의 Crank_1). 루프를 닫는
+        # 조인트를 빼면 트리가 정상화되고, 루프 정보는 사이드카로 보존된다.
+        constraint_names, cancelled = Constraint.select_constraint_joints(ui, joints_dict, title)
+        if cancelled:
+            ui.messageBox('Fusion2URDF was canceled', title)
+            return 0
+        # equality 종류 판정은 **자르기 전** 전체 joints_dict 로 해야 한다
+        # (루프 구성/평면성 판정에 나머지 조인트가 필요하다).
+        joints_dict_full = dict(joints_dict)
+        joints_dict, constraint_joints = Constraint.split_joints(joints_dict, constraint_names)
+
+        ok, problems = Constraint.validate_tree(joints_dict)
+        if not ok:
+            ui.messageBox('제약을 뺐는데도 트리가 아닙니다:\n\n  ' + '\n  '.join(problems),
+                          title)
+            return 0
+
         links_xyz_dict = {}
-        
+
         # --------------------
         # Generate URDF
         Write.write_urdf(joints_dict, links_xyz_dict, inertial_dict, package_name, robot_name, save_dir)
@@ -84,6 +105,19 @@ def run(context):
         Write.write_control_launch(package_name, robot_name, save_dir, joints_dict)
         Write.write_yaml(package_name, robot_name, save_dir, joints_dict)
         
+        # 제약 사이드카 — links_xyz_dict 는 write_urdf 가 채워 놓은 상태여야 하므로
+        # URDF 를 다 쓴 뒤에 기록한다.
+        if constraint_joints:
+            records = Constraint.build_constraint_records(
+                constraint_joints, links_xyz_dict, joints_dict_full)
+            p_json, p_mjcf = Constraint.write_constraints(records, robot_name, save_dir)
+            msg += ('\n\nequality constraint 로 내보낸 조인트 {}개:\n  '.format(len(records))
+                    + '\n  '.join('{}  ({} ↔ {})  -> {}\n     {}'.format(
+                        r['name'], r['body1'], r['body2'], r['equality'], r['why'])
+                                  for r in records)
+                    + '\n\n사이드카:\n  ' + os.path.basename(p_json)
+                    + '\n  ' + os.path.basename(p_mjcf))
+
         # copy over package files
         utils.copy_package(save_dir, package_dir)
         utils.update_cmakelists(save_dir, package_name)
