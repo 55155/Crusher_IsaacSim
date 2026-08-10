@@ -1,0 +1,11 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "engine": "Python",
+  "author": "simuser",
+  "description": "Fusion 디자인을 MuJoCo MJCF(.xml) 로 바로 내보냅니다. URDF 와 달리 equality constraint 를 쓸 수 있어 폐루프 기구를 표현할 수 있고, 어느 두 링크를 connect/weld 로 묶을지 대화상자에서 직접 고를 수 있습니다.",
+  "helpUrl": "",
+  "id": "fusion2xml_addin",
+  "supportedOS": "windows|mac",
+  "version": "1.0"
+}

@@ -1,0 +1,11 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"script",
+	"engine":	"Python",
+	"author":	"simuser",
+	"description":	{
+		"":	"URDF/MJCF 를 만드는 데 필요한 접합 정보를 전부 덤프한다. As-built Joint, 하위 컴포넌트 조인트, Rigid Group 등 fusion2urdf 가 못 보는 것까지 포함하며, URDF 트리 문제(부모 0개/2개 링크)를 미리 진단한다."
+	},
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
