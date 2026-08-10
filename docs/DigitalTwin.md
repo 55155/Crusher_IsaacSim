@@ -18,6 +18,8 @@
 8. [발생할 수 있는 문제 사항](#8-발생할-수-있는-문제-사항)
 9. [Solver / Coupler 조합 실험 기록](#9-solver--coupler-조합-실험-기록)
 10. [피드백](#10-피드백)
+11. [Visualization options](#11-visualization-options)
+12. [현 시점 우선순위 및 미해결 문제 (2026-08-08)](#12-현-시점-우선순위-및-미해결-문제-2026-08-08)
 
 ---
 
@@ -1638,3 +1640,19 @@ crash/관통 없음. `rigid_mpm` 커플링 자체는 안정적이라는 근거 �
 ## 11. Visualization options
 
 **고정장치/M0609 렌더링 스파이크 아티팩트 — 해결(2026-07-21)**: `smooth=True`(기본값)에서 볼트머리 등 작은 디테일 부근에 별모양 스파이크 발생, `smooth=False`는 형상 자체가 깨짐, `decimate`는 무영향 — 같은 STL을 MuJoCo 자체 렌더러로 찍으면 정상이라 Genesis 쪽 문제로 특정. 원인: `pyrender/mesh.py`의 smooth 셰이딩이 `trimesh.vertex_normals`를 크리스 각도 구분 없이 그대로 씀(hard-edge 개념 없음), MuJoCo는 날카로운 모서리에서 정점을 분리해 평균을 안 냄. 해결: `trimesh` `mesh.smooth_shaded`(크리스 각도 기준 정점 분리 후 스무싱)로 재수출한 `_ss.obj`를 시각 전용 geom에만 적용(충돌 geom은 원본 STL 유지, non-watertight라 충돌엔 부적합) — 고정장치 12개, M0609 링크 10개 메시에 적용 완료.
+
+---
+
+## 12. 현 시점 우선순위 및 미해결 문제 (2026-08-08)
+
+### 12-1. Digital Twin 우선순위
+
+지금 시점에서의 Digital Twin 우선순위는, **"모든 바디를 Rigid body로 사용하고, 공정 검증을 하는 게 1순위이다."**
+
+이 Digital Twin이 가지는 의미는 실험자가 별도의 Teaching을 하거나 이동정책을 수정하지 않고, 이 모듈을 사용할 때 Path planning과 다양한 모터의 제어전략을 재사용 가능하다는 점과 공정에 대한 검증이 가능하다는 결론이 나온다. 샘플백과 정제를 FEM 재료로 묘사하게 되면, 너무 큰 계산비용이 나오므로 이런 식의 검증을 하는 것이다.
+
+내가 할 실제 실험은 정제가 이렇게 했을 때, powder 사이즈 분포가 어떻게 되는지, 그리고 DigitalTwin을 통해서 옮긴 공정이 얼마만큼 실제 세계와 맞는지 총 두 가지 정도의 플랏을 그리면 될 것 같다.
+
+### 12-2. 2026.08.08 시점에서의 문제
+
+현재 회수장치의 폐루프 문제가 안 풀린다. 이미 Crusher에서 하나의 링크를 두 개로 나눠서 해결한 문제이나, 생각보다는 잘 안 풀리는 듯하다. Pulley와 Crank가 연결되어 있는데, 내 시스템에서 "Crank"로 Description되어 있는 링크(현재 시스템에서는 Crank의 역할을 Pulley가 수행하고 있음)는 사실 기구적인 관점에서는 connecting rod이다. 이 커넥팅로드를 두 개로 분할하고 모든 자유도를 weld로 빼앗아야 할지 의문이다. 혹은 M_top을 두 개의 링크로 분할하는 방식이다. 추가로 지금 방식은 Connecting rod를 F_top에 연결지어 놓고, 한쪽을 Equality constraint의 weld가 아닌, connect로 연결하여 3자유도를 살릴 생각이었으나, connect 자체가 가지고 갈 수 있는 자유도가 planar joint(2 Prismatic + 1 Rotate)가 아니라 3 Prismatic Joint인 것으로 알고 있다. 쉽게 생각하면 칠판에서의 거동이 필요한 것인데, 실제로는 볼조인트가 가지는 거동만이 존재하는 것이다. 따라서 이를 해결할 방법을 생각해봐야 한다.
