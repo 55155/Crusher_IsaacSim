@@ -48,7 +48,18 @@ NONE_LABEL = '(지정 안 함)'
 # ── 대화상자 입력 파싱 ──────────────────────────────────────────────────────
 
 def parse_extra_pairs(text, known_links):
-    """'A:B:connect, C:D' 형식을 [(b1, b2, type|None), ...] 로. (pairs, errors)"""
+    """추가 쌍 문법을 [(b1, b2, type|None, anchor|None), ...] 로. (pairs, errors)
+
+        A:B                       종류 자동, anchor 는 조인트에서
+        A:B:connect               종류 지정
+        A:B:connect:0.1 0.02 0.3  anchor 까지 지정(root 기준 m)
+
+    **anchor 칸이 핵심이다.** 예전에는 3칸짜리만 만들어서 `Tree.plan` 이
+    anchor 를 항상 None 으로 받았다. 그래서 두 링크 사이에 Fusion 조인트가
+    없으면 무조건 막혔는데, 하필 그게 수동 지정이 필요한 유일한 경우다
+    (Fusion 에서 루프를 안 닫아 뒀을 때). 게다가 막으면서 내놓는 안내가
+    "anchor 좌표를 직접 입력해야 한다" 였는데 입력할 칸이 없었다.
+    """
     pairs, errors = [], []
     for chunk in (text or '').split(','):
         chunk = chunk.strip()
@@ -56,21 +67,40 @@ def parse_extra_pairs(text, known_links):
             continue
         parts = [p.strip() for p in chunk.split(':')]
         if len(parts) < 2:
-            errors.append("'{}' 는 'body1:body2' 또는 'body1:body2:connect' "
-                          '형식이어야 한다.'.format(chunk))
+            errors.append("'{}' 는 'body1:body2', 'body1:body2:connect', "
+                          "'body1:body2:connect:x y z' 중 하나여야 한다."
+                          .format(chunk))
             continue
+        if len(parts) > 4:
+            errors.append("'{}' 에 칸이 너무 많다 — 최대 "
+                          "'body1:body2:종류:x y z' 까지다.".format(chunk))
+            continue
+
+        bad = False
         b1, b2 = parts[0], parts[1]
         eq = parts[2].lower() if len(parts) > 2 and parts[2] else None
         if eq not in (None, 'connect', 'weld'):
             errors.append("'{}' 의 equality 종류 '{}' 는 connect 나 weld 여야 한다."
                           .format(chunk, parts[2]))
             continue
+
+        anchor = None
+        if len(parts) > 3 and parts[3]:
+            anchor, err = parse_anchor(parts[3])
+            if err:
+                errors.append("'{}' 의 {}".format(chunk, err))
+                bad = True
+
         for b in (b1, b2):
             if b not in known_links:
                 errors.append("'{}' 라는 링크가 없다.".format(b))
+                bad = True
         if b1 == b2:
             errors.append("'{}' 는 같은 링크끼리 묶으려 한다.".format(chunk))
-        pairs.append((b1, b2, eq))
+            bad = True
+        if bad:
+            continue
+        pairs.append((b1, b2, eq, anchor))
     return pairs, errors
 
 
@@ -96,8 +126,29 @@ def detect_loops(joints):
 
 # ── 실행 ────────────────────────────────────────────────────────────────────
 
-def _report(model_name, plan, warnings, exported, failed, save_dir):
+def _report(model_name, plan, warnings, exported, failed, save_dir, renames=(),
+            joints=None):
     L = ['모델: {}'.format(model_name), '출력: {}'.format(save_dir), '']
+    # 하위 컴포넌트 안의 조인트는 원점 계산이 의심스럽다. `_joint_origin` 은
+    # `occurrenceTwo.transform` 을 쓰는데 그건 **그 occurrence 의 부모 프레임**
+    # 기준이라, 최상위 조인트만 보던 fusion2urdf 에서는 root 와 같아서 맞았지만
+    # 하위 컴포넌트에서는 root 기준이 아니다. 어느 조인트가 거기서 왔는지
+    # 적어 둬야 접합 위치가 이상할 때 여기부터 의심할 수 있다.
+    nested = sorted(n for n, j in (joints or {}).items()
+                    if j.get('occurrence_path'))
+    if nested:
+        L.append('[하위 컴포넌트 조인트 {}개] 원점이 root 기준이 아닐 수 있다 — '
+                 '접합 위치가 어긋나면 여기부터 확인하라.'.format(len(nested)))
+        for n in nested:
+            L.append('  {}  (경로: {},  xyz={})'.format(
+                n, joints[n]['occurrence_path'], joints[n]['xyz']))
+        L.append('')
+    if renames:
+        L.append('[이름 변경 {}개] MuJoCo 가 비ASCII 파일명을 못 열어서 바꿨다. '
+                 'Fusion 에서 보이는 이름과 다르니 주의.'.format(len(renames)))
+        for old, new in renames:
+            L.append('  {}  ->  {}'.format(old, new))
+        L.append('')
     if plan['equalities']:
         L.append('[equality constraint {}개]'.format(len(plan['equalities'])))
         for e in plan['equalities']:
@@ -119,15 +170,21 @@ def _report(model_name, plan, warnings, exported, failed, save_dir):
         L.append('[경고 {}개]'.format(len(warnings)))
         L += ['  - ' + w for w in warnings]
         L.append('')
-    L.append('[메시] 내보냄 {}개{}'.format(
-        len(exported), (' / 실패 {}개: {}'.format(len(failed), ', '.join(failed))
-                        if failed else '')))
+    L.append('[메시] 링크 {}개 중 {}개에 STL 이 붙었다{}'.format(
+        len(plan['origins']), len(exported),
+        (' / 실패 {}개: {}'.format(len(failed), ', '.join(failed))
+         if failed else '')))
+    no_mesh = sorted(set(plan['origins']) - set(exported))
+    if no_mesh:
+        L.append('  STL 이 없는 링크 {}개: {}'.format(
+            len(no_mesh), ', '.join(no_mesh)))
     return '\n'.join(L)
 
 
 def do_export(ui, design, inputs):
     root = design.rootComponent
-    model_name = Extract.sanitize(root.name.split()[0])
+    model_name = (inputs.itemById('model_name').value or '').strip()
+    model_name = Extract.sanitize(model_name or root.name.split()[0])
 
     joints, warns = Extract.collect_joints(root)
     if not joints:
@@ -141,6 +198,8 @@ def do_export(ui, design, inputs):
         return
 
     links = Extract.link_names(root)
+    # copy_occs 가 원본 이름을 'old_component' 로 바꿔 버리므로 그 전에 모아 둔다.
+    renames = Extract.collect_renames(root)
 
     # 사용자가 고른 equality 쌍
     forced = []
@@ -180,28 +239,47 @@ def do_export(ui, design, inputs):
         return
 
     export_meshes = inputs.itemById('export_meshes').value
+    act_joints = [s.strip() for s
+                  in (inputs.itemById('actuator_joints').value or '')
+                  .replace(',', ' ').split() if s.strip()]
     options = {
         'fix_base': inputs.itemById('fix_base').value,
         'actuator': inputs.itemById('actuator').selectedItem.name,
+        'actuator_joints': act_joints or None,
+        'add_collision': inputs.itemById('add_collision').value,
+        'exclude_adjacent': inputs.itemById('exclude_adjacent').value,
     }
 
     # 메시를 먼저 내보내야 어떤 링크에 STL 이 있는지 알고 <asset> 을 쓸 수 있다.
     # copy_occs 는 디자인을 실제로 바꾸므로 되돌리라고 알려야 한다.
+    #
+    # body 트리에 실제로 들어간 링크만 내보낸다 — 예전처럼 디자인 전체를
+    # 훑으면 하위 컴포넌트 원본이 새어 나와 죽은 asset 이 쌓이고, 그중 이름에
+    # 한글이 섞이면 모델 전체가 로딩에 실패한다.
+    wanted = set(plan['origins'])
     exported, failed = set(), []
     if export_meshes:
         Mesh.copy_occs(root)
-        exported, failed = Mesh.export_stl(design, save_dir, design.allComponents)
+        exported, failed = Mesh.export_stl(design, root, save_dir, wanted)
+        mesh_names = exported
+    else:
+        # STL 을 안 내보낼 때는 "이미 이 폴더에 있겠거니" 하고 링크 전체를
+        # <asset> 에 찍었었다. 폴더가 비어 있으면 로딩 안 되는 XML 이 조용히
+        # 나간다 — 실제로 있는 파일만 쓴다.
+        mesh_names = _existing_meshes(save_dir, wanted)
+        warns.append('STL 을 내보내지 않았다 — 저장 폴더의 meshes/ 에 이미 있는 '
+                     '{}개만 <asset> 에 넣었다.'.format(len(mesh_names)))
 
     xml, w3 = Mjcf.build(model_name, plan, inertia,
-                         mesh_names=exported if export_meshes else links,
-                         options=options)
+                         mesh_names=mesh_names, options=options)
     warns += w3
 
     xml_path = os.path.join(save_dir, model_name + '.xml')
     with open(xml_path, 'w', encoding='utf-8') as f:
         f.write(xml)
 
-    report = _report(model_name, plan, warns, exported, failed, save_dir)
+    report = _report(model_name, plan, warns, mesh_names, failed, save_dir,
+                     renames=renames, joints=joints)
     with open(os.path.join(save_dir, model_name + '.report.txt'),
               'w', encoding='utf-8') as f:
         f.write(report)
@@ -225,6 +303,17 @@ def _is_ascii(s):
         return True
     except UnicodeEncodeError:
         return False
+
+
+def _existing_meshes(save_dir, wanted):
+    """`save_dir/meshes/` 에 실제로 있는 STL 중 트리에 쓰이는 링크 이름 집합."""
+    mesh_dir = os.path.join(save_dir, 'meshes')
+    try:
+        files = os.listdir(mesh_dir)
+    except Exception:
+        return set()
+    have = {os.path.splitext(f)[0] for f in files if f.lower().endswith('.stl')}
+    return have & set(wanted)
 
 
 def _ask_folder(ui, model_name):
@@ -266,19 +355,36 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             inputs = cmd.commandInputs
 
             design = adsk.fusion.Design.cast(app.activeProduct)
-            links, auto = [], []
+            links, auto, jnames, default_name, posed = [], [], [], '', []
             if design:
                 root = design.rootComponent
                 links = Extract.link_names(root)
-                joints, _ = Extract.collect_joints(root)
+                joints, jwarns = Extract.collect_joints(root)
                 auto = detect_loops(joints)
+                jnames = sorted(n for n, j in joints.items()
+                                if j['type'] != 'fixed')
+                default_name = Extract.sanitize(root.name.split()[0])
+                posed = [n for n, j in joints.items()
+                         if abs(j.get('current_value') or 0.0) > 1e-6]
 
             note = ('자동 감지된 폐루프 폐합 조인트: '
                     + (', '.join(auto) if auto else '없음'))
+            if jnames:
+                note += '\n움직이는 관절: ' + ', '.join(jnames)
+            # 자세가 0 이 아니면 여기서 먼저 막아 세운다 — 내보내고 나면
+            # 조인트 원점이 그 자세로 굳어 기구 치수가 조용히 틀어진다.
+            if posed:
+                note = ('[경고] 조인트 {}개가 0 이 아닌 자세입니다 ({}). 그 자세가 '
+                        'MJCF 의 기준 자세가 되고 조인트 원점과 리밋이 함께 밀립니다. '
+                        '되돌린 뒤 다시 실행하세요.\n\n'.format(
+                            len(posed), ', '.join(posed)) + note)
             inputs.addTextBoxCommandInput(
                 'info', '', note + '\n\n감지된 것은 자동으로 equality 로 나갑니다. '
                 'Fusion 에서 아직 루프를 안 닫아 뒀다면 아래에서 두 링크를 직접 '
-                '고르세요.', 4, True)
+                '고르세요.', 7, True)
+
+            inputs.addStringValueInput('model_name', '모델 이름 (파일명)',
+                                       default_name)
 
             d1 = inputs.addDropDownCommandInput(
                 'body1', 'equality body1', adsk.core.DropDownStyles.TextListDropDownStyle)
@@ -298,17 +404,23 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             inputs.addStringValueInput(
                 'anchor', 'anchor (root 기준 m, 비우면 조인트에서)', '')
             inputs.addStringValueInput(
-                'extra_pairs', '추가 쌍  A:B:connect, C:D:weld', '')
+                'extra_pairs', '추가 쌍  A:B:connect:x y z, C:D:weld', '')
 
             inputs.addBoolValueInput('fix_base', 'base_link 를 world 에 고정',
                                      True, '', True)
             inputs.addBoolValueInput('export_meshes', 'STL 메시도 내보내기',
                                      True, '', True)
+            inputs.addBoolValueInput('add_collision', '충돌용 geom 도 생성',
+                                     True, '', True)
+            inputs.addBoolValueInput(
+                'exclude_adjacent', '인접/equality 쌍의 자기충돌 제외', True, '', True)
 
             act = inputs.addDropDownCommandInput(
                 'actuator', '액추에이터', adsk.core.DropDownStyles.TextListDropDownStyle)
             for name in ('position', 'motor', 'none'):
                 act.listItems.add(name, name == 'position')
+            inputs.addStringValueInput(
+                'actuator_joints', '구동할 관절 (비우면 전부)', '')
 
             on_execute = ExecuteHandler()
             cmd.execute.add(on_execute)

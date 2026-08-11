@@ -210,7 +210,20 @@ def plan(joints, forced_pairs=(), base=BASE_LINK):
             source = '사용자가 입력한 anchor(root 좌표)'
 
         if eq_type is None:
-            eq_type, note = recommend_equality(src_type or 'fixed')
+            if src_type is None:
+                # 두 링크 사이에 Fusion 조인트가 없으면 끊은 자유도를 알 길이
+                # 없다. 예전에는 `src_type or 'fixed'` 로 떨어져 weld 가
+                # 나왔는데, 폐루프를 닫으려고 손으로 지정하는 상황에서 weld 는
+                # 거의 항상 틀린 답이다 — 에러 없이 로딩되고 기구학만 조용히
+                # 어긋난다(4절링크 실측: 로커암이 정답의 1/3.6 만 움직임).
+                # 게다가 리포트에 "fixed(0 DOF) 를 끊었으므로" 라는, 있지도
+                # 않은 조인트를 근거로 대는 문장이 붙었다.
+                eq_type = 'connect'
+                note = ('두 링크 사이에 Fusion 조인트가 없어 끊은 자유도를 알 수 '
+                        '없다 — 핀 연결로 보고 connect 를 골랐다. 정말 완전 고정'
+                        '이어야 하면 weld 로 직접 지정하라.')
+            else:
+                eq_type, note = recommend_equality(src_type)
         else:
             note = '사용자가 {} 로 지정했다.'.format(eq_type)
 

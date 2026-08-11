@@ -21,6 +21,7 @@ fusion2urdf 의 `core/Joint.py` / `core/Link.py` 를 그대로 따르되 두 가
 import adsk
 import adsk.core
 import adsk.fusion
+import hashlib
 import re
 
 # adsk.fusion.JointTypes 인덱스 순서. fusion2urdf 의 joint_type_list 와 같아야
@@ -34,7 +35,33 @@ BASE_LINK = 'base_link'
 
 
 def sanitize(name):
-    return re.sub('[ :()]', '_', name)
+    """Fusion 이름 -> MJCF 에서 쓸 수 있는 식별자.
+
+    fusion2urdf 는 공백/콜론/괄호만 밑줄로 바꿨는데, 그러면 한글이 그대로
+    남아 메시 파일명이 된다. MuJoCo 는 그런 파일을 못 연다 — 실측:
+
+        Error: Error opening file 'meshes/키-30-3 v1.stl'
+
+    링크 이름 = 메시 이름 = STL 파일명이 한 몸이라 파일명만 따로 바꿀 수도
+    없다. 그래서 여기서 비ASCII 를 통째로 밑줄로 바꾼다. 서로 다른 원본이
+    같은 ASCII 이름으로 뭉치면 링크가 조용히 합쳐지므로, 바뀐 경우에만
+    원본 해시 4자리를 붙여 구분한다.
+    """
+    out = re.sub('[ :()]', '_', name)
+    safe = re.sub(r'[^A-Za-z0-9_.\-]', '_', out)
+    if safe != out:
+        stem = safe.strip('_-.') or 'link'
+        safe = '{}_{}'.format(
+            stem, hashlib.md5(out.encode('utf-8')).hexdigest()[:4])
+    return safe
+
+
+def is_ascii(s):
+    try:
+        s.encode('ascii')
+        return True
+    except UnicodeEncodeError:
+        return False
 
 
 def _m3(arr):
@@ -116,12 +143,14 @@ def _motion(joint, urdf_type):
         if urdf_type in ('revolute', 'Cylinderical', 'PinSlot'):
             axis = [round(i, 6) for i in motion.rotationAxisVector.asArray()]
             upper, lower = lim(motion.rotationLimits, 1.0, '회전')
+            extra['current_value'] = float(getattr(motion, 'rotationValue', 0.0))
             if urdf_type == 'PinSlot':
                 extra['slide_axis'] = [round(i, 6)
                                        for i in motion.slideDirectionVector.asArray()]
         elif urdf_type == 'prismatic':
             axis = [round(i, 6) for i in motion.slideDirectionVector.asArray()]
             upper, lower = lim(motion.slideLimits, 0.01, '슬라이드')
+            extra['current_value'] = float(getattr(motion, 'slideValue', 0.0))
         elif urdf_type == 'Planner':
             extra['normal'] = [round(i, 6) for i in motion.normalDirectionVector.asArray()]
             extra['primary'] = [round(i, 6) for i in motion.primarySlideDirection.asArray()]
@@ -201,6 +230,21 @@ def collect_joints(root, top_level_only=False):
             name = '{}_{}'.format(name, n)
         joints[name] = rec
 
+    # 조인트를 드래그해 둔 자세 그대로 내보내면 **조인트 원점이 그 자세로 굳어
+    # 들어간다.** 메시는 별개로 배치되므로 기구 치수가 조용히 틀어진다.
+    # 실제 사례(docs/DigitalTwin.md §12-3): 크랭크를 사점(180deg)에 둔 채
+    # 내보냈더니 크랭크핀과 equality anchor 가 둘 다 정확히 35mm(=2x편심)
+    # 밀려, 커넥팅로드 유효길이가 60mm -> 25mm 로 뭉개졌다. 행정은 2x편심이라
+    # 편심 방향이 반대여도 같은 값이 나와서 발견이 늦었다.
+    posed = [(n, j.get('current_value') or 0.0) for n, j in joints.items()
+             if abs(j.get('current_value') or 0.0) > 1e-6]
+    if posed:
+        warns.append(
+            '조인트 {}개가 0 이 아닌 자세로 놓여 있다 — 그 자세가 그대로 MJCF 의 '
+            '기준 자세(qpos=0)가 되고 조인트 원점·리밋이 함께 밀린다. Fusion 에서 '
+            '모두 0 으로 되돌린 뒤 다시 내보내라: {}'.format(
+                len(posed), ', '.join('{}={:.4g}'.format(n, v) for n, v in posed)))
+
     return joints, warns
 
 
@@ -248,3 +292,27 @@ def link_names(root):
         names.append(BASE_LINK if occ.component.name == BASE_LINK
                      else sanitize(occ.name))
     return sorted(set(names))
+
+
+def collect_renames(root):
+    """sanitize 가 이름을 바꾼 것들. [(원본, 바뀐이름), ...]
+
+    비ASCII 때문에 바뀐 이름은 Fusion 에서 보이는 것과 MJCF 안의 것이 달라
+    사람이 헷갈린다. 리포트에 적어 둔다.
+    """
+    out = []
+    for occ in root.occurrences:
+        if occ.component.name == BASE_LINK:
+            continue
+        new = sanitize(occ.name)
+        if new != re.sub('[ :()]', '_', occ.name):
+            out.append((occ.name, new))
+    for joint, _ in _iter_joints(root):
+        try:
+            old = joint.name
+        except Exception:
+            continue
+        new = sanitize(old)
+        if new != re.sub('[ :()]', '_', old):
+            out.append((old, new))
+    return sorted(set(out))
