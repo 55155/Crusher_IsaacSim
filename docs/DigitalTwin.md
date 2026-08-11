@@ -1719,6 +1719,111 @@ crash/관통 없음. `rigid_mpm` 커플링 자체는 안정적이라는 근거 �
 바닥(항상 world z=0) 바로 위에 오도록 배치하거나, 버그가 고쳐진 이후 버전을
 기다려야 함.
 
+### 조합 12 — 접촉/커플링 pair 제어 수단과 MPM 입자 크기의 실질 한계 · **코드 레벨 조사(실행 검증 없음)** (2026-08-11)
+
+**성격 먼저**: 이건 새로 돌린 실험이 아니라 **Genesis 1.3.1 설치본 소스를 직접
+읽어 확인한 조사 기록**이다. 아래 표의 비용 수치는 코드의 공식에서 유도한
+값이지 실측이 아니다(그렇게 표시해 둠). 조합 10·11 을 재시도하거나 새 조합을
+설계하기 전에 "무엇이 되고 무엇이 안 되는가"를 먼저 못박아 두려고 남긴다.
+
+#### 12-A. MPM 입자 크기는 자유롭게 못 줄인다 — 실질 제약은 격자 dx
+
+`MPMOptions.particle_size` 자체엔 하한이 **없다**(`PositiveFloat`, 그냥 >0 —
+`options/solvers.py:645`). 안 주면 자동으로 잡히는데, 그 공식이 핵심이다:
+
+```
+particle_size = 0.01 * 64 / grid_density     # solvers.py:663-665
+dx            = 1 / grid_density             # mpm_solver.py:53
+→ particle_size = 0.64 * dx  (항상)
+```
+
+즉 Genesis 가 권장하는 건 절대 크기가 아니라 **입자경 ≈ 0.64 × 격자간격**이라는
+*비율*이다. 그리고 `particle_size` 가 솔버에서 실제로 하는 일은 딱 둘뿐이다
+(전수 확인) — **입자 질량**(`volume = particle_size**3`, `mpm_solver.py:48-50`)과
+**샘플링 간격**(`particle_entity.py:257-270`). **충돌 반경으로는 어디서도 안
+쓰인다.** 접촉·커플링 판정은 전부 `mpm_solver.dx` 기준이다
+(`legacy_coupler.py:386,433,574` — 574줄엔 `NOTE: use dx as minimal unit for
+collision` 이라고 명시돼 있다).
+
+**→ 조합 10 에 대한 함의**: 알갱이만 줄이는 건 누출 대책이 될 수 없다. 조합 10
+에서 "포착 반경 `dx*0.5 ≈ 3.9mm`" 로 이미 짚은 것과 같은 얘기인데, 한 단계 더
+나아가면 — **dx=7.8mm 격자로는 6mm 입구 슬롯이 셀 하나 안에 통째로 들어가
+애초에 표현되지 않는다.** 슬롯을 격자에 보이게 하려면 dx ≲ 2mm, 즉
+`grid_density ≥ 512` 가 필요하다.
+
+**그 비용**(Powder_flip_test 도메인 0.24×0.24×0.33m 기준, 코드 공식에서 유도 —
+셀 수는 `mpm_solver.py:55-57`, substep 하한은 `:238` 의 `2e-2 * dx`):
+
+| grid_density | dx | 기본 입자경 | 격자 셀 | 필요 substeps(DT=1e-3) | 상대 비용 |
+| --- | --- | --- | --- | --- | --- |
+| 128 (조합10 사용값) | 7.8mm | 5mm | 41k | 10 ✓ | 1× |
+| 256 | 3.9mm | 2.5mm | 341k | 13 | ~16× |
+| **512** | **2.0mm** | **1.25mm** | **2.6M** | **26** | **~256×** |
+| 1024 | 0.98mm | 0.63mm | 20.7M (~0.7GB) | 52 | ~4,100× |
+| 2048 | 0.49mm | 0.31mm | 164M (~5.9GB) | 103 | ~66,000× |
+| ~3700 | 0.27mm | — | 1e9 초과 → **raise** | — | — |
+
+비용이 **1/dx⁴** 로 간다(격자 세제곱 × substep 수). 하드 캡은 셀 총량 1e9
+(`mpm_solver.py:59-63`)지만 메모리가 훨씬 먼저 죽는다. 이 도메인의 현실선은
+**grid_density 1024, dx≈1mm, 알갱이≈0.6mm** 정도로 보이고, 그 아래로 가려면
+도메인을 더 좁혀야 한다.
+
+**결론적 관점**: 실제 의약품 파우더 입도(10~100µm)를 맞추는 건 목표가 아니고
+가능하지도 않다(100µm → 이 도메인에서 1.9e10 셀, 하드 캡 초과). MPM 입자는
+물리적 알갱이가 아니라 **연속체의 적분점**이고, 과립 거동은
+`MPM.Sand` 의 Drucker-Prager 소성모델(`friction_angle`)이 담당한다.
+**`particle_size` 는 물성이 아니라 이산화 파라미터다.**
+
+#### 12-B. 접촉/커플링을 특정 pair 만 켤 수 있는가 — 축마다 다르다
+
+| 축 | 수단 | 필터 단위 | 코드 |
+| --- | --- | --- | --- |
+| Rigid ↔ Rigid | `contype`/`conaffinity` 비트마스크 | **geom** | `collider.py:408-410` |
+| Rigid ↔ MPM/SPH/PBD/FEM | `material.needs_coup` | **geom** | `legacy_coupler.py:143,479,680,715` |
+| 〃 (링크로 더 좁히기) | `material.coup_links` | **link** | `rigid_entity.py:2542` |
+| 솔버 종류 간 | `LegacyCouplerOptions` 7 플래그 | 솔버 **종류** | `options/solvers.py:104-110` |
+| IPC 커플러 | `coup_type` / `enable_coup_collision` / `coup_collision_links` | 엔티티·링크 | `materials/rigid.py:62-85` |
+| **MPM ↔ PBD/SPH/FEM** | **없음** | — | 근접판정에 geom 개념 자체가 없음 |
+| **MPM 입자끼리** | **없음** | — | 격자 매개라 "pair" 가 존재하지 않음 |
+
+**핵심 — Rigid↔MPM 은 geom 단위로 끌 수 있다.** 커플링 커널이 모든 rigid geom
+을 돌면서 geom 별로 플래그를 본다:
+
+```python
+for i_p, i_b in qd.ndrange(mpm_solver.n_particles, ...):   # legacy_coupler.py:476
+    for i_g in range(rigid_solver.n_geoms):
+        if geoms_info.needs_coup[i_g]:                      # ← 여기 (:479)
+            sdf_normal = sdf.sdf_func_normal_world(...)
+```
+
+이 플래그는 `needs_coup = material.needs_coup and (coup_links is None or
+link.name in coup_links)` 로 geom 마다 채워진다(`rigid_entity.py:2542`). 그래서
+`gs.materials.Rigid(needs_coup=False)` 인 강체는 루프에서 스킵된다 — "body1 만
+모래와 접촉, body2 는 무시" 가 성립한다. **건너뛰는 게 입자×geom 마다 도는 SDF
+질의라 계산량도 같이 준다.**
+
+**주의 4가지(전부 코드 확인)**:
+1. `needs_coup=False` 는 **모든 파티클 솔버**와의 접촉을 한꺼번에 끈다 —
+   MPM(`:479`)·SPH(`:680`)·PBD(`:715`)·FEM 이 전부 같은 플래그 하나를 본다.
+   "MPM 하고만 끊고 PBD 봉투와는 닿게" 는 불가능.
+2. `needs_coup` 은 **Rigid↔Rigid 충돌엔 영향이 없다.** 그쪽은 collider 의
+   contype/conaffinity 로 완전히 별개 경로다(보통 이게 원하는 동작).
+3. `contype=0 && conaffinity=0` 으로 두면 그 geom 은 **비주얼 전용으로 강등**
+   된다(`utils/collision.py:18-20`). 최소 한 비트는 남겨야 한다.
+4. MJCF/USD 로 로드한 엔티티는 마스크가 **엔티티 내부에서만** 유효하다
+   (`rigid_entity.py:2625-2629`, `is_local_collision_mask`). 엔티티끼리 끄려면
+   Mesh/URDF morph 를 쓰거나 `needs_coup` 쪽을 쓴다.
+
+**끄고 싶은 pair 가 많으면 손으로 비트를 짜지 말 것** — `genesis/utils/
+collision.py:6` 의 `solve_contype_conaffinity(n, invalid_pairs)` 가 z3 로
+마스크를 역산해준다(MJCF `<contact><exclude>` / USD FilteredPairsAPI 임포터가
+쓰는 바로 그 함수). 풀 수 없으면 `None` 을 돌려준다.
+
+**§12(전 Rigid 모드)에 대한 함의**: rigid 공정 검증 모드에서 불필요한 geom
+pair 를 contype/conaffinity 로 끄면 broadphase 후보가 줄어 추가 가속 여지가
+있다 — 조합 10 결론에 적힌 "커플러 옵션은 필요한 것만 켠다" 최적화의 geom 판
+확장. **미적용/미측정.**
+
 ---
 
 ## 10. 피드백
