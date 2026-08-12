@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50.0 -962.0 1400.0 1884.0" width="1400.0" height="1884.0" font-family="Segoe UI, system-ui, sans-serif">
+<rect x="-50.0" y="-962.0" width="1400.0" height="1884.0" fill="#fcfcfb"/>
+<path d="M 150.0 -320.0 H 190.0 V -712.0 H 230.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -712.0 H 420.0 V -852.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 -852.0 H 650.0 V -852.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -712.0 H 420.0 V -796.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 -796.0 H 650.0 V -796.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -712.0 H 420.0 V -656.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 -656.0 H 650.0 V -740.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 -656.0 H 650.0 V -684.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 -656.0 H 650.0 V -628.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 -656.0 H 650.0 V -572.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 150.0 -320.0 H 190.0 V -292.0 H 230.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -292.0 H 420.0 V -516.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -292.0 H 420.0 V -460.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -292.0 H 420.0 V -404.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -292.0 H 420.0 V -348.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -292.0 H 420.0 V -292.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -292.0 H 420.0 V -180.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 -180.0 H 650.0 V -180.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 840.0 -180.0 H 880.0 V -180.0 H 920.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 1070.0 -180.0 H 1110.0 V -236.0 H 1150.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 1070.0 -180.0 H 1110.0 V -180.0 H 1150.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 1070.0 -180.0 H 1110.0 V -124.0 H 1150.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 -292.0 H 420.0 V -68.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 150.0 -320.0 H 190.0 V 72.0 H 230.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 72.0 H 420.0 V 16.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 16.0 H 650.0 V -12.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 16.0 H 650.0 V 44.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 72.0 H 420.0 V 100.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 100.0 H 650.0 V 100.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 380.0 72.0 H 420.0 V 156.0 H 460.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 610.0 156.0 H 650.0 V 156.0 H 690.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<path d="M 150.0 -320.0 H 190.0 V 212.0 H 230.0" fill="none" stroke="#c3c2b7" stroke-width="1.5"/>
+<rect x="0.0" y="-340.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#2a78d6" stroke-width="3"/>
+<text x="75.0" y="-320.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">base_link</text>
+<rect x="230.0" y="-732.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="305.0" y="-712.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">F_Back_1</text>
+<rect x="460.0" y="-872.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-852.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">F_Left_1</text>
+<rect x="690.0" y="-872.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="-852.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">LeftSlider1_1</text>
+<rect x="460.0" y="-816.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-796.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">F_Right_1</text>
+<rect x="690.0" y="-816.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="-796.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">RightSlider1_1</text>
+<rect x="460.0" y="-676.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-656.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">F_Top_1</text>
+<rect x="690.0" y="-760.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="-740.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">F_RightLink2_1</text>
+<rect x="690.0" y="-704.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="-684.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">F_RightLink_1</text>
+<rect x="690.0" y="-648.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="-628.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">F_LeftLink_1</text>
+<rect x="690.0" y="-592.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="-572.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">Handle_1</text>
+<rect x="230.0" y="-312.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="305.0" y="-292.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">Shaft_copy_1</text>
+<rect x="460.0" y="-536.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-516.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">HexNut_1</text>
+<rect x="460.0" y="-480.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-460.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">NeedleBearing_1</text>
+<rect x="460.0" y="-424.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-404.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">Bearing1_1</text>
+<rect x="460.0" y="-368.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-348.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">Washer_1</text>
+<rect x="460.0" y="-312.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-292.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">RachetGear_1</text>
+<rect x="460.0" y="-200.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-180.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">PULLEY_1</text>
+<rect x="690.0" y="-200.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="-180.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">Crank_1</text>
+<rect x="920.0" y="-200.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="995.0" y="-180.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_Top_1</text>
+<rect x="1150.0" y="-256.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="1225.0" y="-236.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_RightLink_1</text>
+<rect x="1150.0" y="-200.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="1225.0" y="-180.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_LeftLink_1</text>
+<rect x="1150.0" y="-144.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="1225.0" y="-124.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_LeftLink2_copy_1</text>
+<rect x="460.0" y="-88.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="-68.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">ShaftHandle_1</text>
+<rect x="230.0" y="52.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="305.0" y="72.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_Bottom_1</text>
+<rect x="460.0" y="-4.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="16.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_Back_1</text>
+<rect x="690.0" y="-32.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="-12.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_Right1_1</text>
+<rect x="690.0" y="24.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="44.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_Left1_1</text>
+<rect x="460.0" y="80.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="100.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_Left2_1</text>
+<rect x="690.0" y="80.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="100.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">LeftSlider2_1</text>
+<rect x="460.0" y="136.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="535.0" y="156.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">M_Right2_1</text>
+<rect x="690.0" y="136.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="765.0" y="156.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">RightSlider2_1</text>
+<rect x="230.0" y="192.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="305.0" y="212.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">PAWL_1</text>
+<rect x="0.0" y="272.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="75.0" y="292.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">CSK_1</text>
+<rect x="0.0" y="352.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="75.0" y="372.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">base__1__1</text>
+<rect x="0.0" y="432.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="75.0" y="452.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">holder2_1</text>
+<rect x="0.0" y="512.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="75.0" y="532.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">고정장치_1</text>
+<rect x="0.0" y="592.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="75.0" y="612.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">이동홀더_사본_1</text>
+<rect x="0.0" y="672.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="75.0" y="692.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">제목_없음__1__1</text>
+<rect x="0.0" y="752.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="75.0" y="772.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">축돌림용_1</text>
+<rect x="0.0" y="832.0" width="150" height="40" rx="8" ry="8" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="75.0" y="852.0" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#0b0b0b">회수장치_1</text>
+<rect x="0.0" y="-951.0" width="14" height="14" rx="3" ry="3" fill="#fcfcfb" stroke="#2a78d6" stroke-width="1.5"/>
+<text x="20.0" y="-940.0" font-size="11" fill="#52514e">base_link (루트)</text>
+<rect x="154.0" y="-951.0" width="14" height="14" rx="3" ry="3" fill="#fcfcfb" stroke="#898781" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="174.0" y="-940.0" font-size="11" fill="#52514e">조인트 없는 독립 부품</text>
+<rect x="336.0" y="-951.0" width="14" height="14" rx="3" ry="3" fill="#fcfcfb" stroke="#d03b3b" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="356.0" y="-940.0" font-size="11" fill="#52514e">폐루프(순환) 연결</text>
+</svg>

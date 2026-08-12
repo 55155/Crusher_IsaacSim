@@ -72,25 +72,27 @@ def run(context):
             return 0
         
         # --------------------
-        # 폐루프 처리: equality constraint 로 쓸 조인트를 골라 URDF 에서 뺀다.
-        # URDF 는 링크마다 부모가 하나여야 하는데, Write.write_link_urdf 가
-        # "조인트마다 링크 하나"를 찍기 때문에 폐루프가 있으면 같은 링크가 두 번
-        # 정의된 불법 URDF 가 나온다(예: 회수장치2 의 Crank_1). 루프를 닫는
-        # 조인트를 빼면 트리가 정상화되고, 루프 정보는 사이드카로 보존된다.
-        constraint_names, cancelled = Constraint.select_constraint_joints(ui, joints_dict, title)
+        # 폐루프 처리
+        #
+        # URDF 는 링크마다 부모가 하나여야 하는데, Fusion 의 component1/component2
+        # 순서는 조립 편의상의 산물이라 그대로 쓰면 어떤 링크는 부모가 둘, 어떤
+        # 링크는 0개가 된다(실측: Crank_1 부모 2개 / M_Top_1 부모 0개). 그래서
+        #   1) base_link 기준으로 모든 조인트 방향을 다시 세우고
+        #   2) 루프를 닫는 조인트는 URDF 에서 빼 사이드카에 접합 위치만 남긴다.
+        joints_dict_full = dict(joints_dict)
+        constraint_names, cancelled = Constraint.select_constraint_joints(
+            ui, joints_dict, title)
         if cancelled:
             ui.messageBox('Fusion2URDF was canceled', title)
             return 0
-        # equality 종류 판정은 **자르기 전** 전체 joints_dict 로 해야 한다
-        # (루프 구성/평면성 판정에 나머지 조인트가 필요하다).
-        joints_dict_full = dict(joints_dict)
-        joints_dict, constraint_joints = Constraint.split_joints(joints_dict, constraint_names)
 
-        ok, problems = Constraint.validate_tree(joints_dict)
-        if not ok:
-            ui.messageBox('제약을 뺐는데도 트리가 아닙니다:\n\n  ' + '\n  '.join(problems),
-                          title)
+        plan = Constraint.plan_export(joints_dict, constraint_names)
+        if plan['problems']:
+            ui.messageBox('URDF 트리를 만들 수 없습니다:\n\n  ' +
+                          '\n  '.join(plan['problems']), title)
             return 0
+        joints_dict = plan['tree']
+        constraint_joints = plan['constraints']
 
         links_xyz_dict = {}
 
@@ -104,19 +106,24 @@ def run(context):
         Write.write_gazebo_launch(package_name, robot_name, save_dir)
         Write.write_control_launch(package_name, robot_name, save_dir, joints_dict)
         Write.write_yaml(package_name, robot_name, save_dir, joints_dict)
-        
-        # 제약 사이드카 — links_xyz_dict 는 write_urdf 가 채워 놓은 상태여야 하므로
-        # URDF 를 다 쓴 뒤에 기록한다.
+
+        # 제약 사이드카 — anchor 를 body 로컬로 환산하려면 links_xyz_dict 가
+        # 채워져 있어야 하므로 URDF 를 다 쓴 뒤에 기록한다.
         if constraint_joints:
             records = Constraint.build_constraint_records(
                 constraint_joints, links_xyz_dict, joints_dict_full)
             p_json, p_mjcf = Constraint.write_constraints(records, robot_name, save_dir)
-            msg += ('\n\nequality constraint 로 내보낸 조인트 {}개:\n  '.format(len(records))
-                    + '\n  '.join('{}  ({} ↔ {})  -> {}\n     {}'.format(
-                        r['name'], r['body1'], r['body2'], r['equality'], r['why'])
+            msg += ('\n\nURDF <joint> 에서 빼고 equality 로 내보낸 조인트 {}개:\n  '
+                    .format(len(records))
+                    + '\n  '.join('{}  ({} ↔ {})  -> {}\n     anchor(body1 로컬) = {}'
+                                  .format(r['name'], r['body1'], r['body2'],
+                                          r['equality'], r['anchor_body1_local'])
                                   for r in records)
                     + '\n\n사이드카:\n  ' + os.path.basename(p_json)
                     + '\n  ' + os.path.basename(p_mjcf))
+        if plan['flipped']:
+            msg += ('\n\nbase_link 기준으로 방향을 교정한 조인트 {}개:\n  '
+                    .format(len(plan['flipped'])) + ', '.join(sorted(plan['flipped'])))
 
         # copy over package files
         utils.copy_package(save_dir, package_dir)
