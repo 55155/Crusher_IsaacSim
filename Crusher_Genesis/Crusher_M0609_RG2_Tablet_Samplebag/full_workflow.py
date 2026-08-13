@@ -49,7 +49,7 @@ COM 을 추적하는 동적 카메라).
      DigitalTwin.md §9 조합5 절차 재적용).
      **[오진 정정 2026-08-04]** 접촉 파라미터 문제가 아니라 **시각 메시** 문제였다
      — 몽키패치가 반환값 3개 중 세 번째(표면 메시)를 None 으로 지어내 정제가
-     깨져 렌더된 것(§DigitalTwin.md §12-9). d_hat 은 1e-4 로 원복돼 있어 무해.
+     깨져 렌더된 것(§DigitalTwin.md §13-9). d_hat 은 1e-4 로 원복돼 있어 무해.
   3. 격자무늬 Ground 가 렌더에 보임 -> `gs.morphs.Plane(visualization=False)`
      로 충돌(안전망)은 유지하되 렌더만 끔 — 씬엔 알루미늄 플레이트만 보임.
   4. 조명이 어두움 -> ambient_light 상향 + 45도 방향 키 라이트(intensity 8)
@@ -565,9 +565,17 @@ def main(use_viewer: bool = False):
     cam_side = scene.add_camera(res=(960, 720), pos=OVERVIEW_CAM_POS, lookat=OVERVIEW_CAM_LOOK,
                                 fov=45, GUI=False)
 
+    # 계측은 full_workflow_rigid.py 와 **같은 경계**로 잰다(빌드 / 스텝+인코딩).
+    # 그래야 두 방식의 수치를 같은 자로 잰 값으로 비교할 수 있다 — 예전 "16분
+    # 18초"는 스크립트가 아니라 사람이 벽시계로 잰 값이라 build/steps 분리가
+    # 없었고 Genesis 버전·캐시 상태도 기록이 없었다.
+    import time as _time
     print("\n[build] scene.build() 시작...")
+    _t_build = _time.time()
     scene.build(n_envs=0)
-    print("[build] 성공")
+    _build_s = _time.time() - _t_build
+    _t_steps = _time.time()
+    print(f"[build] 성공 ({_build_s:.1f}s)")
 
     # ── 봉투 형상 고정: 바닥+양측면(입구는 자유) — §docstring 참고 ───────────
     # BAG_EULER 가 (90,0,90)으로 바뀌면서 폭(측면 고정 대상) 축이 world X->Y
@@ -837,6 +845,13 @@ def main(use_viewer: bool = False):
     print(f"\n[saved] overview -> {MP4_OVERVIEW}")
     print(f"[saved] bagcam   -> {MP4_BAGCAM}")
     print(f"[saved] sideview -> {MP4_SIDE}")
+
+    _steps_s = _time.time() - _t_steps
+    _n = (N_PREP + N_DROP + N_SETTLE + N_CLOSE + N_GRASP + N_LIFT + N_HOLD
+          + N_ABOVE + N_INSERT + N_SETTLE2 + N_CLAMP + N_RELEASE)
+    print(f"\n[timing] build={_build_s:.1f}s  steps={_steps_s:.1f}s "
+          f"({_n} steps, {_steps_s / _n * 1e3:.1f}ms/step)  "
+          f"합계={_build_s + _steps_s:.1f}s")
     print("완료.")
 
 

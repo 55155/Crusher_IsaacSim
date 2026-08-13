@@ -1,7 +1,7 @@
 """full_workflow_rigid.py — full_workflow.py 와 같은 공정을, **모든 바디를
 rigid 로** 푸는 버전. 커플러(IPC) 없음, FEM 없음.
 
-목적은 재료 충실도가 아니라 **공정 검증**이다 (docs/DigitalTwin.md §12):
+목적은 재료 충실도가 아니라 **공정 검증**이다 (docs/DigitalTwin.md §13):
 기구 배치 · IK 도달성 · 매니퓰레이터 조작정책 · 간섭 — 전부 재료와 무관한
 항목인데, IPC+FEM 조합은 1회 실행에 16분+ 라 배치를 1mm 옮길 때마다 그 비용을
 내고 있었다. 이 파일은 같은 시퀀스를 **약 80초**에 돌린다(약 12배).
@@ -11,16 +11,19 @@ rigid 로** 푸는 버전. 커플러(IPC) 없음, FEM 없음.
 상수도 전부 `full_workflow` 에서 import 한다 — 이 파일에는 "rigid 로 바꾸느라
 달라진 것"만 있다.
 
-**FEM 버전과 다른 점 (전부 §12 에 근거 기록):**
+**FEM 버전과 다른 점 (전부 §13 에 근거 기록):**
 
 1. **봉투** — `Samplebag_seal_pouch3.stl` 은 두께 0의 open shell(watertight=False,
-   hull 을 뜨면 입구가 막힌 슬래브)이라 rigid 로 그대로 못 쓴다. 같은 치수·같은
-   위상을 **box primitive 5장**으로 재생성한 프록시를 쓴다(§12-3).
-   벽 두께를 바꿔도 density 를 역산해 FEM 봉투와 질량이 정확히 일치한다(2.597g).
+   hull 을 뜨면 입구가 막힌 슬래브)이라 rigid 로 그대로 못 쓴다. 같은 외형 치수를
+   **box primitive 한 장**으로 재생성한 프록시를 쓴다(64x90x8mm, 공동 없음).
+   density 를 역산해 FEM 봉투와 질량이 정확히 일치한다(2.597g).
+   예전 5-panel 쉘은 `RB_BAG_SOLID=0` 으로 남겨 뒀다 — 1mm 판 5장이 접촉을
+   중복 생성하고 그리퍼가 물 때 켜졌다 꺼졌다 해서 봉투가 떨렸다(§13-3).
 2. **정제** — FEM 캡슐 대신 MJCF `type="capsule"`(= SDF primitive, §조합6).
-   settle 이후에는 봉투에 종속된 화물로 다룬다(`RB_TABLET_CARGO`, §12-6).
+   봉투에 종속된 화물로 다룬다(`RB_TABLET_CARGO`, §13-6). solid 봉투는 공동이
+   없어 첫 스텝부터 태우고 정제 충돌을 끈다(5-panel 은 낙하 후 settle 에서 측정).
 3. **구동** — `set_dofs_position` 텔레포트 금지, `control_dofs_position`(PD) +
-   `gravity_compensation=1.0`. 위치 강제는 접촉 임펄스를 깨뜨린다(§7-7, §12-4).
+   `gravity_compensation=1.0`. 위치 강제는 접촉 임펄스를 깨뜨린다(§7-7, §13-4).
 4. **커플러** — IPC 대신 LegacyCoupler(재질간 플래그 전부 False). 리지드-리지드
    접촉은 리지드 솔버가 자체 처리하므로 `needs_coup=False` 로 커플러용 SDF
    생성도 건너뛴다.
@@ -28,13 +31,15 @@ rigid 로** 푸는 버전. 커플러(IPC) 없음, FEM 없음.
 
 **Left_Wall 충돌은 기본 OFF** (`RB_LEFTWALL_COLLISION=1` 로 켤 수 있음).
 켜면 비볼록 hull 이 다른 크러셔 부품과 간섭해 슬라이드 조인트를 -10mm 에
-잼시켜 **슬롯이 아예 안 열린다**(§12-7). 켜려면 볼록분해가 선행돼야 한다.
+잼시켜 **슬롯이 아예 안 열린다**(§13-7). 켜려면 볼록분해가 선행돼야 한다.
 
 env:
   Y_OFFSET_MM           슬롯 IK 타깃 Y 스윕 (기본 0)
   WALL_OPEN_MM          슬롯 개방량 mm (기본 6.0). +7.1mm 가 기구 하드 스톱이라
-                        그 이상 지령해도 통로는 약 19.1mm 가 상한(§12-7).
+                        그 이상 지령해도 통로는 약 19.1mm 가 상한(§13-7).
   RB_TABLET_CARGO       정제를 봉투 종속 화물로 (기본 1)
+  RB_BAG_SOLID          봉투를 공동 없는 단일 box primitive 로 (기본 1).
+                        0 이면 예전 5-panel 쉘 — 떨림 원인 A/B 확인용.
   RB_LEFTWALL_COLLISION Left_Wall 충돌 (기본 0 — 켜면 잼)
   VIEWER                1 이면 뷰어
 
@@ -65,13 +70,28 @@ Y_OFFSET = Y_OFFSET_MM * 1e-3
 WALL_OFFSET = float(os.environ.get("WALL_OPEN_MM", "6.0")) * 1e-3
 RB_TABLET_CARGO = os.environ.get("RB_TABLET_CARGO", "1") == "1"
 RB_LEFTWALL_COLLISION = os.environ.get("RB_LEFTWALL_COLLISION", "0") == "1"
+# 봉투 프록시를 공동 없는 단일 box primitive 로 (기본). 0 이면 예전 5-panel 쉘.
+RB_BAG_SOLID = os.environ.get("RB_BAG_SOLID", "1") == "1"
 
 _STEM = f"rigid_workflow_wall{WALL_OFFSET*1e3:+.1f}mm_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}"
 MP4_OVERVIEW = os.path.join(OUT_DIR, f"{_STEM}_overview.mp4")
 MP4_BAGCAM = os.path.join(OUT_DIR, f"{_STEM}_bagcam.mp4")
 MP4_SIDE = os.path.join(OUT_DIR, f"{_STEM}_sideview.mp4")
 
-# ── rigid 프록시 파라미터 (docs/DigitalTwin.md §12-3) ────────────────────────
+# ── rigid 프록시 파라미터 (docs/DigitalTwin.md §13-3) ────────────────────────
+# 봉투 프록시는 두 모드가 있다.
+#
+#  solid (RB_BAG_SOLID=1, 기본) — 외형 치수만 가진 box primitive **한 장**.
+#    내부 공동을 안 판다. 5-panel 쉘은 1mm 두께 판이 한 바디에 5장 붙어 있어
+#    떨림 경로가 셋이나 된다: (a) 접촉점이 판마다 따로 생겨 같은 자리에 중복
+#    구속이 걸리고, (b) 그리퍼가 1mm 판을 물면 접촉이 켜졌다 꺼졌다 하고,
+#    (c) 공동 6mm 에 캡슐 지름 4mm 인 정제가 여유 1mm/쪽으로 front/back 을
+#    간헐적으로 때린다. 볼록 geom 하나면 셋 다 사라진다. 공정 검증(배치·IK·
+#    간섭)에 필요한 건 외형뿐이라 공동을 버려도 잃는 정보가 없다.
+#
+#  shell (RB_BAG_SOLID=0) — 예전 5-panel. 떨림의 원인이 정말 쉘이었는지
+#    A/B 로 확인할 때만 쓴다. 아래 RB_PANELS 는 이 모드에서만 읽힌다.
+#
 # 패널별 (두께, 성장방향). 성장방향 +1=바깥 / -1=안쪽:
 #  - front/back: 바깥. 안쪽으로 키우면 공동이 6->4mm 인데 정제 캡슐 지름이 정확히
 #    4mm 라 여유 0. 바깥이면 외형 8mm 이나 통로(17~19mm) 대비 충분하고, FEM 봉투도
@@ -88,6 +108,19 @@ RB_PANELS = {
     "bottom": (0.004, -1),
 }
 BAG_HALF_T = 0.003  # 봉투 표면 메시의 두께 반값(로컬 Z, 실측 ±3mm)
+# solid 모드 반치수 — 5-panel 쉘의 외형 AABB 와 **정확히 같게** 잡는다.
+# 폭(64mm)/높이(90mm)는 좌우·바닥 판이 안쪽으로 자라 외형이 안 변하고, 두께만
+# front/back 이 바깥으로 1mm 씩 자라 6 -> 8mm. 같은 외형이라 §13-7 슬롯 개방
+# 스윕에서 얻은 여유 수치를 그대로 승계한다.
+RB_SOLID_HALF = (fw.BAG_PANEL_HALF_W, fw.BAG_PANEL_HALF_H, BAG_HALF_T + fw.CLOTH_THICK)
+# solid 봉투는 속이 차 있어 정제를 낙하로 담을 수 없다. cargo 모드일 때 정제를
+# 태울 로컬 오프셋 — 5-panel 쉘에서 정제가 공동 바닥에 앉던 자리와 같게 잡는다
+# (바닥 판 4mm + 캡슐 반지름 2mm 만큼 바닥에서 띄운 높이).
+RB_CARGO_LOCAL = np.array(
+    [0.0, -(fw.BAG_PANEL_HALF_H - 0.004 - fw.CAP_RADIUS_MM * 1e-3), 0.0])
+# solid 박스는 판 5장이 아니라 한 덩어리라 안이 안 보인다 — cargo 정제가
+# bagcam 에 잡히도록 알파를 낮춘다(공정 영상 판독용, 물리와 무관).
+RB_BAG_ALPHA = 0.55
 # 질량 보존: 패널 두께를 바꿔도 density 를 역산해 FEM 봉투와 정확히 맞춘다.
 RB_CLOTH_AREA = (2 * (2 * fw.BAG_PANEL_HALF_W) * (2 * fw.BAG_PANEL_HALF_H)
                  + 2 * (2 * BAG_HALF_T) * (2 * fw.BAG_PANEL_HALF_H)
@@ -102,7 +135,7 @@ RB_ARM_KP, RB_ARM_KV = 20000.0, 1200.0
 RB_FING_KP, RB_FING_KV = 60.0, 3.0
 
 # Left_Wall 은 원본 MJCF 에서 contype=0/conaffinity=0 이라 리지드 솔버가 충돌을
-# 걸러낸다. 되살리면 클램프 접촉을 볼 수 있지만 §12-7 의 잼이 생긴다.
+# 걸러낸다. 되살리면 클램프 접촉을 볼 수 있지만 §13-7 의 잼이 생긴다.
 WALL_GEOM_LEFTWALL = "L2_Left_Wall1_1"
 
 # full_workflow.py 는 이 값을 main() 안에서 정의해 import 로 못 가져온다. 값과
@@ -124,6 +157,33 @@ def _quat_to_R(q):
     ])
 
 
+def _rec_new_api(cam):
+    """녹화 API 는 Genesis 버전마다 파일명/fps 를 받는 쪽이 다르다.
+
+      1.2.1 : start_recording()                    / stop_recording(save_to_filename=, fps=)
+      1.3.1 : start_recording(save_to_filename=, fps=) / stop_recording()
+
+    이 프로젝트는 이 드리프트에 이미 두 번 당했다(§13-9). 버전 문자열이 아니라
+    **실제 시그니처**를 보고 고르면 어느 쪽이 깔려 있어도 돌아간다.
+    """
+    import inspect
+    return "save_to_filename" in inspect.signature(cam.start_recording).parameters
+
+
+def _rec_start(cam, path, fps=30):
+    if _rec_new_api(cam):
+        cam.start_recording(save_to_filename=path, fps=fps)
+    else:
+        cam.start_recording()
+
+
+def _rec_stop(cam, path, fps=30):
+    if _rec_new_api(cam):
+        cam.stop_recording()
+    else:
+        cam.stop_recording(save_to_filename=path, fps=fps)
+
+
 def _prepare_crusher_mjcf():
     """fw._prepare_crusher_mjcf 와 같되, 옵션으로 Left_Wall 충돌을 되살린다."""
     dst = fw._prepare_crusher_mjcf()
@@ -136,7 +196,7 @@ def _prepare_crusher_mjcf():
             g.attrib.pop("contype", None)
             g.attrib.pop("conaffinity", None)
     tree.write(dst)
-    print(f"[crusher] {WALL_GEOM_LEFTWALL} 충돌 ON — §12-7 잼 주의")
+    print(f"[crusher] {WALL_GEOM_LEFTWALL} 충돌 ON — §13-7 잼 주의")
     return dst
 
 
@@ -156,8 +216,90 @@ def _panel_grow_in(name):
     return max(0, -grow) * t
 
 
+def _bag_local_bounds():
+    """봉투 프록시 외형의 로컬 AABB (lo, hi). 코너 추적·상태 지표용.
+
+    두 모드가 같은 외형을 내놓아야 슬롯 여유 해석이 이어진다.
+    """
+    if RB_BAG_SOLID:
+        h = np.array(RB_SOLID_HALF)
+        return -h, h
+    hw, hh = fw.BAG_PANEL_HALF_W, fw.BAG_PANEL_HALF_H
+    lo = np.array([-hw - _panel_grow_out("left"), -hh - _panel_grow_out("bottom"),
+                   -BAG_HALF_T - _panel_grow_out("back")])
+    hi = np.array([hw + _panel_grow_out("right"), hh,  # +hh 는 입구(open)
+                   BAG_HALF_T + _panel_grow_out("front")])
+    return lo, hi
+
+
+def _bag_cavity_bounds():
+    """정제 위치 판정의 기준 부피 (lo, hi).
+
+    solid 모드는 공동이 없으므로 외형을 그대로 기준으로 쓴다 — 판정의 뜻이
+    "봉투 **안에** 담겼나"에서 "봉투 외형 범위를 따라오고 있나"로 바뀐다.
+    담기 자체는 §조합5/6/9(FEM+IPC)에서 이미 검증된 항목이라 rigid 모드가
+    다시 풀어야 할 문제가 아니다.
+    """
+    if RB_BAG_SOLID:
+        return _bag_local_bounds()
+    hw, hh = fw.BAG_PANEL_HALF_W, fw.BAG_PANEL_HALF_H
+    lo = np.array([-hw + _panel_grow_in("left"), -hh + _panel_grow_in("bottom"), -BAG_HALF_T])
+    hi = np.array([hw - _panel_grow_in("right"), hh, BAG_HALF_T])
+    return lo, hi
+
+
+def _write_bag_xml(geoms, default_attrs=""):
+    xml = f"""<mujoco model="rigid_bag_proxy">
+  <compiler angle="radian"/>{default_attrs}
+  <worldbody>
+    <body name="bag_proxy" pos="0 0 0">
+      <freejoint name="bag_free"/>
+{geoms}
+    </body>
+  </worldbody>
+</mujoco>
+"""
+    dst = os.path.join(tempfile.mkdtemp(prefix="rigid_bag_"), "rigid_bag.xml")
+    with open(dst, "w", encoding="utf-8") as f:
+        f.write(xml)
+    return dst
+
+
 def prepare_rigid_bag_mjcf():
-    """5-panel 봉투 프록시 MJCF 생성 (docs/DigitalTwin.md §12-3).
+    """봉투 프록시 MJCF 생성 (docs/DigitalTwin.md §13-3). -> (경로, 외형 두께)"""
+    return _prepare_bag_solid() if RB_BAG_SOLID else _prepare_bag_shell()
+
+
+def _prepare_bag_solid():
+    """공동 없는 단일 box primitive — 봉투 외형 치수만 묘사한다.
+
+    외형은 5-panel 쉘의 AABB 와 같은 64 x 90 x 8mm. 질량도 같은
+    RB_TARGET_MASS(FEM cloth 등가)로 맞추는데, 부피가 14.1 -> 46.1cm^3 로
+    3.26배 커지므로 density 를 184 -> 56 kg/m^3 로 역산한다. **질량이 보존되므로
+    접촉 임펄스에 대한 응답은 그대로이고, 달라지는 건 관성 분포뿐이다** —
+    쉘은 질량이 앞뒤 판에 몰려 있고 solid 는 고르게 퍼져 있어, 같은 질량이면
+    solid 쪽이 기울기 쉽다(tilt/twist 지표를 쉘과 직접 비교하지 말 것).
+    """
+    hx, hy, hz = RB_SOLID_HALF
+    vol = 8 * hx * hy * hz
+    density = RB_TARGET_MASS / vol
+    # 실링(좌우 빨강)은 판이 따로 없어 표현할 수 없다 — 단색 본체로 간다.
+    rgba = " ".join(f"{v / 255:.3f}" for v in fw.BAG_BODY_COLOR) + f" {RB_BAG_ALPHA}"
+    geoms = (f'      <geom name="bag_box" type="box" '
+             f'size="{hx:.6f} {hy:.6f} {hz:.6f}" density="{density:.4f}" '
+             f'friction="{RB_FRICTION} 0.02 0.001" contype="1" conaffinity="1" '
+             f'rgba="{rgba}"/>')
+    dst = _write_bag_xml(geoms)
+    out_t = 2 * hz
+    print(f"[rigid-bag] solid box primitive: {2*hx*1e3:.1f} x {2*hy*1e3:.1f} x "
+          f"{out_t*1e3:.1f} mm (공동 없음)")
+    print(f"[rigid-bag] density={density:.1f} vol={vol*1e9:.0f}mm^3 "
+          f"mass={vol*density*1e3:.3f}g (FEM cloth 등가 {RB_TARGET_MASS*1e3:.3f}g)")
+    return dst, out_t
+
+
+def _prepare_bag_shell():
+    """5-panel 봉투 프록시 MJCF 생성 (docs/DigitalTwin.md §13-3).
 
     STL 실측과 정확히 일치: 로컬 원점 중심, X ±32mm(폭) / Y ±45mm(높이, +45 가
     입구) / Z ±3mm(두께). 각 패널의 **안쪽 면**이 원래 cloth 표면 위치에 놓이도록
@@ -188,22 +330,10 @@ def prepare_rigid_bag_mjcf():
         f'size="{s[0]:.6f} {s[1]:.6f} {s[2]:.6f}" rgba="{rgba(n)}"/>'
         for n, p, s in panels
     )
-    xml = f"""<mujoco model="rigid_bag_proxy">
-  <compiler angle="radian"/>
+    dst = _write_bag_xml(geoms, default_attrs=f"""
   <default>
     <geom density="{density:.4f}" friction="{RB_FRICTION} 0.02 0.001" contype="1" conaffinity="1"/>
-  </default>
-  <worldbody>
-    <body name="bag_proxy" pos="0 0 0">
-      <freejoint name="bag_free"/>
-{geoms}
-    </body>
-  </worldbody>
-</mujoco>
-"""
-    dst = os.path.join(tempfile.mkdtemp(prefix="rigid_bag_"), "rigid_bag.xml")
-    with open(dst, "w", encoding="utf-8") as f:
-        f.write(xml)
+  </default>""")
 
     thick = " ".join(f"{n}={_panel_t(n)*1e3:.1f}mm{'out' if RB_PANELS[n][1] > 0 else 'in'}"
                      for n, _, _ in panels)
@@ -216,9 +346,18 @@ def prepare_rigid_bag_mjcf():
     return dst, out_t
 
 
-def prepare_rigid_tablet_mjcf():
-    """정제 프록시 — MJCF capsule geom(= SDF primitive, §조합6)."""
+def prepare_rigid_tablet_mjcf(collide=True):
+    """정제 프록시 — MJCF capsule geom(= SDF primitive, §조합6).
+
+    collide=False 는 solid 봉투 + cargo 조합 전용이다. solid 봉투는 공동이
+    없어 정제가 봉투 solid 안에 겹쳐 놓이는데, 충돌을 켜 두면 그 겹침이
+    그대로 관통 임펄스로 터진다. cargo 는 매 스텝 정제 pose 를 덮어쓰므로
+    정제 자신은 안 움직이지만 **반작용은 봉투로 가서** 떨림이 된다.
+    끄면 정제는 순수 화물이 되고, 크러셔와의 간섭은 정제를 품고 있는
+    봉투 외형이 이미 대표하므로 검증에서 잃는 것이 없다.
+    """
     r, half_cyl = fw.CAP_RADIUS_MM * 1e-3, fw.CAP_CYL_H_MM * 1e-3 / 2
+    con = 1 if collide else 0
     xml = f"""<mujoco model="rigid_tablet">
   <compiler angle="radian"/>
   <worldbody>
@@ -226,7 +365,7 @@ def prepare_rigid_tablet_mjcf():
       <freejoint name="tablet_free"/>
       <geom name="tablet_cap" type="capsule" size="{r:.6f} {half_cyl:.6f}"
             density="{fw.TABLET_RHO}" friction="{fw.TABLET_FRICTION} 0.02 0.001"
-            contype="1" conaffinity="1" rgba="0.90 0.90 0.85 1"/>
+            contype="{con}" conaffinity="{con}" rgba="0.90 0.90 0.85 1"/>
     </body>
   </worldbody>
 </mujoco>
@@ -244,13 +383,21 @@ def main(use_viewer: bool = False):
     print("=" * 60)
     print(f" RIGID workflow (no coupling, all rigid bodies) — viewer={use_viewer}")
     print(f" 슬롯 개방 지령={WALL_OFFSET*1e3:+.1f}mm  Y_OFFSET={Y_OFFSET_MM:+.1f}mm  "
-          f"tablet_cargo={int(RB_TABLET_CARGO)}  leftwall_col={int(RB_LEFTWALL_COLLISION)}")
+          f"tablet_cargo={int(RB_TABLET_CARGO)}  leftwall_col={int(RB_LEFTWALL_COLLISION)}  "
+          f"bag={'solid' if RB_BAG_SOLID else '5-panel'}")
     print("=" * 60)
 
     crusher_xml = _prepare_crusher_mjcf()
     robot_xml = fw._prepare_robot_mjcf()
     bag_xml, bag_outer_t = prepare_rigid_bag_mjcf()
-    tablet_xml = prepare_rigid_tablet_mjcf()
+    # solid 봉투 + cargo 면 정제가 봉투 solid 안에 겹쳐 실리므로 충돌을 끈다.
+    # cargo 가 아니면 담을 공동이 없어 정제는 박스 윗면에 떨어진다(아래 경고).
+    tablet_cargo_ride = RB_BAG_SOLID and RB_TABLET_CARGO
+    tablet_xml = prepare_rigid_tablet_mjcf(collide=not tablet_cargo_ride)
+    if RB_BAG_SOLID and not RB_TABLET_CARGO:
+        print("[tablet] **주의** solid 봉투는 공동이 없어 낙하로 담기지 않는다 — "
+              "정제는 박스 윗면에 얹혔다가 굴러떨어진다. RB_TABLET_CARGO=1 을 쓰거나 "
+              "RB_BAG_SOLID=0 으로 5-panel 쉘을 써라.")
 
     import genesis as gs
     gs.init(backend=gs.gpu, logging_level="warning", precision="32")
@@ -306,7 +453,7 @@ def main(use_viewer: bool = False):
     robot = scene.add_entity(
         gs.morphs.MJCF(file=robot_xml, pos=tuple(fw.ROBOT_OFFSET), decimate=False),
         # PD 로 구동하므로 중력보상을 켠다 — 안 주면 정상상태 오차로 팔이 처져
-        # IK 목표에서 벗어난다(§12-4).
+        # IK 목표에서 벗어난다(§13-4).
         material=rmat(gravity_compensation=1.0),
     )
     bag = scene.add_entity(
@@ -329,7 +476,7 @@ def main(use_viewer: bool = False):
     print(f"[build] 성공 ({build_s:.1f}s)")
 
     # 봉투 자세 하드 홀드 — rigid 프록시는 64x8mm 바닥면에 90mm 높이로 서 있어
-    # 그냥 두면 넘어진다. FEM 의 정점 제약과 같은 역할(§12-4).
+    # 그냥 두면 넘어진다. FEM 의 정점 제약과 같은 역할(§13-4).
     bag_hold_pos = _npy(bag.get_pos()).squeeze().copy()
     bag_hold_quat = _npy(bag.get_quat()).squeeze().copy()
     print(f"[bag] 자세 고정(hold): pos={bag_hold_pos} quat={bag_hold_quat}")
@@ -372,18 +519,13 @@ def main(use_viewer: bool = False):
     print(f"[robot] PD 구동: n_dofs={n_dof} arm kp/kv={RB_ARM_KP}/{RB_ARM_KV} "
           f"finger kp/kv={RB_FING_KP}/{RB_FING_KV} (gravity_compensation=1.0)")
 
-    cam_over.start_recording(save_to_filename=MP4_OVERVIEW, fps=30)
-    cam_bag.start_recording(save_to_filename=MP4_BAGCAM, fps=30)
-    cam_side.start_recording(save_to_filename=MP4_SIDE, fps=30)
+    _rec_start(cam_over, MP4_OVERVIEW)
+    _rec_start(cam_bag, MP4_BAGCAM)
+    _rec_start(cam_side, MP4_SIDE)
 
     # ── 상태 지표 ────────────────────────────────────────────────────────────
-    hw, hh = fw.BAG_PANEL_HALF_W, fw.BAG_PANEL_HALF_H
-    _LOCAL_LO = np.array([-hw - _panel_grow_out("left"), -hh - _panel_grow_out("bottom"),
-                          -BAG_HALF_T - _panel_grow_out("back")])
-    _LOCAL_HI = np.array([hw + _panel_grow_out("right"), hh,  # +hh 는 입구(open)
-                          BAG_HALF_T + _panel_grow_out("front")])
-    _CAV_LO = np.array([-hw + _panel_grow_in("left"), -hh + _panel_grow_in("bottom"), -BAG_HALF_T])
-    _CAV_HI = np.array([hw - _panel_grow_in("right"), hh, BAG_HALF_T])
+    _LOCAL_LO, _LOCAL_HI = _bag_local_bounds()
+    _CAV_LO, _CAV_HI = _bag_cavity_bounds()
 
     def _bag_com():
         return _npy(bag.get_pos()).squeeze()
@@ -421,13 +563,38 @@ def main(use_viewer: bool = False):
     # ── 스텝 구동 ────────────────────────────────────────────────────────────
     bag_held = [True]
     tablet_cargo = [None]
+    if tablet_cargo_ride:
+        # solid 모드는 **첫 스텝부터** 태워야 한다. 정제 충돌을 꺼 놨으므로
+        # 낙하 페이즈를 물리로 돌리면 바닥·선반까지 통과해 무한히 떨어진다.
+        # 담기는 §조합5/6/9(FEM+IPC)에서 검증 완료라 여기서 다시 풀지 않는다.
+        tablet_cargo[0] = RB_CARGO_LOCAL.copy()
+        print(f"[tablet] solid 봉투 — 시작부터 cargo 종속 "
+              f"(로컬 {RB_CARGO_LOCAL*1e3} mm, 5-panel 공동 바닥과 같은 자리), 충돌 OFF")
 
     def drive_robot(q, f):
         # 텔레포트 금지 — 위치 강제는 접촉 임펄스를 깨뜨린다(§7-7).
         robot.control_dofs_position(np.concatenate([q, [f] * 6]))
 
+    # 떨림 계측 — 봉투 freejoint 6-DOF 속도를 매 스텝 모은다. hold 구간은 스텝
+    # 직후에 속도를 0 으로 덮어쓰므로, **덮어쓰기 전에** 받아야 솔버가 실제로
+    # 만들어낸 값이 남는다(그게 곧 떨림이다).
+    jit_buf = []
+
+    def _jitter(n):
+        """직전 n 스텝의 떨림. rms 는 크기, d 는 스텝간 변화량(고주파 성분)."""
+        if n <= 1 or len(jit_buf) < n:
+            return ""
+        v = np.array(jit_buf[-n:])
+        lin, ang = v[:, :3], v[:, 3:]
+        d = np.diff(v, axis=0)
+        return (f"  jit v={np.sqrt((lin**2).sum(1).mean())*1e3:.1f}mm/s "
+                f"w={np.degrees(np.sqrt((ang**2).sum(1).mean())):.1f}deg/s "
+                f"dv={np.abs(d[:, :3]).mean()*1e3:.2f} "
+                f"dw={np.degrees(np.abs(d[:, 3:]).mean()):.2f}")
+
     def step_sim():
         scene.step()
+        jit_buf.append(_npy(bag.get_dofs_velocity()).squeeze().copy())
         if bag_held[0]:
             bag.set_pos(bag_hold_pos)
             bag.set_quat(bag_hold_quat)
@@ -463,6 +630,7 @@ def main(use_viewer: bool = False):
         print(f"[phase] {name:8s} @done  bag_com={_bag_com()}  finger_z="
               f"{float(_npy(left_link.get_pos()).squeeze()[2]):.4f}  "
               f"q_err={q_err*1e3:.2f}mrad{_status()}")
+        print(f"[jitter] {name:8s}{_jitter(n)}")
 
     # ── Phase 0: prep — 크랭크 -180도, Left_Wall 개방 ─────────────────────────
     print(f"\n[phase] 0 prep ({fw.N_PREP*fw.DT:.1f}s) — 크랭크 0->{fw.CRANK_START_Q:+.3f}rad, "
@@ -477,7 +645,7 @@ def main(use_viewer: bool = False):
     cq = _npy(crusher.get_dofs_position())[crank_dof]
     wq = _npy(crusher.get_dofs_position())[wall_dof]
     # 실제 통로 폭은 지령이 아니라 **실측 wq** 로 계산해야 한다 — 잼이 있으면
-    # 둘이 크게 어긋나고, 그 상태로는 봉투가 절대 안 들어간다(§12-7).
+    # 둘이 크게 어긋나고, 그 상태로는 봉투가 절대 안 들어간다(§13-7).
     open_gap = gap_width + wq
     print(f"[phase] prep     @done  crank={cq:+.3f}rad  wall={wq*1000:+.2f}mm "
           f"(지령 {WALL_OFFSET*1000:+.2f}mm, 오차 {(wq-WALL_OFFSET)*1000:+.2f}mm)")
@@ -493,11 +661,12 @@ def main(use_viewer: bool = False):
     run_arm("settle", q_grasp, q_grasp, fw.FING_OPEN, fw.FING_OPEN, fw.N_SETTLE,
             crank_q=fw.CRANK_START_Q, wall_q=WALL_OFFSET)
 
-    if RB_TABLET_CARGO:
-        # 담긴 상태의 로컬 오프셋을 고정 — 이후 정제는 봉투를 따라다니는 화물.
-        # "담기"는 §조합5/6/9(FEM+IPC)에서 이미 검증된 항목이라 여기서 다시 풀지
-        # 않는다. 게다가 공동 두께 6mm 에 캡슐 지름 4mm 라 여유가 1mm/쪽뿐이고,
-        # hold 해제 순간 정제가 front 패널을 뚫고 튀어나간다(§12-6).
+    if RB_TABLET_CARGO and tablet_cargo[0] is None:
+        # 5-panel 모드: 실제로 낙하시켜 담긴 자리를 측정해 고정 — 이후 정제는
+        # 봉투를 따라다니는 화물. "담기"는 §조합5/6/9(FEM+IPC)에서 이미 검증된
+        # 항목이라 여기서 다시 풀지 않는다. 게다가 공동 두께 6mm 에 캡슐 지름
+        # 4mm 라 여유가 1mm/쪽뿐이고, hold 해제 순간 정제가 front 패널을 뚫고
+        # 튀어나간다(§13-6). solid 모드는 이미 위에서 태웠다.
         bp = _bag_com()
         tablet_cargo[0] = _quat_to_R(_npy(bag.get_quat()).squeeze()).T @ \
             (_npy(tablet.get_pos()).squeeze() - bp)
@@ -505,7 +674,7 @@ def main(use_viewer: bool = False):
 
     run_arm("close", q_grasp, q_grasp, fw.FING_OPEN, fw.FING_CLOSE, fw.N_CLOSE,
             crank_q=fw.CRANK_START_Q, wall_q=WALL_OFFSET)
-    # 핑거가 다 닫힌 뒤에 홀드를 푼다 — 붙잡을 게 있는 상태에서 풀기 위함(§12-4).
+    # 핑거가 다 닫힌 뒤에 홀드를 푼다 — 붙잡을 게 있는 상태에서 풀기 위함(§13-4).
     bag_held[0] = False
     print("[bag] hold 해제(핑거 닫힘 완료) — 이제부터 순수 마찰 파지")
 
@@ -567,7 +736,7 @@ def main(use_viewer: bool = False):
 
     # ── 판정 — rigid 기준 ────────────────────────────────────────────────────
     # fw 의 판정식은 "봉투 바닥이 wall_center_z 근방"이라는 **양방향** 창이라,
-    # 봉투가 포켓 바닥까지 제대로 내려가면 오히려 FAIL 이 뜬다(§12-7). rigid
+    # 봉투가 포켓 바닥까지 제대로 내려가면 오히려 FAIL 이 뜬다(§13-7). rigid
     # 에서는 "포켓 안으로 충분히 들어갔는가 + 자세가 서 있는가"로 본다.
     corners = _bag_corners()
     bottom_z = float(corners[:, 2].min())
@@ -596,9 +765,9 @@ def main(use_viewer: bool = False):
     print(f"\n[timing] build={build_s:.1f}s  steps={steps_s:.1f}s "
           f"({n_steps} steps, {steps_s/n_steps*1e3:.1f}ms/step)")
 
-    cam_over.stop_recording()
-    cam_bag.stop_recording()
-    cam_side.stop_recording()
+    _rec_stop(cam_over, MP4_OVERVIEW)
+    _rec_stop(cam_bag, MP4_BAGCAM)
+    _rec_stop(cam_side, MP4_SIDE)
     for p in (MP4_OVERVIEW, MP4_BAGCAM, MP4_SIDE):
         print(f"[saved] {os.path.basename(p)}")
     print(f"[saved] -> {OUT_DIR}")
