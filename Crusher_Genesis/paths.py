@@ -60,12 +60,27 @@ def ascii_safe_mjcf(path):
     cache_root = os.path.join(tempfile.gettempdir(), "crusher_ascii_mjcf_cache")
     key = hashlib.md5(os.path.abspath(src_dir).encode("utf-8")).hexdigest()[:16]
     dst_dir = os.path.join(cache_root, key)
+    # **디렉터리 존재 != 캐시 완전.** temp 청소가 파일만 지우고 디렉터리는 남기면
+    # copytree 가 영구히 건너뛰어져 빠진 파일이 다시는 안 채워진다(실제로 최상위
+    # 고정장치.xml 과 meshes/L1_1_ss.obj 가 사라진 캐시를 만나 매 실행 실패했다).
+    # 그래서 항상 원본을 훑어 **빠진 것만** 채운다 — 있는 파일은 stat 만 하므로
+    # 정상 캐시에서는 사실상 공짜다.
     if not os.path.isdir(dst_dir):
         shutil.copytree(src_dir, dst_dir)
+    else:
+        for root, _dirs, files in os.walk(src_dir):
+            rel = os.path.relpath(root, src_dir)
+            out = dst_dir if rel == os.curdir else os.path.join(dst_dir, rel)
+            os.makedirs(out, exist_ok=True)
+            for fn in files:
+                if not os.path.isfile(os.path.join(out, fn)):
+                    shutil.copy2(os.path.join(root, fn), os.path.join(out, fn))
     dst_fname = fname if fname.isascii() else hashlib.md5(fname.encode("utf-8")).hexdigest()[:12] + os.path.splitext(fname)[1]
     dst_path = os.path.join(dst_dir, dst_fname)
     if not os.path.isfile(dst_path):
-        shutil.copy2(os.path.join(dst_dir, fname), dst_path)
+        # 원본에서 가져온다(캐시에서 읽으면 위와 같은 이유로 막힌다). 비-ASCII
+        # 경로를 못 여는 건 MuJoCo 의 narrow fopen 이지 파이썬이 아니다.
+        shutil.copy2(os.path.join(src_dir, fname), dst_path)
     return dst_path
 
 
