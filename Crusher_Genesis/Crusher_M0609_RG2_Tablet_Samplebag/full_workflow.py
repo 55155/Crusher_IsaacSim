@@ -47,6 +47,9 @@ COM 을 추적하는 동적 카메라).
   2. 정제가 우그러진 형상으로 보임 -> IPC_D_HAT 1e-4(정제 극 근처 최소 정점
      간격 0.32mm 대비 비율 0.31, 경계값)을 5e-5(비율 0.16)로 낮춤(§docs/
      DigitalTwin.md §9 조합5 절차 재적용).
+     **[오진 정정 2026-08-04]** 접촉 파라미터 문제가 아니라 **시각 메시** 문제였다
+     — 몽키패치가 반환값 3개 중 세 번째(표면 메시)를 None 으로 지어내 정제가
+     깨져 렌더된 것(§DigitalTwin.md §12-9). d_hat 은 1e-4 로 원복돼 있어 무해.
   3. 격자무늬 Ground 가 렌더에 보임 -> `gs.morphs.Plane(visualization=False)`
      로 충돌(안전망)은 유지하되 렌더만 끔 — 씬엔 알루미늄 플레이트만 보임.
   4. 조명이 어두움 -> ambient_light 상향 + 45도 방향 키 라이트(intensity 8)
@@ -91,6 +94,9 @@ from fem_ipc_workarounds import patch_fem_vertex_constraints
 # above/insert IK 타깃 Y 를 직접 스윕하는 것만이 물리적으로 신뢰 가능한 검증 방법.
 Y_OFFSET_MM = float(os.environ.get("Y_OFFSET_MM", "0"))
 Y_OFFSET = Y_OFFSET_MM * 1e-3
+
+# 정제 제외 스위치 — 봉투(FEM.Cloth)+IPC 커플러만 격리 검증할 때 쓴다(아래 사용처 주석).
+SKIP_TABLET = os.environ.get("SKIP_TABLET", "0") == "1"
 
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RESULT")
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -528,19 +534,28 @@ def main(use_viewer: bool = False):
                                      diffuse_texture=gs.textures.ImageTexture(image_array=bag_seal_tex)),
     )
 
-    cap_verts_mm, cap_elems = make_capsule_tets_v2(
-        radius_mm=CAP_RADIUS_MM, cyl_height_mm=CAP_CYL_H_MM, n_theta=12, n_cap_rings=4, n_cyl_bands=2,
-    )
-    tablet = add_analytic_fem_entity(
-        scene, key=os.path.join(OUT_DIR, "_analytic_capsule_v2.stl"),
-        verts_mm=cap_verts_mm, elems=cap_elems,
-        material=gs.materials.FEM.Elastic(
-            E=TABLET_E, nu=TABLET_NU, rho=TABLET_RHO,
-            friction_mu=TABLET_FRICTION, model="stable_neohookean",
-        ),
-        scale=1e-3, pos=TABLET_POS,
-        surface=gs.surfaces.Default(color=(0.9, 0.9, 0.85), roughness=0.6),
-    )
+    # SKIP_TABLET=1: 정제를 빼고 **봉투(FEM.Cloth) + IPC 커플러**만 격리 검증한다.
+    # utills/primitive_tablet_generator.py 의 TetGen 우회 몽키패치가 Genesis 1.3.1
+    # 시그니처 변경으로 깨져 있어(docs/DigitalTwin.md 조합11 추가 발견), 정제가
+    # 씬 구성 단계에서 죽으면 봉투/IPC 가 멀쩡한지조차 확인할 수 없다. 정제는
+    # 이 검증의 대상이 아니므로 분리할 수 있게 한다.
+    if SKIP_TABLET:
+        tablet = None
+        print("[tablet] SKIP_TABLET=1 — 정제 제외, 봉투(FEM.Cloth)+IPC 만 검증")
+    else:
+        cap_verts_mm, cap_elems = make_capsule_tets_v2(
+            radius_mm=CAP_RADIUS_MM, cyl_height_mm=CAP_CYL_H_MM, n_theta=12, n_cap_rings=4, n_cyl_bands=2,
+        )
+        tablet = add_analytic_fem_entity(
+            scene, key=os.path.join(OUT_DIR, "_analytic_capsule_v2.stl"),
+            verts_mm=cap_verts_mm, elems=cap_elems,
+            material=gs.materials.FEM.Elastic(
+                E=TABLET_E, nu=TABLET_NU, rho=TABLET_RHO,
+                friction_mu=TABLET_FRICTION, model="stable_neohookean",
+            ),
+            scale=1e-3, pos=TABLET_POS,
+            surface=gs.surfaces.Default(color=(0.9, 0.9, 0.85), roughness=0.6),
+        )
 
     cam_over = scene.add_camera(res=(1280, 960), pos=OVERVIEW_CAM_POS, lookat=OVERVIEW_CAM_LOOK,
                                 fov=48, GUI=False)
@@ -606,9 +621,12 @@ def main(use_viewer: bool = False):
     grip_idx = np.where(d_to_mid < 0.020)[0].astype(int)
     print(f"[bag] grip_strip verts near FINGER_MID: {len(grip_idx)}")
 
-    cam_over.start_recording()
-    cam_bag.start_recording()
-    cam_side.start_recording()
+    # Genesis 1.3.1 에서 녹화 API 가 바뀌었다(§docs/DigitalTwin.md 조합11):
+    # 파일명/fps 가 start_recording 으로 이동했고 stop_recording() 은 인자를 안 받는다.
+    # (조합11 에 기록돼 있던 변경인데 이 파일엔 반영이 안 돼 있어 실행 끝에서 죽었다.)
+    cam_over.start_recording(save_to_filename=MP4_OVERVIEW, fps=30)
+    cam_bag.start_recording(save_to_filename=MP4_BAGCAM, fps=30)
+    cam_side.start_recording(save_to_filename=MP4_SIDE, fps=30)
 
     def _bag_com():
         p = _npy(bag.get_state().pos).squeeze()
@@ -620,6 +638,8 @@ def main(use_viewer: bool = False):
         return float(p[:, 1].max() - p[:, 1].min()), float(p[:, 2].max() - p[:, 2].min()), float(p[:, 2].min())
 
     def _tablet_z():
+        if tablet is None:
+            return float("nan")
         p = _npy(tablet.get_state().pos).squeeze()
         return float(p[:, 2].mean())
 
@@ -811,9 +831,9 @@ def main(use_viewer: bool = False):
           f"width_y={final_width_y*1000:.1f}mm(baseline {baseline_width_y*1000:.1f}mm)  "
           f"height_z={final_height_z*1000:.1f}mm(baseline {baseline_height_z*1000:.1f}mm)")
 
-    cam_over.stop_recording(save_to_filename=MP4_OVERVIEW, fps=30)
-    cam_bag.stop_recording(save_to_filename=MP4_BAGCAM, fps=30)
-    cam_side.stop_recording(save_to_filename=MP4_SIDE, fps=30)
+    cam_over.stop_recording()
+    cam_bag.stop_recording()
+    cam_side.stop_recording()
     print(f"\n[saved] overview -> {MP4_OVERVIEW}")
     print(f"[saved] bagcam   -> {MP4_BAGCAM}")
     print(f"[saved] sideview -> {MP4_SIDE}")

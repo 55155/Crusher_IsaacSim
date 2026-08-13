@@ -195,8 +195,11 @@ def main(use_viewer: bool = False):
         suction_target[:, 2] += LIFT_DIST_Z
         bag.set_vertex_constraints(verts_idx_local=suction_idx.tolist(), target_poss=suction_start, is_soft_constraint=False)
 
-    cam.start_recording()
-    cam_close.start_recording()
+    # Genesis 1.3.1 에서 녹화 API 변경(docs/DigitalTwin.md 조합11): 파일명/fps 가
+    # start_recording 으로 이동, stop_recording() 은 인자를 안 받는다.
+    MP4_CLOSE = MP4.replace(".mp4", "_closeup.mp4")
+    cam.start_recording(save_to_filename=MP4, fps=30)
+    cam_close.start_recording(save_to_filename=MP4_CLOSE, fps=30)
 
     def render():
         cam.render()
@@ -251,9 +254,8 @@ def main(use_viewer: bool = False):
     print(f"\n[final] tablet_com={np.round(tab_final,4)}  bag_com={np.round(bag_final,4)}")
     print(f"[check] 정제가 봉투 입구 아래로 내려감: {tab_final[2] < BAG_MOUTH_Z}")
 
-    cam.stop_recording(save_to_filename=MP4, fps=30)
-    MP4_CLOSE = MP4.replace(".mp4", "_closeup.mp4")
-    cam_close.stop_recording(save_to_filename=MP4_CLOSE, fps=30)
+    cam.stop_recording()
+    cam_close.stop_recording()
     print(f"\n[saved] {MP4}")
     print(f"[saved closeup] {MP4_CLOSE}")
     print("완료.")

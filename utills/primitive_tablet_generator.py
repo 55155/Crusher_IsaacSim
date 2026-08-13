@@ -305,49 +305,179 @@ def make_box_tets(size_mm=(4.8, 4.8, 4.8)):
 
 
 # ── 3) Genesis 주입: mesh_to_elements 몽키패치로 TetGen 경로 완전 우회 ───────
-_ANALYTIC_CACHE = {}
+#
+# **Genesis 1.3.1 대응 재작성 (2026-08-03)** — docs/DigitalTwin.md 조합11 추가 발견.
+# 1.1.0 → 1.3.1 업그레이드가 이 우회 경로를 두 군데 깨뜨렸다:
+#
+#   1. `FEMEntity.sample()` 이 `gs.Mesh.from_morph_surface(morph, surface)` 로
+#      **morph 파일에서 표면 메시를 직접 읽어** 시각 geom 을 만들도록 바뀌었다.
+#      예전엔 파일을 안 읽어서 0바이트 더미로 통과했지만, 이제 빈 파일이면
+#      `merge_submeshes` 가 `ValueError: need at least one array to concatenate`
+#      로 죽는다. → **실제 표면 메시를 STL 로 써야 한다.**
+#
+#   2. `mesh_to_elements` 시그니처가 `(file, pos, scale, tet_cfg)` →
+#      **`(mesh, tet_cfg)`** 로 바뀌었다. 파일 경로가 아니라 (이미 scale 이
+#      적용되고 아직 translate 는 안 된) trimesh 객체를 받는다. 예전 패치는
+#      경로 문자열을 캐시 키로 썼기 때문에 캐시가 절대 안 맞고, 폴백 호출도
+#      없어진 인자를 넘겨 `TypeError` 로 죽었다. → **캐시 키를 경로가 아니라
+#      "직전에 등록한 엔티티"라는 일회성 큐로 바꾼다** (`scene.add_entity` 가
+#      동기적으로 `sample()` → `mesh_to_elements` 를 부르므로 안전하다).
+#
+# 추가로 1.3.1 은 정점 순서에 계약을 건다 — `FEMVisGeom.sim_verts_idx` 가
+# "표면 정점이 앞에, 입력 순서 그대로 유지된다"고 가정한다(sample() docstring).
+# 그런데 `make_capsule_tets_v2` 는 medial-axis 앵커(반구 중심·원기둥 축점) 같은
+# **내부 정점을 표면 정점 사이에 섞어서** 만든다. 그래서 반환 직전에
+# `_align_to_surface()` 로 재배열한다 — 표면 정점을 Genesis 가 읽은 순서 그대로
+# 앞에 놓고, 내부 앵커를 뒤에 붙인 뒤 elems 인덱스를 remap.
+#
+# 지원 버전: Genesis 1.3.x (`mesh_to_elements(mesh, tet_cfg)`). 시그니처가 또
+# 바뀌면 _ensure_patched() 가 명시적으로 에러를 낸다.
+_ANALYTIC_PENDING = []
 _patched = False
+
+
+def _boundary_faces(elems):
+    """tet 집합의 경계면(한 번만 나타나는 삼각면)을 추출한다."""
+    import collections
+
+    FACES = ((0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3))
+    cnt = collections.Counter()
+    rep = {}
+    for t in elems:
+        for f in FACES:
+            tri = (int(t[f[0]]), int(t[f[1]]), int(t[f[2]]))
+            key = tuple(sorted(tri))
+            cnt[key] += 1
+            rep.setdefault(key, tri)
+    return np.array([rep[k] for k, c in cnt.items() if c == 1], dtype=np.int64)
+
+
+def _align_to_surface(mesh, verts, elems):
+    """우리 tet 메시를 Genesis 가 읽은 표면 정점 순서에 맞춰 재배열한다.
+
+    Genesis 1.3.1 은 표면 정점이 앞에 그 순서대로 온다고 가정한다. 우리 정점
+    배열은 내부 앵커가 섞여 있고, STL 왕복(float32 + trimesh 의 정점 병합)에서
+    순서도 달라진다 — 그래서 **위치로 매칭**해 다시 세운다.
+
+    반환: (verts_aligned, elems_remapped) — 앞 len(mesh.vertices) 개가 표면.
+    """
+    mv = np.asarray(mesh.vertices, dtype=np.float64)
+    ov = np.asarray(verts, dtype=np.float64)
+
+    # 형상 크기에 비례한 허용오차(STL 은 float32 라 상대오차가 들어간다).
+    span = float(np.linalg.norm(mv.max(axis=0) - mv.min(axis=0)))
+    tol = max(span * 1e-5, 1e-12)
+
+    d = np.linalg.norm(ov[:, None, :] - mv[None, :, :], axis=2)
+    nearest = d.argmin(axis=1)
+    dmin = d[np.arange(len(ov)), nearest]
+    is_surf = dmin < tol
+
+    if not np.array_equal(np.sort(nearest[is_surf]), np.arange(len(mv))):
+        raise RuntimeError(
+            f"analytic tet mesh 의 표면 정점과 Genesis 가 읽은 표면 정점이 1:1 로 "
+            f"대응하지 않는다 (ours_surf={int(is_surf.sum())}, genesis={len(mv)}, tol={tol:.3e}). "
+            f"STL 왕복에서 정점이 병합/분리됐을 수 있다."
+        )
+
+    # 새 인덱스: 표면은 Genesis 순서, 내부는 그 뒤에 등장 순으로.
+    remap = np.empty(len(ov), dtype=np.int64)
+    remap[is_surf] = nearest[is_surf]
+    interior = np.flatnonzero(~is_surf)
+    remap[interior] = len(mv) + np.arange(len(interior))
+
+    verts_aligned = np.vstack([mv, ov[interior]]) if len(interior) else mv.copy()
+    return verts_aligned, remap[np.asarray(elems, dtype=np.int64)]
 
 
 def _ensure_patched():
     global _patched
     if _patched:
         return
+    import inspect
+
     import genesis.utils.element as eu
+
+    params = list(inspect.signature(eu.mesh_to_elements).parameters)
+    if params[:1] != ["mesh"]:
+        raise RuntimeError(
+            f"genesis.utils.element.mesh_to_elements 시그니처가 예상과 다르다: {params}. "
+            f"이 몽키패치는 Genesis 1.3.x 의 (mesh, tet_cfg) 를 전제로 한다 — "
+            f"docs/DigitalTwin.md 조합11 참고."
+        )
 
     _orig = eu.mesh_to_elements
 
-    def _patched_mesh_to_elements(file, pos=(0, 0, 0), scale=1.0, tet_cfg=None):
-        if file in _ANALYTIC_CACHE:
-            verts_mm, elems = _ANALYTIC_CACHE[file]
-            verts = verts_mm.astype(np.float32) * scale + np.array(pos, dtype=np.float32)
-            return verts.copy(), elems.copy(), None
-        return _orig(file, pos=pos, scale=scale, tet_cfg=tet_cfg or {})
+    def _patched_mesh_to_elements(mesh, tet_cfg=None, **kw):
+        if _ANALYTIC_PENDING:
+            verts, elems = _ANALYTIC_PENDING.pop()
+            return _align_to_surface(mesh, verts, elems)
+        return _orig(mesh, tet_cfg=tet_cfg or {}, **kw)
 
     eu.mesh_to_elements = _patched_mesh_to_elements
     _patched = True
 
 
 def add_analytic_fem_entity(scene, key, verts_mm, elems, material, scale=1e-3, pos=(0, 0, 0),
-                             surface=None):
+                            surface=None):
     """TetGen을 거치지 않고 직접 계산한 (verts_mm, elems) 로 FEM.Elastic 엔티티를 추가한다.
 
-    key 는 캐시 식별용 문자열(임의). 실제 파일을 읽지는 않지만 `gs.morphs.Mesh`
-    가 파일 존재를 검증하므로, key 이름의 빈 더미 파일을 하나 만들어둔다.
+    key 는 표면 메시를 쓸 STL 경로. Genesis 1.3.1 부터는 이 파일을 **실제로
+    읽어** 시각 geom 과 표면 정점을 만들므로(예전의 0바이트 더미는 안 됨),
+    tet 메시의 경계면을 뽑아 여기에 써 준다. 시뮬레이션용 (verts, elems) 는
+    여전히 몽키패치가 가로채 우리 값을 그대로 주입하므로 TetGen 은 안 탄다.
     """
     import genesis as gs
+    import trimesh as tm
 
     _ensure_patched()
-    _ANALYTIC_CACHE[key] = (np.asarray(verts_mm, dtype=np.float64), np.asarray(elems, dtype=np.int64))
-    if not os.path.exists(key):
-        # gs.morphs.Mesh 가 파일 존재를 검사하므로 더미 파일 생성(내용은 패치가 가로채서 안 씀).
-        os.makedirs(os.path.dirname(key) or ".", exist_ok=True)
-        with open(key, "wb") as f:
-            f.write(b"")
-    kwargs = dict(material=material, morph=gs.morphs.Mesh(file=key, scale=scale, pos=pos))
-    if surface is not None:
-        kwargs["surface"] = surface
-    return scene.add_entity(**kwargs)
+    verts_mm = np.asarray(verts_mm, dtype=np.float64)
+    elems = np.asarray(elems, dtype=np.int64)
+
+    # ── 표면 STL 작성 (mm 단위 — morph 의 scale 이 적용된다) ──────────────────
+    faces = _boundary_faces(elems)
+    surf = tm.Trimesh(vertices=verts_mm, faces=faces, process=False)
+    surf.remove_unreferenced_vertices()   # 내부 앵커 제거 — 표면 정점만 남긴다
+    surf.fix_normals()                    # STL 은 바깥 법선을 기대한다
+    os.makedirs(os.path.dirname(key) or ".", exist_ok=True)
+    surf.export(key)
+
+    # ── 시뮬용 tet 메시를 일회성 큐에 올린다 ─────────────────────────────────
+    # scale 은 Genesis 가 morph 파일에 이미 적용해 넘겨주므로 여기서도 맞춰 둔다.
+    # pos 는 Genesis 가 사면체화 **이후에** 더하므로(sample(): is_mesh_morph 분기)
+    # 여기서는 더하지 않는다 — 예전 패치가 pos 를 더했던 것과 달라진 지점.
+    _ANALYTIC_PENDING.append((verts_mm * scale, elems))
+    try:
+        kwargs = dict(material=material, morph=gs.morphs.Mesh(file=key, scale=scale, pos=pos))
+        if surface is not None:
+            kwargs["surface"] = surface
+        entity = scene.add_entity(**kwargs)
+    finally:
+        # add_entity 가 중간에 실패하면 큐가 남아 다음 엔티티를 오염시킨다.
+        if _ANALYTIC_PENDING:
+            _ANALYTIC_PENDING.clear()
+
+    # ── 사후 가드: "조용한 실패" 방지 ────────────────────────────────────────
+    # 몽키패치는 라이브러리 계약을 우리가 지켜야 하는데, 어긋나도 **안 죽고 잘못
+    # 동작할 수** 있다. 실제로 1.1.0 시절 패치가 반환값 3개 중 세 번째를 None 으로
+    # 지어냈고, 크래시 없이 정제만 깨져 렌더돼 3개월 가까이 못 잡았다(§7-15 오진).
+    # 시뮬 tet 과 시각 메시가 둘 다 기대치와 맞는지 여기서 즉시 확인한다.
+    # 정점 수는 비교 대상이 아니다 — Genesis 는 시각 메시를 면마다 정점 분리해
+    # 만들어서(실측: vverts = 3 x vfaces) STL 정점 수와 다른 게 정상이다. 면 수로 본다.
+    n_surf_f = len(surf.faces)
+    if entity.n_vfaces != n_surf_f or entity.n_vverts == 0:
+        raise RuntimeError(
+            f"시각 메시가 표면 STL 과 다르다 (vfaces {entity.n_vfaces} vs {n_surf_f}, "
+            f"vverts {entity.n_vverts}) — Genesis 가 morph 파일을 제대로 못 읽었거나 "
+            f"시각 geom 경로가 바뀐 것이다."
+        )
+    if entity.n_vertices != len(verts_mm) or entity.n_elements != len(elems):
+        raise RuntimeError(
+            f"시뮬 tet 메시가 주입값과 다르다 (verts {entity.n_vertices} vs {len(verts_mm)}, "
+            f"elems {entity.n_elements} vs {len(elems)}) — 몽키패치가 안 먹었거나 "
+            f"Genesis 가 사면체를 추가로 손댔다(TetGen 경유 의심)."
+        )
+    return entity
 
 
 def main():
