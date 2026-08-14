@@ -1,0 +1,158 @@
+﻿============================================================
+ Full workflow: tablet drop -> bag catch -> grasp -> lift -> Crusher slot insert (viewer=False)
+============================================================
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:27] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] At least one of the meshes contain many faces (27466). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [17:24:28] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Link 'Shaft_copy_1' has dubious center of mass [x=0.000, y=-0.015, z=0.003] compared to the bounding box from geometry [x=(-0.053, -0.009), y=(-0.015, 0.029), z=(-0.013, 0.026)].[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Link 'Shaft_copy_1' has dubious mass 0.095 compared to the estimate from geometry 0.001.[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Link 'Shaft_copy_1' has dubious inertia [ixx=2.607e-05,iyy=1.928e-05,izz=1.271e-05] compared to the estimate from geometry [ixx=1.278e-05,iyy=1.809e-07,izz=1.278e-05].[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Link 'M_Bottom_1' has dubious center of mass [x=0.019, y=0.081, z=0.045] compared to the bounding box from geometry [x=(0.057, 0.168), y=(-0.028, 0.093), z=(-0.093, 0.055)].[0m
+[38;5;226m[Genesis] [17:24:28] [WARNING] Link 'link_2' has dubious center of mass [x=0.000, y=0.000, z=0.000] compared to the bounding box from geometry [x=(-0.068, 0.479), y=(-0.069, 0.069), z=(0.082, 0.274)].[0m
+[38;5;226m[Genesis] [17:24:29] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.01`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+python.exe : C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.p
+y:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+At line:1 char:333
++ ... NG="utf-8"; & "C:\Users\simuser\miniconda3\envs\crusher_genesis\pytho ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (C:\Users\simuse...ching disabled.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  warnings.warn(message)
+[build] 성공
+[bag] shape 고정: 339/771 정점(바닥+양측면), 입구는 자유
+[slot] gap_cx=-0.3303 gap_cy=-0.0473 gap_width=12.0mm wall_top_z=0.0864
+[slot] pocket(L1_Wall1_1) center=(-0.3683,-0.0853)
+[bag] grip_strip verts near FINGER_MID: 91
+[38;5;226m[Genesis] [17:24:38] [WARNING] fps=30 is not reachable with dt=0.005. Recording at fps=28.57142857142857 instead.[0m
+[38;5;226m[Genesis] [17:24:38] [WARNING] fps=30 is not reachable with dt=0.005. Recording at fps=28.57142857142857 instead.[0m
+[38;5;226m[Genesis] [17:24:38] [WARNING] fps=30 is not reachable with dt=0.005. Recording at fps=28.57142857142857 instead.[0m
+
+[phase] 0 prep (1.0s) — 크랭크 0->-3.142rad(-180deg), Left_Wall 0->+6mm(개방)
+[phase] prep     @done  crank=-3.000rad  wall=+5.43mm
+    [drop k=   0] tablet_z=+396.93mm bag_com=[-0.1264861  -0.6167264   0.39853114]
+    [drop k=  40] tablet_z=+395.02mm bag_com=[-0.12649092 -0.6167265   0.39853114]
+    [drop k=  80] tablet_z=+390.54mm bag_com=[-0.12648936 -0.6167269   0.39853114]
+    [drop k= 120] tablet_z=+384.12mm bag_com=[-0.12648922 -0.6167274   0.39853114]
+[phase] drop     @done  bag_com=[-0.12648891 -0.6167283   0.39853114]  finger_z=0.4378  tablet_z=+374.72mm  tilt=1.0deg  bag_bottom=0.3551
+[phase] settle   @done  bag_com=[-0.1264885  -0.6167297   0.39853114]  finger_z=0.4378  tablet_z=+362.90mm  tilt=0.2deg  bag_bottom=0.3551
+[bag] shape 고정 해제 — 이제부터 순수 마찰 파지
+[phase] close    @done  bag_com=[-0.13036628 -0.6178106   0.39792305]  finger_z=0.4361  tablet_z=+360.90mm  tilt=2.3deg  bag_bottom=0.3538
+[phase] grasp    @done  bag_com=[-0.13271913 -0.61852926  0.39805764]  finger_z=0.4361  tablet_z=+359.28mm  tilt=3.3deg  bag_bottom=0.3538
+[phase] lift     @done  bag_com=[-0.13162167 -0.61931163  0.5237802 ]  finger_z=0.5620  tablet_z=+482.90mm  tilt=2.8deg  bag_bottom=0.4794
+[phase] hold     @done  bag_com=[-0.1299496  -0.61932683  0.523736  ]  finger_z=0.5620  tablet_z=+482.99mm  tilt=4.6deg  bag_bottom=0.4791
+[slot] wall_center_z=0.0504  insert_z(finger)=0.1324  hang=82mm
+[slot] 봉투중심 보정 dy=+28.0mm -> finger_y=-0.0753 (봉투중심 y=-0.0473 = gap_cy -0.0473)
+[sweep] Y_OFFSET_MM=+0.0mm -> target_xy=[-0.33027777 -0.07530234]  (gap_cy=-0.0473)
+[cam] side view 고정: pos=(np.float64(-0.3302777709960938), np.float64(-0.597302336215973), np.float64(0.168431227684021)) look=(np.float64(-0.3302777709960938), np.float64(-0.047302336215972886), np.float64(0.168431227684021)) (gap_width=12.0mm, z범위 above=0.2864~insert=0.1324)
+
+[ik] above-slot target=[-0.33027777 -0.07530234  0.28643123]  arm_q=[1.5604141e+00 5.8956546e-01 6.3463974e-01 5.9808372e-04 1.9171917e+00
+ 1.5604438e+00]
+    [above k=   0] tablet_z=+482.99mm bag_com=[-0.12993659 -0.6193276   0.52373576]
+    [above k=  40] tablet_z=+481.81mm bag_com=[-0.12662506 -0.6165638   0.52246356]
+    [above k=  80] tablet_z=+474.17mm bag_com=[-0.10572939 -0.5982637   0.5146549 ]
+    [above k= 120] tablet_z=+455.48mm bag_com=[-0.06860722 -0.548942    0.4956947 ]
+    [above k= 160] tablet_z=+426.50mm bag_com=[-0.03565382 -0.45532444  0.46209067]
+    [above k= 200] tablet_z=+383.39mm bag_com=[-0.03359463 -0.3271782   0.41525453]
+    [above k= 240] tablet_z=+326.21mm bag_com=[-0.10674179 -0.20077413  0.35901314]
+    [above k= 280] tablet_z=+274.16mm bag_com=[-0.19958755 -0.11218724  0.30697763]
+    [above k= 320] tablet_z=+235.42mm bag_com=[-0.28414372 -0.0686283   0.26924625]
+    [above k= 360] tablet_z=+217.10mm bag_com=[-0.32636973 -0.05371695  0.25130063]
+[phase] above    @done  bag_com=[-0.3314078  -0.05130596  0.24829389]  finger_z=0.2863  tablet_z=+210.81mm  tilt=7.8deg  bag_bottom=0.2036
+[phase] aboveset @done  bag_com=[-0.33075947 -0.05127619  0.24847949]  finger_z=0.2863  tablet_z=+209.68mm  tilt=9.0deg  bag_bottom=0.2039
+[ik] insert target=[-0.33027777 -0.07530234  0.13243123]  웨이포인트 41개(카테시안 직선)  arm_q=[1.5605165e+00 5.3341222e-01 1.1497848e+00 4.5563473e-04 1.4581962e+00
+ 1.5602614e+00]
+    [insert k=   0] tablet_z=+209.47mm bag_com=[-0.33075687 -0.05129235  0.24833287]
+    [insert k=  40] tablet_z=+208.14mm bag_com=[-0.33074835 -0.05129003  0.24698688]
+    [insert k=  80] tablet_z=+200.37mm bag_com=[-0.3309945  -0.05125452  0.23936178]
+    [insert k= 120] tablet_z=+184.25mm bag_com=[-0.3307538  -0.05120801  0.22303568]
+    [insert k= 160] tablet_z=+160.16mm bag_com=[-0.33140332 -0.05119167  0.19919024]
+    [insert k= 200] tablet_z=+132.13mm bag_com=[-0.33136103 -0.05121513  0.17101653]
+    [insert k= 240] tablet_z=+104.16mm bag_com=[-0.33129647 -0.05118178  0.14299184]
+    [insert k= 280] tablet_z=+91.23mm bag_com=[-0.32924873 -0.05060371  0.12461516]
+    [insert k= 320] tablet_z=+91.11mm bag_com=[-0.32790604 -0.05056742  0.113354  ]
+    [insert k= 360] tablet_z=+90.84mm bag_com=[-0.3279669  -0.05119637  0.10822193]
+[phase] insert   @done  bag_com=[-0.32765165 -0.05147381  0.10648809]  finger_z=0.1322  tablet_z=+90.67mm  tilt=17.0deg  bag_bottom=0.0634
+[phase] settle2  @done  bag_com=[-0.3256001  -0.05240955  0.10517112]  finger_z=0.1322  tablet_z=+89.97mm  tilt=12.8deg  bag_bottom=0.0617
+[trim] r0: bag_bottom 오차 +11.2mm -> finger_z 0.1324->0.1234
+[phase] trim0    @done  bag_com=[-0.32588992 -0.05375786  0.09986458]  finger_z=0.1233  tablet_z=+88.96mm  tilt=16.5deg  bag_bottom=0.0585
+[trim] r1: bag_bottom 오차 +8.0mm -> finger_z 0.1234->0.1170
+[phase] trim1    @done  bag_com=[-0.32674968 -0.05462568  0.09731016]  finger_z=0.1168  tablet_z=+89.22mm  tilt=22.2deg  bag_bottom=0.0583
+[trim] r2: bag_bottom 오차 +7.8mm -> finger_z 0.1170->0.1107
+[phase] trim2    @done  bag_com=[-0.3376807  -0.05276189  0.10192228]  finger_z=0.1152  tablet_z=+84.78mm  tilt=23.9deg  bag_bottom=0.0787
+[trim] r3: bag_bottom 오차 +28.3mm -> finger_z 0.1107->0.1024
+[2026-08-14 22:41:52.174] [error] [cuda] Assertion toi > 0.0f failed. Invalid toi[class uipc::backend::cuda::InfoStacklessBVHSimplexTrajectoryFilter] value: -5.399661707877364e-26 D:\a\libuipc\libuipc\src\backends\cuda\collision_detection\global_trajectory_filter.cu(95)
+Stack trace (most recent call first):
+#0  0x00007ff85b947470 in  ?? 
+#1  0x00007ff85b9d0153 in  ?? 
+#2  0x00007ff85b9d1341 in  ?? 
+#3  0x00007ff85b9d85c8 in  ?? 
+#4  0x00007ff8604014a1 in uipc::core::internal::Engine::advance
+#5  0x00007ff860408725 in uipc::core::internal::World::advance
+#6  0x00007ff86058dbe3 in  ?? 
+#7  0x00007ff86058dc33 in  ?? 
+#8  0x00007ff8604ec5b8 in  ?? 
+#9  0x00007ff9b1013260 in PyCFunction_GetFlags
+#10 0x00007ff9b0fb6550 in PyBytes_Repeat
+#11 0x00007ff9b0fb7074 in PyObject_Vectorcall
+#12 0x00007ff9b1144091 in PyEval_EvalFrameDefault
+#13 0x00007ff9b113f2b9 in PyEval_EvalCode
+#14 0x00007ff9b11fb317 in PyRun_FileExFlags
+#15 0x00007ff9b11fb99c in PyRun_FileExFlags
+#16 0x00007ff9b11fafca in PyRun_StringFlags
+#17 0x00007ff9b11f8ab1 in PyRun_InteractiveOneFlags
+#18 0x00007ff9b11f74de in PyOS_double_to_string
+#19 0x00007ff9b0f0fedd in Py_GetBuildInfo
+#20 0x00007ff9b0f10f68 in Py_GetBuildInfo
+#21 0x00007ff9b0f112f7 in Py_RunMain
+#22 0x00007ff755da148f in OPENSSL_Applink
+#23 0x00007ffa9ffbe956 in BaseThreadInitThunk
+#24 0x00007ffaa0b0ad6b in RtlUserThreadStart

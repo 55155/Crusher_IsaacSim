@@ -906,7 +906,16 @@ def main(use_viewer: bool = False):
     # 남은 오차만큼 더 내려주는 폐루프로 닫는다 — 정책을 학습할 구조가 아니다.
     # 하한은 §DigitalTwin.md §13-7 의 핑거-Crusher 충돌 경계(wall_center+52mm).
     INSERT_Z_FLOOR = wall_center_z + 0.052
-    TRIM_TOL, TRIM_GAIN, N_TRIM, TRIM_ROUNDS = 0.002, 0.8, 80, 6
+    TRIM_TOL, TRIM_GAIN, N_TRIM = 0.002, 0.8, 80
+    # **기본 OFF (2026-08-14 실측).** trim 은 봉투를 슬롯 안으로 더 밀어넣는데,
+    # 그 과정에서 IPC 접촉이 퇴화(degenerate)해 **솔버가 기하급수적으로 느려지고
+    # 결국 죽는다**: 같은 씬이 trim 없이 4~5분인데 trim 4라운드에서 5시간 17분을
+    # 쓰고 libuipc CCD 어서션(`toi > 0.0f failed`, toi=-5.4e-26)으로 abort 했다.
+    # 원인은 §14-6 과 같다 — 봉투가 마찰로 걸린 상태에서 계속 누르니 천이 자기
+    # 자신과 벽 사이에서 짓눌린다(tilt 12.8 -> 16.5 -> 22.2 -> 23.9deg 단조 증가).
+    # 즉 trim 은 "밀어넣기의 한계"를 재는 진단 도구지 상시 켜둘 보정이 아니다.
+    # 파지 위치 비교처럼 조건을 맞춰야 하는 실험에서는 반드시 0 으로 둔다.
+    TRIM_ROUNDS = int(os.environ.get("TRIM_ROUNDS", "0"))
     # **발산 가드(2026-08-14 실측).** 핑거 z ↔ bag_bottom 커플링은 1:1 이 아니라
     # ~0.36 이다 — 봉투가 슬롯 벽에 마찰로 걸려 있어서, 더 내리면 따라 내려가는
     # 게 아니라 안에서 눌려 접힌다. 실제로 r3 에서 오차가 7.8 -> **28.3mm** 로
@@ -916,6 +925,9 @@ def main(use_viewer: bool = False):
     TRIM_DIVERGE = 0.002
     cur_z, q_cur = insert_z, qpos_insert
     best_err, best_z, best_q = abs(_bag_extent()[2] - wall_center_z), cur_z, q_cur
+    if TRIM_ROUNDS == 0:
+        print(f"[trim] TRIM_ROUNDS=0 — 생략(기본값). settle2 시점 bag_bottom 오차 "
+              f"{(best_err)*1e3:+.1f}mm 를 그대로 결과로 쓴다.")
     for r in range(TRIM_ROUNDS):
         err = _bag_extent()[2] - wall_center_z
         if abs(err) < best_err:
