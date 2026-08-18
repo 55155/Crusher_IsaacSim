@@ -11,6 +11,14 @@ fixture_recovery2_stack_views.py — 고정장치 위에 회수장치2를 정렬
 RECOVERY2_POS 계산과 동일 로직, 여기서는 FIXTURE_POS=(0,0,0.12) 기준으로
 재계산).
 
+**에셋 교체(2026-08-19)**: 회수장치2_description/회수장치2.xml → fusion2xml
+(MJCF 직행) 빌드인 recovery2_mjcf/recovery2.xml (대조표는 그 폴더 README.md).
+RECOVERY2_POS 는 그대로 둔다 — 정렬점 (-74.015, 59.22, 1.776)mm 는 Fusion 조인트
+앵커 값인데 구 빌드는 자기 샤프트 힌지축이 그 앵커에서 (+30.92, -6.62, 0)mm
+어긋나 있었고 신 빌드는 0.01mm 안에서 일치한다. 즉 **같은 POS 로 회수장치2
+형상이 고정장치 기준 (+30.92, -6.62, 0)mm 옮겨 앉으며, 그래야 원래 의도한
+"Jig 포크가 ShaftHandle 을 돌린다"는 정렬이 실제로 성립한다.** 즉 예전 스냅샷과 비교하면 회수장치2가 그만큼 옮겨 보인다.
+
 출력: RESULT/stack_view_<name>.png (corner/front/top45/topdown 4장)
 """
 import os, sys
@@ -32,7 +40,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 FIXTURE_MJCF = os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고정장치.xml")
 FIXTURE_POS = (0.0, 0.0, 0.12)
 
-RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml")
+RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "recovery2_mjcf", "recovery2.xml")
 # world_target = FIXTURE_POS + (-0.138, 0.0725, 0.1513) = (-0.138, 0.0725, 0.2713)
 # RECOVERY2_POS = world_target - (-0.074015, 0.05922, 0.001776)
 # 2026-07-29: +25mm 인위적 간격 제거 - Jig는 담아 고정하는 컵이 아니라 기둥
@@ -89,8 +97,11 @@ def main():
         gs.morphs.MJCF(file=FIXTURE_MJCF, pos=FIXTURE_POS, decimate=False),
         material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
+    # convexify=False — 기본 경로면 RightSlider1_1/Shaft_copy_1 의 충돌 메시가
+    # 열린 채 uipc 로 넘어가 빌드가 죽는다(compute_mesh_volume 어서션).
+    # convexify=False 는 watertighten(기본 5) 을 태워 33개 전부 닫히게 한다.
     scene.add_entity(
-        gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False),
+        gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False, convexify=False),
         material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
 

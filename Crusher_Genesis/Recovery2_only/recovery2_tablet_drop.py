@@ -2,14 +2,17 @@
 recovery2_tablet_drop.py — 회수장치2 위로 정제(FEM 캡슐, 2x 스케일)를 자유낙하시켜
 실제 충돌(collision hull)이 붙었는지 시각적으로 확인하는 테스트.
 
-회수장치2.xml은 기본적으로 전 부품이 시각 전용(contype=0/conaffinity=0)이었으나,
-이 테스트를 위해 33개 부품 각각에 convex-hull 충돌 geom(contype=1/conaffinity=1,
-meshes/X_hull.stl)을 추가로 심어두었다 — 정확한 비볼록 형상 대신 각 부품의
-convex hull 근사이므로, 얇은 브라켓/막대 사이 틈은 실제보다 막혀 보일 수 있음
-(정밀 충돌이 필요해지면 고정장치의 Jig_1처럼 CoACD 다중 hull로 교체 필요).
+**에셋 교체(2026-08-19)**: recovery2_mjcf/recovery2.xml(fusion2xml 직행 빌드).
+구 회수장치2_description 은 전 부품이 시각 전용(contype=0/conaffinity=0)이라 이
+테스트를 위해 X_hull.stl 을 따로 심어야 했고, 그마저 2026-07-29 에 IPC 씬 문제로
+다시 꺼져 지금은 ShaftHandle 하나만 충돌한다. 신 빌드는 부품마다 `*_col`(원본
+STL — hull 근사가 아니라 실제 비볼록 형상) 을 달고 나오고, convexify=False 로
+실으면 Genesis 의 watertighten 경로를 타서 33개가 전부 닫힌 비볼록 충돌 메시가
+된다(hull 근사 때문에 얇은 틈이 막혀 보이던 문제가 없어짐).
 
-정제는 M_Top/F_Top 플랫폼(회수장치2 bbox 상단, 로컬 x~-0.06 y~0.06 z~0.148) 위
-쪽에서 떨어뜨린다.
+정제는 M_Top/F_Top 플랫폼 위에서 떨어뜨린다. 신 빌드 실측 bbox(모델 원점 기준)는
+전체 x[-137.6, 0.0] y[0.0, 118.4] z[0, 148.0]mm, 상판은 F_Top x[-110.2,-55.0] /
+M_Top x[-55.0, 0.0] 이고 둘 다 z[48, 58]mm — 아래 DROP_XY 는 F_Top 상판 위다.
 
 출력: RESULT/recovery2_tablet_drop_<ts>.mp4
 """
@@ -37,7 +40,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
 MP4 = os.path.join(OUT_DIR, f"recovery2_tablet_drop_{_TS}.mp4")
 
-RECOVERY_MJCF = os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml")
+RECOVERY_MJCF = os.path.join(paths.ROBOTS_DIR, "recovery2_mjcf", "recovery2.xml")
 RECOVERY_POS = (0.0, 0.0, 0.001)
 
 DT = 5e-3
@@ -47,7 +50,7 @@ CAP_RADIUS_MM, CAP_CYL_H_MM = 4.0, 2.0
 TABLET_E, TABLET_NU, TABLET_RHO = 5.0e4, 0.45, 1300.0
 TABLET_FRICTION = 0.5
 
-# 플랫폼(M_Top/F_Top) 상단 근처, 실측 bbox: x[-0.169,0.043] y[0.0007,0.127] z[0,0.148]
+# 플랫폼(M_Top/F_Top) 상단 근처, 신 빌드 실측 bbox: x[-0.1376,0] y[0,0.1184] z[0,0.148]
 DROP_XY = (-0.06, 0.06)
 DROP_MARGIN = 0.025
 TABLET_POS = (DROP_XY[0], DROP_XY[1], 0.148 + DROP_MARGIN)
@@ -86,8 +89,11 @@ def main(use_viewer: bool = False):
 
     scene.add_entity(gs.morphs.Plane(), material=gs.materials.Rigid(coup_type="ipc_only"))
 
+    # convexify=False — 기본 경로면 RightSlider1_1/Shaft_copy_1 의 충돌 메시가
+    # 열린 채 uipc 로 넘어가 빌드가 죽는다(compute_mesh_volume 어서션).
+    # convexify=False 는 watertighten(기본 5) 을 태워 33개 전부 닫히게 한다.
     recovery = scene.add_entity(
-        gs.morphs.MJCF(file=RECOVERY_MJCF, pos=RECOVERY_POS, decimate=False),
+        gs.morphs.MJCF(file=RECOVERY_MJCF, pos=RECOVERY_POS, decimate=False, convexify=False),
         material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
 
@@ -115,7 +121,9 @@ def main(use_viewer: bool = False):
     def _tab_com():
         return _npy(tablet.get_state().pos).squeeze().mean(axis=0)
 
-    cam.start_recording()
+    # Genesis 1.3.x: 파일명/fps 가 start_recording 으로 옮겨졌고 stop_recording()
+    # 은 인자를 안 받는다(full_workflow.py 와 동일하게 이전).
+    cam.start_recording(save_to_filename=MP4, fps=30)
 
     print(f"\n[drop] ({N_DROP}스텝) — 정제 자유낙하, 시작 z={TABLET_POS[2]*1e3:.1f}mm")
     for k in range(N_DROP):
@@ -132,7 +140,7 @@ def main(use_viewer: bool = False):
             print(f"    k={k+1:4d} tablet_com_z={_tab_com()[2]*1e3:+.2f}mm")
 
     print(f"\n[final] tablet_com_z={_tab_com()[2]*1e3:+.2f}mm")
-    cam.stop_recording(save_to_filename=MP4, fps=30)
+    cam.stop_recording()
     print(f"\n[saved] {MP4}")
     print("완료.")
 

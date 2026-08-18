@@ -23,6 +23,16 @@ CLI 시뮬레이션. 사용자가 아나콘다 프롬프트에서 직접 실행�
     IPC의 초기 유효성 검사는 필터링을 무시하고 순수 메시 교차만 봄). L1/R1은
     Jig_1과 안 겹쳐서 충돌 유지, T1만 시각 전용으로 되돌렸다.
 
+**에셋 교체(2026-08-19)**: 회수장치2_description/회수장치2.xml → fusion2xml
+(MJCF 직행) 빌드인 recovery2_mjcf/recovery2.xml (대조표는 그 폴더 README.md).
+RECOVERY2_POS 는 그대로 둔다 — 정렬점 (-74.015, 59.22, 1.776)mm 는 Fusion 조인트
+앵커 값인데 구 빌드는 자기 샤프트 힌지축이 그 앵커에서 (+30.92, -6.62, 0)mm
+어긋나 있었고 신 빌드는 0.01mm 안에서 일치한다. 즉 **같은 POS 로 회수장치2
+형상이 고정장치 기준 (+30.92, -6.62, 0)mm 옮겨 앉으며, 그래야 원래 의도한
+"Jig 포크가 ShaftHandle 을 돌린다"는 정렬이 실제로 성립한다.** 아래 본문의
+"ShaftHandle 은 Jig 와 전혀 안 겹친다(0/64, 전 회전각)"는 구 빌드에서 잰 값이라
+신 빌드에서는 다시 재야 한다.
+
 사용법(Anaconda Prompt, Windows cmd):
     conda activate crusher_genesis
     cd C:\\Crusher_isaacsim\\Crusher_Genesis\\Fixture_only
@@ -59,13 +69,17 @@ MP4 = os.path.join(OUT_DIR, f"fixture_recovery2_stack_sim_{_TS}.mp4")
 FIXTURE_MJCF = os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고정장치.xml")
 FIXTURE_POS = (0.0, 0.0, 0.12)
 
-RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml")
+RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "recovery2_mjcf", "recovery2.xml")
 RECOVERY2_POS = (-0.063985, 0.01328, 0.269524)  # 원래 정렬점 복귀(full_workflow.py 주석 참고)
 
 DT = 5e-3
 IPC_D_HAT = 1.0e-4
-N_SPIN = 300   # 조인트 0 -> 2pi 회전 구간
-N_HOLD = 60
+# 영상 길이 = 스텝수 x dt / realtime_factor (프레임은 scene.step() 안에서
+# Camera.update_recording() 이 잡는다 — 매 스텝 cam.render() 를 부르면 그 그림은
+# 버려지는 중복 렌더다). 한 바퀴를 10초에 걸쳐 느리게 돌린다(사용자 지시
+# 2026-08-19): dt=5e-3 이므로 2000스텝 = 10초.
+N_SPIN = 2000  # 조인트 0 -> 2pi 회전 구간 (10초)
+N_HOLD = 200   # 끝에서 1초 정지
 
 CAM_POS = (0.55, -0.55, 0.45)
 CAM_LOOK = (-0.09, 0.03, 0.2)
@@ -106,8 +120,14 @@ def main(use_viewer: bool = False):
         gs.morphs.MJCF(file=FIXTURE_MJCF, pos=FIXTURE_POS, decimate=False),
         material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
+    # convexify=False: 신 에셋은 부품마다 `*_col`(원본 STL) 이 있어 링크 33개가
+    # ABD 강체로 IPC 월드에 들어가는데, 기본 경로면 RightSlider1_1/Shaft_copy_1 의
+    # 충돌 메시가 열린 채로 uipc 에 넘어가 빌드가 죽는다(AffineBodyConstitution ->
+    # compute_mesh_volume: "Calculating volume of open trimesh is meaningless").
+    # convexify=False 는 Genesis 의 watertighten(기본 5) 경로를 타서 33개 전부
+    # 닫힌 비볼록 메시가 된다(실측: 열린 geom 0개).
     recovery = scene.add_entity(
-        gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False),
+        gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False, convexify=False),
         material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
 
@@ -120,10 +140,12 @@ def main(use_viewer: bool = False):
     print(f"[build] 성공  fixture n_dofs={fixture.n_dofs}  recovery2 n_dofs={recovery.n_dofs}")
 
     jig_geoms = [g for g in fixture.geoms if g.link.name == "ServoShaft_1" and g.contype == 1]
-    # ShaftHandle_1_hull(실제 충돌 활성화된 유일한 회수장치2 부품) - Jig 포크가
-    # 실제로 밀어야 할 대상. whole-body 시각 AABB는 참고용으로만 같이 본다
-    # (M_Bottom_1/Shaft_copy_1과 겹치는 건 의도된 근접이라 더 이상 "버그"가 아님).
-    sh_geoms = [g for g in recovery.geoms if g.contype == 1]
+    # Jig 포크가 실제로 밀어야 할 대상 = ShaftHandle_1. 구 에셋에서는 이 부품
+    # 하나만 contype=1 이라 `g.contype == 1` 로 골라도 같은 결과였지만, 신 에셋은
+    # 33개 부품이 전부 충돌 geom 을 가지므로 반드시 링크 이름으로 골라야 한다.
+    # whole-body 시각 AABB는 참고용으로만 같이 본다(M_Bottom_1/Shaft_copy_1과
+    # 겹치는 건 의도된 근접이라 더 이상 "버그"가 아님).
+    sh_geoms = [g for g in recovery.geoms if g.link.name == "ShaftHandle_1"]
     rec_aabb = recovery.get_vAABB()
     rec_aabb = rec_aabb.cpu().numpy() if hasattr(rec_aabb, "cpu") else np.asarray(rec_aabb)
 
@@ -147,16 +169,16 @@ def main(use_viewer: bool = False):
         return n_body, n_handle
 
     if cam is not None:
-        cam.start_recording()
+        # Genesis 1.3.x: 파일명/fps 가 start_recording 으로 옮겨졌고 stop_recording()
+        # 은 인자를 안 받는다(full_workflow.py 와 동일하게 이전).
+        cam.start_recording(save_to_filename=MP4, fps=30)
 
     print(f"\n[spin] Servo3_ServoShaft 0 -> 2pi ({N_SPIN}스텝) — Jig 포크와 ShaftHandle 접촉 확인")
     for k in range(N_SPIN):
         q = 2 * np.pi * (k + 1) / N_SPIN
         fixture.set_dofs_position(np.array([q]))
-        scene.step()
-        if cam is not None:
-            cam.render()
-        if k % 30 == 0:
+        scene.step()          # 녹화 프레임은 이 안에서 잡힌다(별도 render 불필요)
+        if k % 200 == 0:
             n_body, n_handle = check_overlap()
             print(f"    k={k:4d} q={q:.3f}rad  body겹침(참고용)={n_body}/{len(jig_geoms)}  "
                   f"ShaftHandle접촉={n_handle}/{len(jig_geoms)}"
@@ -165,11 +187,9 @@ def main(use_viewer: bool = False):
     print(f"[hold] 정지 유지 ({N_HOLD}스텝)")
     for k in range(N_HOLD):
         scene.step()
-        if cam is not None:
-            cam.render()
 
     if cam is not None:
-        cam.stop_recording(save_to_filename=MP4, fps=30)
+        cam.stop_recording()
         print(f"\n[saved] {MP4}")
     print("완료.")
 

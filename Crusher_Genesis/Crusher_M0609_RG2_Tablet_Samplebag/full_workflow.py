@@ -223,12 +223,14 @@ FIXTURE_POS = (0.5, -0.3, 0.12)
 # 흡착컵 2개가 봉투를 양옆으로 당겨서 여는 구조")에 맞춰, 회수장치2의
 # F_LeftLink_1-F_RightLink_1 중점에 석션V1의 흡착컵 2개(Suction_Cup_M5_
 # 0.8mm_15mm_1/2) 중점이 오도록 정렬한다.
-#   F_LeftLink_1/F_RightLink_1 중점(회수장치2 원점 기준, trimesh bounds 실측):
-#     (-0.08845, 0.06513, 0.098)
+#   F_LeftLink_1/F_RightLink_1 중점(회수장치2 원점 기준, mesh bounds 실측):
+#     (-0.057502, 0.059201, 0.098) — **recovery2_mjcf 빌드 기준으로 재측정
+#     (2026-08-19)**. 구 회수장치2_description 빌드에서는 (-0.08845, 0.06513,
+#     0.098) 이었다(§RECOVERY2_MJCF 주석: 두 빌드는 모델 원점이 다르다).
 #   흡착컵 중점(석션V1 원점 기준, q=(0,0,0) 기본자세, genesis 충돌 geom 실측):
 #     (-0.07790, 0.06750, 0.28594)
-#   world_target = RECOVERY2_POS + F링크중점 = (0.347565, -0.22159, 0.367524)
-#   SUCTIONV1_POS = world_target - 흡착컵중점 = (0.42547, -0.28909, 0.08158)
+#   world_target = RECOVERY2_POS + F링크중점 = (0.378513, -0.227519, 0.367524)
+#   SUCTIONV1_POS = world_target - 흡착컵중점 = (0.456413, -0.295019, 0.081584)
 # X는 Y,Z와 달리 자유도(요 회전 미정과 동일한 이유) — 위 X 그대로 두면 석션V1의
 # 몸체(Dummy_1 등)가 고정장치 본체(world: T1/L1/R1/base_link)와 실측 겹침이
 # 확인돼(link 단위 vAABB 대조) X를 +0.25 밀어 물리적 간섭을 제거했다.
@@ -242,7 +244,7 @@ FIXTURE_POS = (0.5, -0.3, 0.12)
 # 자체가 깨짐). 사용자 확인 필요 - 아래 SUCTIONV1_POS는 좌표 계산은 맞지만
 # 현재 이 상태로는 전체 파이프라인이 build 단계에서 죽는다.
 SUCTION_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "석션V1_description", "석션V1.xml"))
-SUCTIONV1_POS = (0.675, -0.28909000, 0.08158463)
+SUCTIONV1_POS = (0.675, -0.29501900, 0.08158463)
 
 # 회수장치2는 정사각형 레이아웃이 아니라 고정장치 위에 조립(2026-07-27, 사용자
 # 지시) — 각자의 원점(0,0,0) 기준 상대좌표로 준 두 정렬점을 world 좌표에서
@@ -264,7 +266,38 @@ SUCTIONV1_POS = (0.675, -0.28909000, 0.08158463)
 # 그래서 인위적인 +25mm 간격을 걷어내고 원래 정렬점(X,Y,Z 전부 일치)으로
 # 되돌린다 — 요(yaw) 회전은 아직 안 맞춰서(사용자가 추후 지시 예정) 완벽한
 # "기둥이 손잡이를 미는" 배치는 아니지만, 최소한 불필요한 뜬 간격은 없앤 상태.
-RECOVERY2_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "회수장치2_description", "회수장치2.xml"))
+#
+# **에셋 교체(2026-08-19, 사용자 지시)**: fusion2urdf→URDF→MJCF 를 거친
+# `회수장치2_description/회수장치2.xml` 대신 fusion2xml(MJCF 직행) 빌드인
+# `recovery2_mjcf/recovery2.xml` 을 쓴다(자산 대조표는 그 폴더 README.md).
+# 경로가 ASCII 라 `paths.ascii_safe_mjcf` 미러가 필요 없다.
+#   - **RECOVERY2_POS 는 그대로 둔다.** 위 정렬점 (-74.015, 59.22, 1.776)mm 는
+#     Fusion 조인트 앵커(joint_anchors_.csv) 값인데, 구 빌드는 정작 자기 샤프트
+#     힌지축이 그 앵커에서 (+30.92, -6.62, 0)mm 어긋나 있었다(두 빌드를 MuJoCo
+#     qpos0 로 올려 부품별 메시 월드 AABB 를 대조 — 샤프트에 꿰인 환형 부품
+#     Bearing1/NeedleBearing/Washer/PULLEY/RachetGear 중심이 각 빌드의 자기
+#     힌지축과는 0.3mm 안에서 일치하므로 두 빌드 모두 내부적으로는 정합).
+#     신 빌드는 힌지축(회전_31)이 앵커와 정확히(x,y 0.01mm 이내) 일치하므로,
+#     같은 POS 로 오히려 의도했던 정렬(고정장치 ServoShaft 중심 ↔ 회수장치2
+#     샤프트)이 처음으로 실제로 맞는다. 대신 렌더상 회수장치2 전체가 예전
+#     영상 대비 x +30.9mm, y -6.6mm 옮겨 보인다.
+#   - 신 빌드가 조립 자체도 맞다: 구 빌드는 가동턱(M_*)이 고정턱(F_*) 대비
+#     x +35mm / y -5~8mm 어긋나 있었는데(M_Top-F_Top: old +91.87,-5.49 →
+#     new +55.07,+0.01mm), 신 빌드는 두 턱이 y 로 0.01mm 안에서 정렬되고
+#     qpos0 가 닫힌 상태(F/M 링크 간격 5.0mm)다. 즉 정지 소품의 겉모습도
+#     "35mm 더 열린 채 비틀린" 것에서 "닫힌 정상 조립"으로 바뀐다.
+#   - 조인트 4개(더미 바디 Crank_1_b 포함) → 3개(슬라이더_35 / 회전_31 /
+#     회전_29), 폐루프 connect 가 실제 바디끼리(Crank_1↔M_Top_1)로 바뀌었다.
+#     Genesis 1.3.3 은 이 XML 을 그대로 파싱한다(links=33, dofs=3, equality=1
+#     확인). 위 석션V1 주석의 "exclude 는 Genesis mjcf.py 파싱이 깨진다"는 메모는 그
+#     버전에서는 더 이상 유효하지 않다 — 신 빌드의 <contact><exclude> 200여
+#     쌍은 contype/conaffinity 비트마스크로 변환돼 들어간다.
+#   - **충돌 geom 이 0개 → 33개로 늘어난다.** 구 빌드는 ShaftHandle_1_hull
+#     하나만 contype=1 이고 나머지가 전부 contype/conaffinity=0 이라 Genesis 가
+#     시각 geom 으로만 취급했다. 신 빌드는 부품마다 `*_col`(원본 STL, 최대
+#     15k face) 을 달고 있어, 정적 소품이라 접촉이 무의미해도 빌드 비용과
+#     IPC 교차 검사에는 그대로 들어간다.
+RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "recovery2_mjcf", "recovery2.xml")
 RECOVERY2_POS = (0.436015, -0.28672, 0.269524)
 # 실링부 색칠(2026-07-15 4차, 사용자 지시): Genesis 는 로드된 mesh 의
 # vertex_colors 를 그대로 렌더에 반영하지 않는다(격리 테스트로 확인 — PLY에
@@ -577,9 +610,19 @@ def main(use_viewer: bool = False):
     # 워크셀 정사각형 레이아웃(2026-07-27): 고정장치와 대칭인 나머지 두 플레이트에
     # 회수장치2/석션V1을 정적 소품으로 배치 — 둘 다 아직 로봇과 실제로 상호작용하지
     # 않는 시각 전용 배치(고정장치와 동일한 취급).
+    # 회수장치2 만 IPC 커플러에서 뺀다(needs_coup=False, 2026-08-19). 구 에셋은
+    # 모든 geom 이 contype/conaffinity=0 이라 Genesis 가 시각 geom 으로만 만들어
+    # 커플러가 가져갈 충돌 메시가 0개였다 → coup_type 을 줘도 결과적으로 커플링
+    # 밖이었다. 신 recovery2_mjcf 는 부품마다 `*_col`(원본 STL) 이 있어 그대로
+    # 두면 링크 33개가 ABD 강체로 IPC 월드에 들어가는데, 그중 열린(watertight
+    # 아닌) 메시가 있어 빌드가 uipc 에서 죽는다 — AffineBodyConstitution ->
+    # compute_mesh_volume: "Calculating volume of open trimesh is meaningless"
+    # (실측 확인, scene.build() 안에서 즉사). 어차피 로봇/봉투와 상호작용하지
+    # 않는 정적 소품이므로 커플러에서 제외하는 게 예전 거동과도 일치한다 —
+    # 렌더와 강체 솔버에는 그대로 남는다.
     scene.add_entity(
         gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False),
-        material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
+        material=gs.materials.Rigid(needs_coup=False),
     )
     scene.add_entity(
         gs.morphs.MJCF(file=SUCTION_MJCF, pos=SUCTIONV1_POS, decimate=False),

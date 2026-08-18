@@ -12,9 +12,15 @@ connect 제약의 실제 잔차/거동을 정확히 보려면 mujoco 자체 솔�
 genesis/assets/xml/four_bar_linkage.xml 이 <motor>로 구동하는 것과 동일한
 방식.
 
-damping은 XML 파일 자체에는 없으므로(추가하면 다른 용도의 시뮬레이션에도
-영향을 주게 됨) 이 스크립트에서 로드 후 model.dof_damping[]으로만 임시로
-걸어준다.
+**에셋 교체(2026-08-19)**: recovery2_mjcf/recovery2.xml(fusion2xml 직행 빌드).
+조인트/액추에이터 이름이 한글 원본으로 바뀌었고(회전_31 / 회전_31_act /
+슬라이더_35), 폐루프 connect 가 실제 바디끼리(Crank_1 ↔ M_Top_1)라 잔차는
+컴파일된 eq_data 의 anchor 두 개를 그대로 읽어서 잰다.
+
+damping: 구 XML 에는 없어서 이 스크립트가 직접 걸어줬는데, 신 XML 은
+<default><joint damping="0.1"> 로 세 조인트 모두에 이미 걸려 있다 — 아래 대입은
+따라서 "없던 감쇠를 추가"가 아니라 샤프트만 0.1 -> DAMPING 으로 **낮추는**
+동작이다(원본 XML 은 여전히 안 건드린다).
 
 사용법:
     python mujoco_slow_torque_test.py            # mp4로 저장
@@ -27,7 +33,12 @@ import mujoco
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 XML = os.path.normpath(os.path.join(
-    _DIR, "..", "assets", "robots", "회수장치2_description", "회수장치2.xml"))
+    _DIR, "..", "assets", "robots", "recovery2_mjcf", "recovery2.xml"))
+
+SHAFT_JOINT = "회전_31"        # 구 빌드의 base_link_Shaft_copy_1
+SHAFT_MOTOR = "회전_31_act"    # 구 빌드의 base_link_Shaft_copy_1_motor
+SLIDE_JOINT = "슬라이더_35"     # 구 빌드의 base_link_M_Bottom_1
+LOOP_EQUALITY = "connect_Crank_1_M_Top_1"
 
 DT = 1.0e-3
 DAMPING = 0.05     # N*m*s/rad, 샤프트 joint에만 임시로 부여 (원본 XML에는 없음)
@@ -44,7 +55,7 @@ def build_model():
     model = mujoco.MjModel.from_xml_path(XML)
     model.opt.timestep = DT
 
-    shaft_jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "base_link_Shaft_copy_1")
+    shaft_jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, SHAFT_JOINT)
     dof_adr = model.jnt_dofadr[shaft_jid]
     model.dof_damping[dof_adr] = DAMPING
 
@@ -59,21 +70,21 @@ def main(use_viewer: bool = False):
     print("=" * 60)
 
     model, data, shaft_jid = build_model()
-    act_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, "base_link_Shaft_copy_1_motor")
-    slide_jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, "base_link_M_Bottom_1")
-    crank_b_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "Crank_1_b")
-    crank_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, "Crank_1")
-    anchor_local = np.array([0.06, 0.0, 0.006])
+    act_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, SHAFT_MOTOR)
+    slide_jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, SLIDE_JOINT)
+    # 폐루프 잔차: 컴파일된 eq_data 에 anchor 가 body1/body2 로컬로 각각 들어있다
+    # (data[0:3]=body1 로컬, data[3:6]=body2 로컬). 구 빌드는 두 바디가 기준자세
+    # 에서 겹쳐 있어 같은 anchor 를 두 번 써도 됐지만 신 빌드는 그렇지 않다.
+    eq_id = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_EQUALITY, LOOP_EQUALITY)
+    body1_id, body2_id = int(model.eq_obj1id[eq_id]), int(model.eq_obj2id[eq_id])
+    anchor1 = model.eq_data[eq_id][:3].copy()
+    anchor2 = model.eq_data[eq_id][3:6].copy()
 
     data.ctrl[act_id] = TORQUE
 
     def loop_err():
-        p1 = data.xpos[crank_b_id]
-        R1 = data.xmat[crank_b_id].reshape(3, 3)
-        p2 = data.xpos[crank_id]
-        R2 = data.xmat[crank_id].reshape(3, 3)
-        far1 = p1 + R1 @ anchor_local
-        far2 = p2 + R2 @ anchor_local
+        far1 = data.xpos[body1_id] + data.xmat[body1_id].reshape(3, 3) @ anchor1
+        far2 = data.xpos[body2_id] + data.xmat[body2_id].reshape(3, 3) @ anchor2
         return np.linalg.norm(far1 - far2)
 
     shaft_qadr = model.jnt_qposadr[shaft_jid]

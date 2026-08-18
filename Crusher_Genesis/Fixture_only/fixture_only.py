@@ -90,7 +90,9 @@ def main(use_viewer: bool = False):
     scene.build(n_envs=0)
     print(f"[build] 성공  n_dofs={fixture.n_dofs}")
 
-    cam.start_recording()
+    # Genesis 1.3.x: 파일명/fps 가 start_recording 으로 옮겨졌고 stop_recording()
+    # 은 인자를 안 받는다(full_workflow.py 와 동일하게 이전).
+    cam.start_recording(save_to_filename=MP4, fps=30)
 
     print(f"\n[spin] Servo3_ServoShaft 0 -> 2π ({N_SPIN}스텝)")
     for k in range(N_SPIN):
@@ -106,7 +108,7 @@ def main(use_viewer: bool = False):
         scene.step()
         cam.render()
 
-    cam.stop_recording(save_to_filename=MP4, fps=30)
+    cam.stop_recording()
     print(f"\n[saved] {MP4}")
     print("완료.")
 
