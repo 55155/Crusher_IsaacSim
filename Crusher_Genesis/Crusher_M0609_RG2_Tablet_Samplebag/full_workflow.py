@@ -98,12 +98,26 @@ Y_OFFSET = Y_OFFSET_MM * 1e-3
 # 정제 제외 스위치 — 봉투(FEM.Cloth)+IPC 커플러만 격리 검증할 때 쓴다(아래 사용처 주석).
 SKIP_TABLET = os.environ.get("SKIP_TABLET", "0") == "1"
 
+# ── 파지 위치 스윕(2026-08-14, 사용자 지시) ─────────────────────────────────
+# 봉투 로컬 폭축(BAG_EULER 회전으로 world Y 에 매핑) 상에서 그리퍼가 무는 지점:
+#     0    = 봉투 폭 정중앙(입구 한가운데를 뭄) — 봉투가 핑거 바로 아래 매달린다
+#   -28mm  = 세로 실링 가장자리(§5-2 에서 검증된 현행 파지)
+# 이 값이 곧 핑거 TCP ↔ 봉투 중심의 Y 오프셋(부호 반전)이라, 슬롯 정렬 보정
+# (BAG_DY_FROM_FINGER)과 above/insert IK 타깃이 전부 자동으로 따라온다.
+# 가장자리를 물수록 봉투에 굽힘 모멘트가 걸려 삽입 중 쐐기처럼 끼는 것으로
+# 의심돼(§14-6 trim 발산) 정중앙~가장자리를 스윕해 비교한다.
+GRIP_OFFSET_MM = float(os.environ.get("GRIP_OFFSET_MM", "-28"))
+
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RESULT")
 os.makedirs(OUT_DIR, exist_ok=True)
+# 케이스별 하위 디렉토리(사용자 지시) — 영상이 케이스마다 분리돼 쌓인다.
+CASE_DIR = os.path.join(OUT_DIR, f"grip{GRIP_OFFSET_MM:+03.0f}mm")
+os.makedirs(CASE_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
-MP4_OVERVIEW = os.path.join(OUT_DIR, f"full_workflow_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}_overview.mp4")
-MP4_BAGCAM = os.path.join(OUT_DIR, f"full_workflow_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}_bagcam.mp4")
-MP4_SIDE = os.path.join(OUT_DIR, f"full_workflow_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}_sideview.mp4")
+_TAG = f"grip{GRIP_OFFSET_MM:+.0f}mm_yoff{Y_OFFSET_MM:+.1f}mm_{_TS}"
+MP4_OVERVIEW = os.path.join(CASE_DIR, f"full_workflow_{_TAG}_overview.mp4")
+MP4_BAGCAM = os.path.join(CASE_DIR, f"full_workflow_{_TAG}_bagcam.mp4")
+MP4_SIDE = os.path.join(CASE_DIR, f"full_workflow_{_TAG}_sideview.mp4")
 
 # ── Crusher + plate (scene_setup.py 동일) ───────────────────────────────────
 CRUSHER_SRC_XML = paths.MJCF_MAIN
@@ -330,9 +344,10 @@ BAG_SCALE = 1.0
 # 하지만 통과 가능)로 정확히 뒤바뀐다. 높이(local Y->world Z)는 이 변경과
 # 무관하게 그대로다(trimesh 로 직접 회전행렬 적용해 검증 완료).
 BAG_EULER = (90, 0, 90)
-# SEAL_LOCAL_X 는 로컬 mesh 폭축(실링 위치) 오프셋 — 이제 그 축이 world Y 로
+# SEAL_LOCAL_X 는 로컬 mesh 폭축(파지 지점) 오프셋 — 이제 그 축이 world Y 로
 # 매핑되므로(위 회전 변경), BAG_POS 적용 위치도 X->Y 로 옮긴다.
-SEAL_LOCAL_X = -0.028
+# 2026-08-14: 상수에서 GRIP_OFFSET_MM 스윕 파라미터로 승격(파일 상단 주석 참고).
+SEAL_LOCAL_X = GRIP_OFFSET_MM * 1e-3
 BAG_HALF_H = 0.045
 # 파지 위치를 봉투 거의 최상단(입구 쪽)으로 이동(2026-07-15 4차, 사용자 지시).
 # 이전엔 FINGER_MID 가 봉투 중간 높이(local_y=0)에 오도록 BAG_POS_z=FINGER_MID_z
@@ -341,6 +356,25 @@ BAG_HALF_H = 0.045
 TOP_GRIP_MARGIN = 0.008
 BAG_POS = (FINGER_MID[0], FINGER_MID[1] - SEAL_LOCAL_X,
            FINGER_MID[2] - BAG_HALF_H + TOP_GRIP_MARGIN)
+
+# ── 핑거 TCP ↔ 봉투 몸체의 고정 오프셋 (2026-08-14, 슬롯 미삽입 근본원인) ─────
+# 그리퍼는 봉투의 **세로 실링 가장자리**(로컬 폭축 SEAL_LOCAL_X=-28mm, 위 회전
+# 으로 world +Y 에 매핑)를 문다 — 종이를 왼쪽 끝만 집어 든 것과 같아서, 64mm
+# 폭의 봉투 몸체가 핑거 한쪽으로 통째로 뻗어 있다. 그런데 above/insert IK 는
+# **핑거 TCP** 를 gap 중심에 맞추고 있었으므로, 봉투 몸체 중심은 슬롯 중심에서
+# 항상 +28mm 어긋난 채 내려갔다(trimesh 실측: 봉투 Y 스팬 [-0.0513,+0.0127] vs
+# gap Y 창 [-0.0798,-0.0148] → 폭 64mm 중 27.5mm 가 벽 윗면 위). 즉 봉투 절반이
+# Wall3/Left_Wall 상면에 얹힌 채 눌리는 것이고, 천이라 그대로 접혀버린다
+# (§docs/DigitalTwin.md §13-7 의 "설명 안 되는 tilt 26.3°" 도 같은 원인).
+# → 슬롯 정렬 기준을 핑거가 아니라 **봉투 몸체**로 바꾼다(아래 target_xy).
+BAG_DY_FROM_FINGER = BAG_POS[1] - FINGER_MID[1]             # = -SEAL_LOCAL_X = +0.028
+# 봉투는 입구에서 TOP_GRIP_MARGIN 아래를 물리므로 핑거 밑으로 이만큼 늘어진다.
+# "봉투 최하단을 Wall_1 중간 높이에 둔다"(사용자 목표)를 그대로 역산한 값 —
+# insert_z(핑거) = wall_center_z + BAG_HANG_BELOW_FINGER.
+# (구값 INSERT_MARGIN_ABOVE_CENTER=0.052 는 핑거-Crusher 충돌 경계에서 뽑은
+#  "최소 여유"였을 뿐 목표 깊이와 무관했다 — 82mm 는 그 경계보다 30mm 더 높아
+#  충돌 여유는 오히려 늘어난다.)
+BAG_HANG_BELOW_FINGER = 2 * BAG_HALF_H - TOP_GRIP_MARGIN    # 0.082
 
 SHELF_TOP = BAG_POS[2] - BAG_HALF_H - 0.0015
 SHELF_SIZE = (0.10, 0.10, 0.02)
@@ -354,6 +388,10 @@ N_PREP = 200
 N_DROP, N_SETTLE, N_CLOSE, N_GRASP, N_LIFT, N_HOLD = 150, 60, 80, 40, 200, 100
 # above/insert 를 2배로 늘려 슬롯 접근을 더 천천히(사용자 지시) — 봉투 스윙도 완화.
 N_ABOVE, N_INSERT, N_SETTLE2 = 400, 400, 100
+# above 도착 후 하강 전 정지 대기(2026-08-14). 봉투는 핑거에 매달린 펜듈럼이라
+# 팔이 멈춰도 바로 멈추지 않는다 — 흔들리는 채로 12mm 슬릿에 넣으면 벽에 긁힌다.
+# 여기서 감쇠시킨 뒤 내려간다(ease 프로파일과 함께 쓰는 스윙 억제 처방).
+N_ABOVE_SETTLE = 200
 # clamp: Left_Wall 이 실링부를 누르는 구간(개방 대비 훨씬 짧고 정밀한 이동이라
 # Crusher_Samplebag.py N_CLAMP=2000(@dt=1e-3, 2.0s)와 동일 시간이 되도록 환산).
 N_CLAMP, N_RELEASE = 400, 100
@@ -370,6 +408,41 @@ SIDECAM_Y_OFFSET = -0.55
 
 def _npy(x):
     return x.cpu().numpy() if hasattr(x, "cpu") else np.asarray(x)
+
+
+def ease(s):
+    """5차 최소저크 프로파일(2026-08-14). 선형 램프 `s=(k+1)/n` 는 구간 양끝에서
+    속도가 계단으로 튀어 — 즉 무한대 가속 임펄스 — 매달린 봉투를 펜듈럼처럼
+    때린다. `above` 종료 시점의 봉투 스윙(§13-7 "하강 중 어딘가에 끌린다")에
+    직접 기여하는 항이라, 시작·끝의 속도와 가속도가 모두 0인 프로파일로 바꾼다.
+    총 이동시간(스텝수)은 그대로라 궤적의 1:1 대응(§13-1)은 유지된다."""
+    return s * s * s * (10.0 - 15.0 * s + 6.0 * s * s)
+
+
+def solve_descent_waypoints(robot, link, target_xy, z0, z1, n_way=41):
+    """above->insert 하강을 **카테시안 직선**으로 만드는 웨이포인트 IK(2026-08-14).
+
+    양 끝점의 조인트각만 선형보간하면 카테시안 경로는 직선이 아니라 옆으로 부푼다.
+    `slot_ik_check.py` 실측: 하강 중간(s=0.5)에서 dy=+9.67mm — 봉투-슬롯 Y 여유가
+    0.50mm/쪽뿐이라 **19배 초과**다. 목표점 두 개만 맞춰놨어도 그 사이에서 봉투가
+    벽에 긁히며 접힌다(§DigitalTwin.md §13-7 "하강 중 어딘가에 끌린다"의 나머지 절반).
+
+    z 만 균등하게 내려가는 웨이포인트마다 IK 를 풀고 그 사이만 조인트 보간한다 —
+    41점이면 간격 4.6mm 라 구간 내 부풂은 0.01mm 수준으로 사라진다.
+    IK 가 현재 qpos 를 초기추정으로 쓰므로 위에서부터 순차적으로 풀어 같은 분기해에
+    머물게 하고, 끝나면 호출 전 qpos 를 복원한다(사이에 scene.step() 을 끼우지
+    않으므로 물리는 전혀 진행되지 않는다)."""
+    q_saved = _npy(robot.get_dofs_position()).squeeze().copy()
+    qs = []
+    for z in np.linspace(z0, z1, n_way):
+        q = _npy(robot.inverse_kinematics(
+            link=link, pos=np.array([target_xy[0], target_xy[1], z]),
+            quat=VERTICAL_QUAT, local_point=FINGER_TCP_LOCAL,
+            dofs_idx_local=np.arange(6)))[:6]
+        qs.append(q)
+        robot.set_dofs_position(np.concatenate([q, q_saved[6:]]))
+    robot.set_dofs_position(q_saved)
+    return np.stack(qs)
 
 
 def _prepare_robot_mjcf():
@@ -575,6 +648,9 @@ def main(use_viewer: bool = False):
     scene.build(n_envs=0)
     _build_s = _time.time() - _t_build
     _t_steps = _time.time()
+    # 스텝 수는 런타임에 센다. N_* 를 더하는 정적 합계는 위상이 하나 늘 때마다
+    # (예: N_ABOVE_SETTLE) 조용히 어긋나고, trim 은 애초에 가변 회차다.
+    _step_n = [0]
     print(f"[build] 성공 ({_build_s:.1f}s)")
 
     # ── 봉투 형상 고정: 바닥+양측면(입구는 자유) — §docstring 참고 ───────────
@@ -645,6 +721,23 @@ def main(use_viewer: bool = False):
         p = _npy(bag.get_state().pos).squeeze()
         return float(p[:, 1].max() - p[:, 1].min()), float(p[:, 2].max() - p[:, 2].min()), float(p[:, 2].min())
 
+    def _bag_tilt():
+        """봉투 높이축이 world +Z 에서 몇 도 기울었나(2026-08-14).
+
+        AABB 로는 자세를 못 읽는다(§13-7 — 회전이 섞이면 Z-extent 가 실치수를
+        넘어버림). rigid 모드는 강체 quat 으로 직접 쟀지만 FEM 은 점군이라,
+        **최하단 10% 정점 중심 -> 최상단 10% 정점 중심** 벡터를 높이축으로 쓴다.
+        슬롯 진입 실패의 지배적 모드가 "기운 채로 내려가 벽 윗면에 얹힘"이라
+        (rigid 실측: above 종료 tilt 28.8deg) FEM 쪽도 같은 지표가 필요하다."""
+        p = _npy(bag.get_state().pos).squeeze()
+        k = max(1, len(p) // 10)
+        order = np.argsort(p[:, 2])
+        axis = p[order[-k:]].mean(axis=0) - p[order[:k]].mean(axis=0)
+        n = np.linalg.norm(axis)
+        if n < 1e-9:
+            return float("nan")
+        return float(np.degrees(np.arccos(np.clip(axis[2] / n, -1.0, 1.0))))
+
     def _tablet_z():
         if tablet is None:
             return float("nan")
@@ -663,7 +756,7 @@ def main(use_viewer: bool = False):
 
     def run_arm(name, q0, q1, f0, f1, n, crank_q=None, wall_q=None, trace=False):
         for k in range(n):
-            s = (k + 1) / n
+            s = ease((k + 1) / n)
             q = q0 + (q1 - q0) * s
             f = f0 + (f1 - f0) * s
             robot.set_dofs_position(np.concatenate([q, [f] * 6]))
@@ -672,11 +765,36 @@ def main(use_viewer: bool = False):
             if wall_q is not None:
                 crusher.control_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
             scene.step()
+            _step_n[0] += 1
             render_cams()
             if trace and k % 40 == 0:
                 print(f"    [{name} k={k:4d}] tablet_z={_tablet_z()*1e3:+.2f}mm bag_com={_bag_com()}")
         bc = _bag_com()
-        print(f"[phase] {name:8s} @done  bag_com={bc}  finger_z={_finger_z():.4f}  tablet_z={_tablet_z()*1e3:+.2f}mm")
+        print(f"[phase] {name:8s} @done  bag_com={bc}  finger_z={_finger_z():.4f}  "
+              f"tablet_z={_tablet_z()*1e3:+.2f}mm  tilt={_bag_tilt():.1f}deg  "
+              f"bag_bottom={_bag_extent()[2]:.4f}")
+
+    def run_arm_path(name, q_way, f, n, crank_q=None, wall_q=None, trace=False):
+        """웨이포인트 열을 따라 구동 — run_arm 의 카테시안 직선판(§solve_descent_waypoints)."""
+        m = len(q_way) - 1
+        for k in range(n):
+            u = ease((k + 1) / n) * m
+            i = min(int(u), m - 1)
+            q = q_way[i] + (q_way[i + 1] - q_way[i]) * (u - i)
+            robot.set_dofs_position(np.concatenate([q, [f] * 6]))
+            if crank_q is not None:
+                crusher.control_dofs_position(np.array([crank_q]), dofs_idx_local=[crank_dof])
+            if wall_q is not None:
+                crusher.control_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
+            scene.step()
+            _step_n[0] += 1
+            render_cams()
+            if trace and k % 40 == 0:
+                print(f"    [{name} k={k:4d}] tablet_z={_tablet_z()*1e3:+.2f}mm bag_com={_bag_com()}")
+        bc = _bag_com()
+        print(f"[phase] {name:8s} @done  bag_com={bc}  finger_z={_finger_z():.4f}  "
+              f"tablet_z={_tablet_z()*1e3:+.2f}mm  tilt={_bag_tilt():.1f}deg  "
+              f"bag_bottom={_bag_extent()[2]:.4f}")
 
     # ── Phase 0: prep — 크랭크 -180도, Left_Wall 개방(슬롯 준비, 사용자 지시) ──
     print(f"\n[phase] 0 prep ({N_PREP*DT:.1f}s) — 크랭크 0->{CRANK_START_Q:+.3f}rad(-180deg), "
@@ -687,6 +805,7 @@ def main(use_viewer: bool = False):
         crusher.control_dofs_position(np.array([WALL_OFFSET * s]), dofs_idx_local=[wall_dof])
         robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN] * 6]))
         scene.step()
+        _step_n[0] += 1
         render_cams()
     cq = _npy(crusher.get_dofs_position())[crank_dof]
     wq = _npy(crusher.get_dofs_position())[wall_dof]
@@ -742,19 +861,17 @@ def main(use_viewer: bool = False):
     # 세로 중점) + 100mm 를 **손가락** 목표로 직접 사용.
     wall_center_z = (wall_top_z + wb_lo[2]) / 2.0
     above_z = wall_top_z + 0.20
-    # 2026-07-16 7~8차: "벽쪽으로 조금씩 붙이면서 슬롯에 들어갈 때까지 테스트"
-    # (사용자 지시) — INSERT_MARGIN_ABOVE_CENTER 를 낮춰가며 반복 실행.
-    # 히스토리: 0.10(최초, 봉투가 gap 위에 뜬 채 안 들어감) -> 0.06(봉투가 gap
-    # 안으로 들어감, 확인됨) -> 이번 0.052. rigid-only 정밀 스윕(slot_ik_check
-    # 방식)으로 핑거(gap 12mm보다 훨씬 넓어 gap 통과 불가)-Crusher 충돌 경계를
-    # 찾음: margin=52mm(wall_top+16mm)는 접촉 0건, 50mm(wall_top+14mm)부터
-    # 접촉 7건 — 52mm가 안전한 최소 여유의 타이트한 값.
-    INSERT_MARGIN_ABOVE_CENTER = 0.052
-    insert_z = wall_center_z + INSERT_MARGIN_ABOVE_CENTER
+    # 2026-08-14: 목표 깊이를 "핑거-Crusher 충돌 경계"(구 0.052)가 아니라
+    # **사용자 목표(봉투 최하단 = wall_center_z)** 에서 직접 역산한다.
+    insert_z = wall_center_z + BAG_HANG_BELOW_FINGER
     # Y_OFFSET(사용자 지시, 2026-07-23): gap_cy 추정 위치 근방에서 Y 스윕 검증용.
-    target_xy = np.array([gap_cx, gap_cy + Y_OFFSET])
+    # BAG_DY_FROM_FINGER 를 빼는 것이 이번 라운드의 핵심 수정 — 슬롯에 정렬돼야
+    # 하는 것은 핑거가 아니라 봉투 몸체다(상수 정의부 주석 참고).
+    target_xy = np.array([gap_cx, gap_cy - BAG_DY_FROM_FINGER + Y_OFFSET])
     print(f"[slot] wall_center_z={wall_center_z:.4f}  insert_z(finger)={insert_z:.4f}  "
-          f"margin={INSERT_MARGIN_ABOVE_CENTER*1000:.0f}mm")
+          f"hang={BAG_HANG_BELOW_FINGER*1000:.0f}mm")
+    print(f"[slot] 봉투중심 보정 dy={BAG_DY_FROM_FINGER*1000:+.1f}mm -> finger_y={target_xy[1]:.4f} "
+          f"(봉투중심 y={target_xy[1]+BAG_DY_FROM_FINGER:.4f} = gap_cy {gap_cy:.4f})")
     print(f"[sweep] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm -> target_xy={target_xy}  (gap_cy={gap_cy:.4f})")
 
     # 사이드뷰 카메라 확정 — gap(X, "슬롯 두께"=gap_width) vs 삽입 깊이(Z) 단면을
@@ -778,17 +895,82 @@ def main(use_viewer: bool = False):
     print(f"\n[ik] above-slot target={target_above}  arm_q={qpos_above}")
     run_arm("above", q_lift, qpos_above, FING_CLOSE, FING_CLOSE, N_ABOVE,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
+    # 하강 전 스윙 감쇠(2026-08-14) — 팔은 정지, 봉투만 가라앉힌다.
+    run_arm("aboveset", qpos_above, qpos_above, FING_CLOSE, FING_CLOSE, N_ABOVE_SETTLE,
+            crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
 
-    # ── Phase 8: insert — 슬롯 입구까지 하강(gap 근방, 느리게) ───────────────
-    target_insert = np.array([target_xy[0], target_xy[1], insert_z])
-    qpos_insert = _npy(robot.inverse_kinematics(
-        link=left_link, pos=target_insert, quat=q_insert_quat, local_point=FINGER_TCP_LOCAL,
-        dofs_idx_local=np.arange(6)))[:6]
-    print(f"[ik] insert target={target_insert}  arm_q={qpos_insert}")
-    run_arm("insert", qpos_above, qpos_insert, FING_CLOSE, FING_CLOSE, N_INSERT,
-            crank_q=CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
+    # ── Phase 8: insert — 슬롯 안까지 카테시안 직선 하강 ─────────────────────
+    # 2026-08-14: 조인트각 선형보간은 중간에서 dy=+9.67mm 부푼다(Y 여유 0.5mm/쪽) —
+    # z 만 내려가는 웨이포인트 IK 로 바꾼다(§solve_descent_waypoints).
+    q_way = solve_descent_waypoints(robot, left_link, target_xy, above_z, insert_z)
+    qpos_insert = q_way[-1]
+    print(f"[ik] insert target={np.array([target_xy[0], target_xy[1], insert_z])}  "
+          f"웨이포인트 {len(q_way)}개(카테시안 직선)  arm_q={qpos_insert}")
+    run_arm_path("insert", q_way, FING_CLOSE, N_INSERT,
+                 crank_q=CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
     run_arm("settle2", qpos_insert, qpos_insert, FING_CLOSE, FING_CLOSE, N_SETTLE2,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
+
+    # ── Phase 8b: trim — 봉투 최하단을 wall_center_z 에 맞추는 1자유도 폐루프 ──
+    # 자유 매달림 길이는 예측이 된다(실측 hold 83.0mm ≈ 설계 82mm). 예측이 안 되는
+    # 건 **하강 중 봉투가 슬롯 벽에 스치며 되말려 올라가는 양**이다 — 같은 실행에서
+    # above 82.6mm -> settle2 71.2mm 로 11mm 가 사라졌다. 이건 천의 접촉 이력에
+    # 달린 값이라 상수로 못 박는다.
+    # 그런데 맞춰야 하는 건 스칼라 하나(bag_bottom_z)이고 핑거 z 와 거의 1:1 이므로,
+    # 남은 오차만큼 더 내려주는 폐루프로 닫는다 — 정책을 학습할 구조가 아니다.
+    # 하한은 §DigitalTwin.md §13-7 의 핑거-Crusher 충돌 경계(wall_center+52mm).
+    INSERT_Z_FLOOR = wall_center_z + 0.052
+    TRIM_TOL, TRIM_GAIN, N_TRIM = 0.002, 0.8, 80
+    # **기본 OFF (2026-08-14 실측).** trim 은 봉투를 슬롯 안으로 더 밀어넣는데,
+    # 그 과정에서 IPC 접촉이 퇴화(degenerate)해 **솔버가 기하급수적으로 느려지고
+    # 결국 죽는다**: 같은 씬이 trim 없이 4~5분인데 trim 4라운드에서 5시간 17분을
+    # 쓰고 libuipc CCD 어서션(`toi > 0.0f failed`, toi=-5.4e-26)으로 abort 했다.
+    # 원인은 §14-6 과 같다 — 봉투가 마찰로 걸린 상태에서 계속 누르니 천이 자기
+    # 자신과 벽 사이에서 짓눌린다(tilt 12.8 -> 16.5 -> 22.2 -> 23.9deg 단조 증가).
+    # 즉 trim 은 "밀어넣기의 한계"를 재는 진단 도구지 상시 켜둘 보정이 아니다.
+    # 파지 위치 비교처럼 조건을 맞춰야 하는 실험에서는 반드시 0 으로 둔다.
+    TRIM_ROUNDS = int(os.environ.get("TRIM_ROUNDS", "0"))
+    # **발산 가드(2026-08-14 실측).** 핑거 z ↔ bag_bottom 커플링은 1:1 이 아니라
+    # ~0.36 이다 — 봉투가 슬롯 벽에 마찰로 걸려 있어서, 더 내리면 따라 내려가는
+    # 게 아니라 안에서 눌려 접힌다. 실제로 r3 에서 오차가 7.8 -> **28.3mm** 로
+    # 튀었다. 그래서 "더 내리면 나아진다"를 가정하지 않고, 나빠지면 즉시 최적점
+    # 으로 되돌아가 멈춘다. 남는 오차는 밀어넣기가 아니라 파지 위치/자세 쪽에서
+    # 풀어야 한다는 신호다(§14-6, GRIP_OFFSET_MM 스윕).
+    TRIM_DIVERGE = 0.002
+    cur_z, q_cur = insert_z, qpos_insert
+    best_err, best_z, best_q = abs(_bag_extent()[2] - wall_center_z), cur_z, q_cur
+    if TRIM_ROUNDS == 0:
+        print(f"[trim] TRIM_ROUNDS=0 — 생략(기본값). settle2 시점 bag_bottom 오차 "
+              f"{(best_err)*1e3:+.1f}mm 를 그대로 결과로 쓴다.")
+    for r in range(TRIM_ROUNDS):
+        err = _bag_extent()[2] - wall_center_z
+        if abs(err) < best_err:
+            best_err, best_z, best_q = abs(err), cur_z, q_cur
+        elif abs(err) > best_err + TRIM_DIVERGE:
+            print(f"[trim] r{r}: 오차가 {best_err*1e3:.1f} -> {abs(err)*1e3:.1f}mm 로 악화 "
+                  f"— 봉투가 슬롯 안에서 눌려 접히는 중. 최적점(finger_z={best_z:.4f})으로 복귀 후 종료")
+            run_arm("trimback", q_cur, best_q, FING_CLOSE, FING_CLOSE, N_TRIM,
+                    crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
+            cur_z, q_cur = best_z, best_q
+            break
+        if abs(err) < TRIM_TOL:
+            print(f"[trim] r{r}: 오차 {err*1e3:+.1f}mm < {TRIM_TOL*1e3:.0f}mm — 수렴, 종료")
+            break
+        new_z = float(np.clip(cur_z - TRIM_GAIN * err, INSERT_Z_FLOOR, above_z))
+        if abs(new_z - cur_z) < 1e-4:
+            print(f"[trim] r{r}: 오차 {err*1e3:+.1f}mm 남았으나 핑거가 충돌 하한"
+                  f"({INSERT_Z_FLOOR:.4f})에 걸림 — 종료")
+            break
+        print(f"[trim] r{r}: bag_bottom 오차 {err*1e3:+.1f}mm -> finger_z {cur_z:.4f}->{new_z:.4f}")
+        q_next = _npy(robot.inverse_kinematics(
+            link=left_link, pos=np.array([target_xy[0], target_xy[1], new_z]),
+            quat=q_insert_quat, local_point=FINGER_TCP_LOCAL,
+            dofs_idx_local=np.arange(6)))[:6]
+        run_arm(f"trim{r}", q_cur, q_next, FING_CLOSE, FING_CLOSE, N_TRIM,
+                crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
+        cur_z, q_cur = new_z, q_next
+    print(f"[trim] 최종 finger_z={cur_z:.4f}  (초기 {insert_z:.4f}, 하한 {INSERT_Z_FLOOR:.4f})")
+    qpos_insert = q_cur
 
     # ── Phase 9: clamp — Left_Wall(Motor2, Rack&Pinion) 닫아 실링부 고정 ─────
     # docs/Crusher.md §11-5: 래칫/락 없이 모터를 계속 구동해 강하게 고정하는
@@ -803,6 +985,7 @@ def main(use_viewer: bool = False):
         crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
         robot.set_dofs_position(np.concatenate([qpos_insert, [FING_CLOSE] * 6]))
         scene.step()
+        _step_n[0] += 1
         render_cams()
     wq_final = _npy(crusher.get_dofs_position())[wall_dof]
     print(f"[phase] clamp    @done  wall={wq_final*1000:+.2f}mm  bag_com={_bag_com()}")
@@ -815,7 +998,11 @@ def main(use_viewer: bool = False):
     # 실제 그리퍼 마찰 파지 경로라 slot_fit_check.py 의 carrier 판정보다 여유를
     # 둔다: 도달 오차 30mm, 폭/높이는 삽입 시도 직전(hold 시점) 값 대비 상대 비교
     # (탄성 흔들림은 정상, 붕괴/과신전만 이상 신호).
-    REACH_TOL = 0.03
+    # 2026-08-14: 30mm 는 깊이 72mm 포켓에서 "어디든 들어가면 PASS" 수준이라,
+    # 실제로는 봉투가 벽 윗면에 접힌 채 26.0mm 오차로 PASS 가 찍히고 있었다
+    # (`_run_reposition_check.log`). 사용자 목표("봉투 최하단 = Wall_1 중간
+    # 높이")를 실제로 판정하려면 이 창이 목표 정밀도여야 한다.
+    REACH_TOL = 0.015
     WIDTH_TOL_FRAC = 0.6
     HEIGHT_TOL_FRAC = 2.0
     final_width_y, final_height_z, final_bottom_z = _bag_extent()
@@ -834,9 +1021,11 @@ def main(use_viewer: bool = False):
         reasons.append(f"비정상 신전(높이 {final_height_z*1000:.1f}mm > 기준 {baseline_height_z*1000:.1f}mm의 "
                         f"{HEIGHT_TOL_FRAC*100:.0f}%)")
     reason_str = "; ".join(reasons) if reasons else "삽입 성공, 걸림/붕괴 없음"
-    print(f"\n[RESULT] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm  verdict={verdict}  ({reason_str})")
+    print(f"\n[RESULT] GRIP_OFFSET_MM={GRIP_OFFSET_MM:+.0f}mm  Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm  "
+          f"verdict={verdict}  ({reason_str})")
     print(f"[RESULT] final_bottom_z={final_bottom_z:.4f}  wall_center_z={wall_center_z:.4f}  "
-          f"width_y={final_width_y*1000:.1f}mm(baseline {baseline_width_y*1000:.1f}mm)  "
+          f"오차={(final_bottom_z-wall_center_z)*1000:+.1f}mm(+면 얕음/-면 깊음)")
+    print(f"[RESULT] width_y={final_width_y*1000:.1f}mm(baseline {baseline_width_y*1000:.1f}mm)  "
           f"height_z={final_height_z*1000:.1f}mm(baseline {baseline_height_z*1000:.1f}mm)")
 
     cam_over.stop_recording()
@@ -847,8 +1036,7 @@ def main(use_viewer: bool = False):
     print(f"[saved] sideview -> {MP4_SIDE}")
 
     _steps_s = _time.time() - _t_steps
-    _n = (N_PREP + N_DROP + N_SETTLE + N_CLOSE + N_GRASP + N_LIFT + N_HOLD
-          + N_ABOVE + N_INSERT + N_SETTLE2 + N_CLAMP + N_RELEASE)
+    _n = _step_n[0]
     print(f"\n[timing] build={_build_s:.1f}s  steps={_steps_s:.1f}s "
           f"({_n} steps, {_steps_s / _n * 1e3:.1f}ms/step)  "
           f"합계={_build_s + _steps_s:.1f}s")

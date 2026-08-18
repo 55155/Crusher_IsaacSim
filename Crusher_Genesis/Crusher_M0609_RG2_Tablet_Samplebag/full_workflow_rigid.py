@@ -138,10 +138,10 @@ RB_FING_KP, RB_FING_KV = 60.0, 3.0
 # 걸러낸다. 되살리면 클램프 접촉을 볼 수 있지만 §13-7 의 잼이 생긴다.
 WALL_GEOM_LEFTWALL = "L2_Left_Wall1_1"
 
-# full_workflow.py 는 이 값을 main() 안에서 정의해 import 로 못 가져온다. 값과
-# 근거는 그쪽과 동일: rigid-only 정밀 스윕으로 찾은 핑거-Crusher 충돌 경계로,
-# 52mm(wall_top+16mm)는 접촉 0건, 50mm 부터 접촉 7건 — 안전한 최소 여유.
-INSERT_MARGIN_ABOVE_CENTER = 0.052
+# 2026-08-14: 이 상수(구 0.052 로컬 복사본)는 fw 로 올라갔다 —
+# `fw.BAG_HANG_BELOW_FINGER`. 구값은 "핑거-Crusher 충돌이 안 나는 최소 여유"였을
+# 뿐 목표 깊이와 무관했고, 지금은 목표(봉투 최하단 = wall_center_z)에서 역산한
+# 82mm 를 쓴다. Y 정렬 보정(`fw.BAG_DY_FROM_FINGER`)도 fw 와 공유한다.
 
 
 def _npy(x):
@@ -592,8 +592,13 @@ def main(use_viewer: bool = False):
                 f"dv={np.abs(d[:, :3]).mean()*1e3:.2f} "
                 f"dw={np.degrees(np.abs(d[:, 3:]).mean()):.2f}")
 
+    # 스텝 수는 런타임에 센다 — fw.N_* 정적 합계는 위상 추가(N_ABOVE_SETTLE)를
+    # 놓쳐 ms/step 을 과대보고했다. fw 쪽과 같은 자로 재야 배율이 성립한다.
+    _step_n = [0]
+
     def step_sim():
         scene.step()
+        _step_n[0] += 1
         jit_buf.append(_npy(bag.get_dofs_velocity()).squeeze().copy())
         if bag_held[0]:
             bag.set_pos(bag_hold_pos)
@@ -615,7 +620,7 @@ def main(use_viewer: bool = False):
     def run_arm(name, q0, q1, f0, f1, n, crank_q=None, wall_q=None, trace=False):
         q = q1
         for k in range(n):
-            s = (k + 1) / n
+            s = fw.ease((k + 1) / n)
             q = q0 + (q1 - q0) * s
             drive_robot(q, f0 + (f1 - f0) * s)
             if crank_q is not None:
@@ -631,6 +636,28 @@ def main(use_viewer: bool = False):
               f"{float(_npy(left_link.get_pos()).squeeze()[2]):.4f}  "
               f"q_err={q_err*1e3:.2f}mrad{_status()}")
         print(f"[jitter] {name:8s}{_jitter(n)}")
+
+    def run_arm_path(name, q_way, f, n, crank_q=None, wall_q=None, trace=False):
+        """웨이포인트 열 구동 — run_arm 의 카테시안 직선판(fw.solve_descent_waypoints)."""
+        m = len(q_way) - 1
+        q = q_way[-1]
+        for k in range(n):
+            u = fw.ease((k + 1) / n) * m
+            i = min(int(u), m - 1)
+            q = q_way[i] + (q_way[i + 1] - q_way[i]) * (u - i)
+            drive_robot(q, f)
+            if crank_q is not None:
+                crusher.control_dofs_position(np.array([crank_q]), dofs_idx_local=[crank_dof])
+            if wall_q is not None:
+                crusher.control_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
+            step_sim()
+            render_cams()
+            if trace and k % 40 == 0:
+                print(f"    [{name} k={k:4d}] bag_z={_bag_com()[2]*1e3:+.1f}mm{_status()}")
+        q_err = float(np.abs(_npy(robot.get_dofs_position())[:6] - q).max())
+        print(f"[phase] {name:8s} @done  bag_com={_bag_com()}  finger_z="
+              f"{float(_npy(left_link.get_pos()).squeeze()[2]):.4f}  "
+              f"q_err={q_err*1e3:.2f}mrad{_status()}")
 
     # ── Phase 0: prep — 크랭크 -180도, Left_Wall 개방 ─────────────────────────
     print(f"\n[phase] 0 prep ({fw.N_PREP*fw.DT:.1f}s) — 크랭크 0->{fw.CRANK_START_Q:+.3f}rad, "
@@ -688,9 +715,13 @@ def main(use_viewer: bool = False):
     # ── Phase 7-8: above -> insert (IK) ──────────────────────────────────────
     wall_center_z = (wall_top_z + wb_lo[2]) / 2.0
     above_z = wall_top_z + 0.20
-    insert_z = wall_center_z + INSERT_MARGIN_ABOVE_CENTER
-    target_xy = np.array([gap_cx, gap_cy + Y_OFFSET])
-    print(f"[slot] wall_center_z={wall_center_z:.4f}  insert_z(finger)={insert_z:.4f}")
+    insert_z = wall_center_z + fw.BAG_HANG_BELOW_FINGER
+    # 슬롯에 정렬돼야 하는 것은 핑거가 아니라 봉투 몸체다(fw 상수 정의부 주석).
+    target_xy = np.array([gap_cx, gap_cy - fw.BAG_DY_FROM_FINGER + Y_OFFSET])
+    print(f"[slot] wall_center_z={wall_center_z:.4f}  insert_z(finger)={insert_z:.4f}  "
+          f"hang={fw.BAG_HANG_BELOW_FINGER*1000:.0f}mm")
+    print(f"[slot] 봉투중심 보정 dy={fw.BAG_DY_FROM_FINGER*1000:+.1f}mm -> finger_y={target_xy[1]:.4f} "
+          f"(봉투중심 y={target_xy[1]+fw.BAG_DY_FROM_FINGER:.4f} = gap_cy {gap_cy:.4f})")
 
     side_z = (above_z + wall_center_z) / 2.0
     cam_side.set_pose(pos=(gap_cx, gap_cy + fw.SIDECAM_Y_OFFSET, side_z),
@@ -706,11 +737,17 @@ def main(use_viewer: bool = False):
     print(f"\n[ik] above arm_q={qpos_above}")
     run_arm("above", q_lift, qpos_above, fw.FING_CLOSE, fw.FING_CLOSE, fw.N_ABOVE,
             crank_q=fw.CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
+    # 하강 전 스윙 감쇠(2026-08-14) — 팔은 정지, 봉투만 가라앉힌다.
+    run_arm("aboveset", qpos_above, qpos_above, fw.FING_CLOSE, fw.FING_CLOSE, fw.N_ABOVE_SETTLE,
+            crank_q=fw.CRANK_START_Q, wall_q=WALL_OFFSET)
 
-    qpos_insert = ik(insert_z)
-    print(f"[ik] insert arm_q={qpos_insert}")
-    run_arm("insert", qpos_above, qpos_insert, fw.FING_CLOSE, fw.FING_CLOSE, fw.N_INSERT,
-            crank_q=fw.CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
+    # 하강은 카테시안 직선(웨이포인트 IK) — 조인트 선형보간은 중간에서 dy=+9.7mm
+    # 부푸는데 봉투 Y 여유는 0.5mm/쪽뿐이다(§fw.solve_descent_waypoints).
+    q_way = fw.solve_descent_waypoints(robot, left_link, target_xy, above_z, insert_z)
+    qpos_insert = q_way[-1]
+    print(f"[ik] insert 웨이포인트 {len(q_way)}개(카테시안 직선)  arm_q={qpos_insert}")
+    run_arm_path("insert", q_way, fw.FING_CLOSE, fw.N_INSERT,
+                 crank_q=fw.CRANK_START_Q, wall_q=WALL_OFFSET, trace=True)
     run_arm("settle2", qpos_insert, qpos_insert, fw.FING_CLOSE, fw.FING_CLOSE, fw.N_SETTLE2,
             crank_q=fw.CRANK_START_Q, wall_q=WALL_OFFSET)
 
@@ -760,8 +797,7 @@ def main(use_viewer: bool = False):
     print(f"[RESULT] tilt={tilt:.1f}deg  twist={twist:.1f}deg")
 
     steps_s = time.time() - t_steps
-    n_steps = (fw.N_PREP + fw.N_DROP + fw.N_SETTLE + fw.N_CLOSE + fw.N_GRASP + fw.N_LIFT
-               + fw.N_HOLD + fw.N_ABOVE + fw.N_INSERT + fw.N_SETTLE2 + fw.N_CLAMP + fw.N_RELEASE)
+    n_steps = _step_n[0]
     print(f"\n[timing] build={build_s:.1f}s  steps={steps_s:.1f}s "
           f"({n_steps} steps, {steps_s/n_steps*1e3:.1f}ms/step)")
 
