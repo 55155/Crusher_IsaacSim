@@ -1,0 +1,221 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujoco model="recovery2">
+  <compiler angle="radian" meshdir="meshes" autolimits="true" balanceinertia="true" />
+  <option timestep="0.002" integrator="implicitfast" />
+  <default>
+    <joint damping="0.1" />
+    <geom rgba="0.7 0.7 0.7 1" />
+  </default>
+  <asset>
+    <mesh name="Bearing1_1" file="Bearing1_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="Crank_1" file="Crank_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="F_Back_1" file="F_Back_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="F_LeftLink_1" file="F_LeftLink_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="F_Left_1" file="F_Left_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="F_RightLink2_1" file="F_RightLink2_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="F_RightLink_1" file="F_RightLink_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="F_Right_1" file="F_Right_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="F_Top_1" file="F_Top_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="Handle_1" file="Handle_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="HexNut_1" file="HexNut_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="LeftSlider1_1" file="LeftSlider1_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="LeftSlider2_1" file="LeftSlider2_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_Back_1" file="M_Back_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_Bottom_1" file="M_Bottom_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_Left1_1" file="M_Left1_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_Left2_1" file="M_Left2_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_LeftLink2_copy_1" file="M_LeftLink2_copy_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_LeftLink_1" file="M_LeftLink_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_Right1_1" file="M_Right1_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_Right2_1" file="M_Right2_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_RightLink_1" file="M_RightLink_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="M_Top_1" file="M_Top_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="NeedleBearing_1" file="NeedleBearing_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="PAWL_1" file="PAWL_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="PULLEY_1" file="PULLEY_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="RachetGear_1" file="RachetGear_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="RightSlider1_1" file="RightSlider1_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="RightSlider2_1" file="RightSlider2_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="ShaftHandle_1" file="ShaftHandle_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="Shaft_copy_1" file="Shaft_copy_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="Washer_1" file="Washer_1.stl" scale="0.001 0.001 0.001" />
+    <mesh name="base_link" file="base_link.stl" scale="0.001 0.001 0.001" />
+    </asset>
+  <worldbody>
+    <light pos="0 0 2" dir="0 0 -1" directional="true" />
+    <body name="base_link" pos="0 0 0">
+      <inertial pos="-0.0804507486 0.0592835415 0.0194423847" mass="0.297420193" fullinertia="0.000183518828 6.8000971e-05 0.000246582582 -9.206e-09 -1.19847e-07 1.181e-09" />
+      <geom name="base_link_vis" type="mesh" mesh="base_link" pos="0 0 0" contype="0" conaffinity="0" group="2" />
+      <geom name="base_link_col" type="mesh" mesh="base_link" pos="0 0 0" group="3" />
+      <body name="F_Back_1" pos="-0.105148 0.038141 0.01938">
+        <inertial pos="-0.00249800208 0.021059684 0.0116702457" mass="0.137767359" fullinertia="0.000144826212 1.331664e-05 0.000132095537 0 -3.612e-09 -6.2e-10" />
+        <geom name="F_Back_1_vis" type="mesh" mesh="F_Back_1" pos="0.105148 -0.038141 -0.01938" contype="0" conaffinity="0" group="2" />
+        <geom name="F_Back_1_col" type="mesh" mesh="F_Back_1" pos="0.105148 -0.038141 -0.01938" group="3" />
+        <body name="F_Left_1" pos="-0.0025 -0.033155 0.01862">
+          <inertial pos="0.0251776945 -0.00249996486 -0.014375704" mass="0.101158371" fullinertia="1.9517619e-05 4.5005057e-05 2.5912736e-05 0 -6.7493e-08 0" />
+          <geom name="F_Left_1_vis" type="mesh" mesh="F_Left_1" pos="0.107648 -0.004986 -0.038" contype="0" conaffinity="0" group="2" />
+          <geom name="F_Left_1_col" type="mesh" mesh="F_Left_1" pos="0.107648 -0.004986 -0.038" group="3" />
+          <body name="LeftSlider1_1" pos="0.022542 0 -0.005476">
+            <inertial pos="0.0312865344 0.00247888681 -2.14372731e-07" mass="0.00480968577" fullinertia="2.26694e-07 4.009482e-06 3.819257e-06 -3.418e-09 1.5e-11 0" />
+            <geom name="LeftSlider1_1_vis" type="mesh" mesh="LeftSlider1_1" pos="0.085106 -0.004986 -0.032524" contype="0" conaffinity="0" group="2" />
+            <geom name="LeftSlider1_1_col" type="mesh" mesh="LeftSlider1_1" pos="0.085106 -0.004986 -0.032524" group="3" />
+          </body>
+        </body>
+        <body name="F_Right_1" pos="-0.0025 0.075275 0.01862">
+          <inertial pos="0.0251779811 0.0025001046 -0.0143755439" mass="0.101158371" fullinertia="1.9517907e-05 4.5005614e-05 2.5913005e-05 0 -6.7826e-08 0" />
+          <geom name="F_Right_1_vis" type="mesh" mesh="F_Right_1" pos="0.107648 -0.113416 -0.038" contype="0" conaffinity="0" group="2" />
+          <geom name="F_Right_1_col" type="mesh" mesh="F_Right_1" pos="0.107648 -0.113416 -0.038" group="3" />
+          <body name="RightSlider1_1" pos="0.0225 0 -0.0055">
+            <inertial pos="0.031507417 -0.002510745 -7.70780898e-05" mass="0.00492918836" fullinertia="2.30839e-07 4.059066e-06 3.865484e-06 5.065e-09 3.24e-09 -1.76e-10" />
+            <geom name="RightSlider1_1_vis" type="mesh" mesh="RightSlider1_1" pos="0.085148 -0.113416 -0.0325" contype="0" conaffinity="0" group="2" />
+            <geom name="RightSlider1_1_col" type="mesh" mesh="RightSlider1_1" pos="0.085148 -0.113416 -0.0325" group="3" />
+          </body>
+        </body>
+        <body name="F_Top_1" pos="-0.0025 0.050275 0.02862">
+          <inertial pos="0.0236003991 -0.0292381857 0.00499821111" mass="0.47829478" fullinertia="0.000537081705 0.000113767795 0.000642836178 1.61796e-07 1.2446e-08 2.7827e-08" />
+          <geom name="F_Top_1_vis" type="mesh" mesh="F_Top_1" pos="0.107648 -0.088416 -0.048" contype="0" conaffinity="0" group="2" />
+          <geom name="F_Top_1_col" type="mesh" mesh="F_Top_1" pos="0.107648 -0.088416 -0.048" group="3" />
+          <body name="F_LeftLink_1" pos="0.047646 -0.071715 0.005">
+            <inertial pos="0.00250048472 0.00505978907 0.0458444031" mass="0.0756098278" fullinertia="6.1706429e-05 5.9367238e-05 2.653048e-06 0 0 -1.48998e-07" />
+            <geom name="F_LeftLink_1_vis" type="mesh" mesh="F_LeftLink_1" pos="0.060002 -0.016701 -0.053" contype="0" conaffinity="0" group="2" />
+            <geom name="F_LeftLink_1_col" type="mesh" mesh="F_LeftLink_1" pos="0.060002 -0.016701 -0.053" group="3" />
+          </body>
+          <body name="Handle_1" pos="0 0 0.01">
+            <inertial pos="-0.00989469782 -0.0292245648 -0.00537091296" mass="0.172379064" fullinertia="5.0854474e-05 2.9520263e-05 6.0410717e-05 1.0205e-08 -5.102506e-06 -1.5992e-08" />
+            <geom name="Handle_1_vis" type="mesh" mesh="Handle_1" pos="0.107648 -0.088416 -0.058" contype="0" conaffinity="0" group="2" />
+            <geom name="Handle_1_col" type="mesh" mesh="Handle_1" pos="0.107648 -0.088416 -0.058" group="3" />
+          </body>
+          <body name="F_RightLink_1" pos="0.047646 0.013285 0.005">
+            <inertial pos="0.00250048472 -0.00505964911 0.045844402" mass="0.0756098278" fullinertia="6.1706429e-05 5.9367238e-05 2.653048e-06 0 0 1.48998e-07" />
+            <geom name="F_RightLink_1_vis" type="mesh" mesh="F_RightLink_1" pos="0.060002 -0.101701 -0.053" contype="0" conaffinity="0" group="2" />
+            <geom name="F_RightLink_1_col" type="mesh" mesh="F_RightLink_1" pos="0.060002 -0.101701 -0.053" group="3" />
+          </body>
+          <body name="F_RightLink2_1" pos="0.038146 0.003285 0.01">
+            <inertial pos="0.00455469522 0.00501192716 0.0214802814" mass="0.037859067" fullinertia="8.165114e-06 7.05674e-06 1.43608e-06 1.3539e-08 -3.27374e-07 7.6195e-08" />
+            <geom name="F_RightLink2_1_vis" type="mesh" mesh="F_RightLink2_1" pos="0.069502 -0.091701 -0.058" contype="0" conaffinity="0" group="2" />
+            <geom name="F_RightLink2_1_col" type="mesh" mesh="F_RightLink2_1" pos="0.069502 -0.091701 -0.058" group="3" />
+          </body>
+        </body>
+      </body>
+      <body name="PAWL_1" pos="-0.081083 0.026968 0.02838">
+        <inertial pos="0.00759739586 0.0041450729 0.0029997773" mass="0.00219643482" fullinertia="8.7452e-08 1.86954e-07 2.61227e-07 -9.0071e-08 0 0" />
+        <geom name="PAWL_1_vis" type="mesh" mesh="PAWL_1" pos="0.081083 -0.026968 -0.02838" contype="0" conaffinity="0" group="2" />
+        <geom name="PAWL_1_col" type="mesh" mesh="PAWL_1" pos="0.081083 -0.026968 -0.02838" group="3" />
+      </body>
+      <body name="M_Bottom_1" pos="-0.160469 0.028926 0.092694">
+        <joint name="슬라이더_35" type="slide" pos="0 0 0" axis="1 0 0" />
+        <inertial pos="0.165598918 0.0300912211 -0.0726897017" mass="0.315563134" fullinertia="0.000178859145 6.73492e-05 0.000240878302 9.108e-09 6.708e-09 -4.9016e-08" />
+        <geom name="M_Bottom_1_vis" type="mesh" mesh="M_Bottom_1" pos="0.160469 -0.028926 -0.092694" contype="0" conaffinity="0" group="2" />
+        <geom name="M_Bottom_1_col" type="mesh" mesh="M_Bottom_1" pos="0.160469 -0.028926 -0.092694" group="3" />
+        <body name="M_Left2_1" pos="0.170469 -0.011046 -0.072694">
+          <inertial pos="-0.0309005488 -0.00249746007 0.0115634885" mass="0.125753991" fullinertia="1.1823586e-05 0.000114734557 0.000103440903 -7.073e-09 -1.05838e-07 3.913e-09" />
+          <geom name="M_Left2_1_vis" type="mesh" mesh="M_Left2_1" pos="-0.01 -0.01788 -0.02" contype="0" conaffinity="0" group="2" />
+          <geom name="M_Left2_1_col" type="mesh" mesh="M_Left2_1" pos="-0.01 -0.01788 -0.02" group="3" />
+          <body name="LeftSlider2_1" pos="9.3e-05 -0.005 0.0125">
+            <inertial pos="-0.0298131649 -0.00162593452 -9.23693684e-10" mass="0.00229091972" fullinertia="4.5823e-08 1.932377e-06 1.895545e-06 -1.692e-09 0 0" />
+            <geom name="LeftSlider2_1_vis" type="mesh" mesh="LeftSlider2_1" pos="-0.010093 -0.01288 -0.0325" contype="0" conaffinity="0" group="2" />
+            <geom name="LeftSlider2_1_col" type="mesh" mesh="LeftSlider2_1" pos="-0.010093 -0.01288 -0.0325" group="3" />
+          </body>
+        </body>
+        <body name="M_Right2_1" pos="0.170653 0.071229 -0.073685">
+          <inertial pos="-0.0310865324 0.00249690229 0.0125625477" mass="0.125753991" fullinertia="1.1799136e-05 0.000114701155 0.000103431952 7.136e-09 -1.29329e-07 -4.251e-09" />
+          <geom name="M_Right2_1_vis" type="mesh" mesh="M_Right2_1" pos="-0.010184 -0.100155 -0.019009" contype="0" conaffinity="0" group="2" />
+          <geom name="M_Right2_1_col" type="mesh" mesh="M_Right2_1" pos="-0.010184 -0.100155 -0.019009" group="3" />
+          <body name="RightSlider2_1" pos="-0.001434 0.005 0.013491">
+            <inertial pos="-0.0290582882 0.00162540358 9.23657317e-10" mass="0.00228883041" fullinertia="4.5781e-08 1.927194e-06 1.890395e-06 1.689e-09 0 0" />
+            <geom name="RightSlider2_1_vis" type="mesh" mesh="RightSlider2_1" pos="-0.00875 -0.105155 -0.0325" contype="0" conaffinity="0" group="2" />
+            <geom name="RightSlider2_1_col" type="mesh" mesh="RightSlider2_1" pos="-0.00875 -0.105155 -0.0325" group="3" />
+          </body>
+        </body>
+        <body name="M_Back_1" pos="0.190469 0.008954 -0.072694">
+          <inertial pos="0.00250000691 0.0213311524 0.0114116392" mass="0.13564114" fullinertia="0.000142257506 1.2670596e-05 0.000130159704 -3.1e-11 -1e-12 7.852e-09" />
+          <geom name="M_Back_1_vis" type="mesh" mesh="M_Back_1" pos="-0.03 -0.03788 -0.02" contype="0" conaffinity="0" group="2" />
+          <geom name="M_Back_1_col" type="mesh" mesh="M_Back_1" pos="-0.03 -0.03788 -0.02" group="3" />
+          <body name="M_Left1_1" pos="0.0025 -0.03288 0.018">
+            <inertial pos="-0.0251347873 -0.0025 -0.0143167501" mass="0.101566519" fullinertia="1.9519705e-05 4.4850547e-05 2.575784e-05 0 9.332e-08 0" />
+            <geom name="M_Left1_1_vis" type="mesh" mesh="M_Left1_1" pos="-0.0325 -0.005 -0.038" contype="0" conaffinity="0" group="2" />
+            <geom name="M_Left1_1_col" type="mesh" mesh="M_Left1_1" pos="-0.0325 -0.005 -0.038" group="3" />
+          </body>
+          <body name="M_Right1_1" pos="0.0025 0.07555 0.018">
+            <inertial pos="-0.0251347873 0.00250006947 -0.0143167501" mass="0.101566519" fullinertia="1.9519705e-05 4.4850547e-05 2.575784e-05 0 9.332e-08 0" />
+            <geom name="M_Right1_1_vis" type="mesh" mesh="M_Right1_1" pos="-0.0325 -0.11343 -0.038" contype="0" conaffinity="0" group="2" />
+            <geom name="M_Right1_1_col" type="mesh" mesh="M_Right1_1" pos="-0.0325 -0.11343 -0.038" group="3" />
+          </body>
+          <body name="M_Top_1" pos="0.0025 -0.007062 0.028">
+            <inertial pos="-0.0235136036 0.028419223 0.00499820183" mass="0.475825873" fullinertia="0.00053549831 0.000112782304 0.000640308441 1.85384e-07 -1.325e-08 -2.7827e-08" />
+            <geom name="M_Top_1_vis" type="mesh" mesh="M_Top_1" pos="-0.0325 -0.030818 -0.048" contype="0" conaffinity="0" group="2" />
+            <geom name="M_Top_1_col" type="mesh" mesh="M_Top_1" pos="-0.0325 -0.030818 -0.048" group="3" />
+            <body name="M_LeftLink_1" pos="-0.0475 -0.014103 0.005">
+              <inertial pos="-0.0025 0.00505975371 0.045844402" mass="0.0756098278" fullinertia="6.1706429e-05 5.9367238e-05 2.653048e-06 0 0 -1.48998e-07" />
+              <geom name="M_LeftLink_1_vis" type="mesh" mesh="M_LeftLink_1" pos="0.015 -0.016715 -0.053" contype="0" conaffinity="0" group="2" />
+              <geom name="M_LeftLink_1_col" type="mesh" mesh="M_LeftLink_1" pos="0.015 -0.016715 -0.053" group="3" />
+            </body>
+            <body name="M_RightLink_1" pos="-0.0475 0.070897 0.005">
+              <inertial pos="-0.0025 -0.00505968447 0.0458444031" mass="0.0756098278" fullinertia="6.1706429e-05 5.9367238e-05 2.653048e-06 0 0 1.48998e-07" />
+              <geom name="M_RightLink_1_vis" type="mesh" mesh="M_RightLink_1" pos="0.015 -0.101715 -0.053" contype="0" conaffinity="0" group="2" />
+              <geom name="M_RightLink_1_col" type="mesh" mesh="M_RightLink_1" pos="0.015 -0.101715 -0.053" group="3" />
+            </body>
+            <body name="M_LeftLink2_copy_1" pos="-0.039 -0.004103 0.01">
+              <inertial pos="-0.00452144349 -0.00501182256 0.0214802814" mass="0.037859067" fullinertia="8.165114e-06 7.056788e-06 1.436128e-06 7.322e-09 3.10602e-07 -7.6195e-08" />
+              <geom name="M_LeftLink2_copy_1_vis" type="mesh" mesh="M_LeftLink2_copy_1" pos="0.0065 -0.026715 -0.058" contype="0" conaffinity="0" group="2" />
+              <geom name="M_LeftLink2_copy_1_col" type="mesh" mesh="M_LeftLink2_copy_1" pos="0.0065 -0.026715 -0.058" group="3" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="Shaft_copy_1" pos="-0.074015 0.05922 0.01438">
+        <joint name="회전_31" type="hinge" pos="0 0 0" axis="0 0 1" />
+        <inertial pos="5.49369363e-07 0.000111595851 0.00887575725" mass="0.0025310231" fullinertia="2.87299e-07 2.88723e-07 2.8585e-08 -9e-12 4e-12 -2.988e-09" />
+        <geom name="Shaft_copy_1_vis" type="mesh" mesh="Shaft_copy_1" pos="0.074015 -0.05922 -0.01438" contype="0" conaffinity="0" group="2" />
+        <geom name="Shaft_copy_1_col" type="mesh" mesh="Shaft_copy_1" pos="0.074015 -0.05922 -0.01438" group="3" />
+        <body name="HexNut_1" pos="0 0 -0.0065">
+          <inertial pos="4.84248986e-07 1.18079823e-07 0.0032497773" mass="0.00486569256" fullinertia="9.3372e-08 9.3372e-08 1.52944e-07 0 0 0" />
+          <geom name="HexNut_1_vis" type="mesh" mesh="HexNut_1" pos="0.074015 -0.05922 -0.00788" contype="0" conaffinity="0" group="2" />
+          <geom name="HexNut_1_col" type="mesh" mesh="HexNut_1" pos="0.074015 -0.05922 -0.00788" group="3" />
+        </body>
+        <body name="NeedleBearing_1" pos="0 0 0">
+          <inertial pos="4.84249041e-07 1.18079821e-07 0.0019997773" mass="0.00145966249" fullinertia="6.3609e-08 6.3609e-08 1.23285e-07 0 0 0" />
+          <geom name="NeedleBearing_1_vis" type="mesh" mesh="NeedleBearing_1" pos="0.074015 -0.05922 -0.01438" contype="0" conaffinity="0" group="2" />
+          <geom name="NeedleBearing_1_col" type="mesh" mesh="NeedleBearing_1" pos="0.074015 -0.05922 -0.01438" group="3" />
+        </body>
+        <body name="Bearing1_1" pos="0 0 0.005">
+          <inertial pos="4.47566248e-05 -8.42358852e-05 0.0024997773" mass="0.000493863808" fullinertia="1.3177e-08 1.3006e-08 2.3826e-08 1.24e-10 0 0" />
+          <geom name="Bearing1_1_vis" type="mesh" mesh="Bearing1_1" pos="0.074015 -0.05922 -0.01938" contype="0" conaffinity="0" group="2" />
+          <geom name="Bearing1_1_col" type="mesh" mesh="Bearing1_1" pos="0.074015 -0.05922 -0.01938" group="3" />
+        </body>
+        <body name="Washer_1" pos="0 0 0.01">
+          <inertial pos="4.84249007e-07 1.18079946e-07 0.0014595334" mass="0.011375118" fullinertia="8.11433e-07 8.11433e-07 1.606224e-06 0 0 0" />
+          <geom name="Washer_1_vis" type="mesh" mesh="Washer_1" pos="0.074015 -0.05922 -0.02438" contype="0" conaffinity="0" group="2" />
+          <geom name="Washer_1_col" type="mesh" mesh="Washer_1" pos="0.074015 -0.05922 -0.02438" group="3" />
+        </body>
+        <body name="RachetGear_1" pos="0 0 0.014">
+          <inertial pos="4.84248869e-07 1.92477561e-05 0.00299966205" mass="0.00668727075" fullinertia="7.01439e-07 7.02139e-07 1.363992e-06 0 0 -5e-12" />
+          <geom name="RachetGear_1_vis" type="mesh" mesh="RachetGear_1" pos="0.074015 -0.05922 -0.02838" contype="0" conaffinity="0" group="2" />
+          <geom name="RachetGear_1_col" type="mesh" mesh="RachetGear_1" pos="0.074015 -0.05922 -0.02838" group="3" />
+        </body>
+        <body name="PULLEY_1" pos="0 0 0.0205">
+          <inertial pos="4.84264206e-07 1.57785449e-05 0.0029997773" mass="0.0640162025" fullinertia="8.164445e-06 8.169918e-06 1.5959157e-05 0 0 0" />
+          <geom name="PULLEY_1_vis" type="mesh" mesh="PULLEY_1" pos="0.074015 -0.05922 -0.03488" contype="0" conaffinity="0" group="2" />
+          <geom name="PULLEY_1_col" type="mesh" mesh="PULLEY_1" pos="0.074015 -0.05922 -0.03488" group="3" />
+          <body name="Crank_1" pos="-0.0175 0 0.006">
+            <joint name="회전_29" type="hinge" pos="0 0 0" axis="0 0 -1" />
+            <inertial pos="0.0650004842 1.18079912e-07 0.00298253226" mass="0.0525407762" fullinertia="1.18489e-06 2.6461602e-05 2.7335565e-05 0 1.699e-09 0" />
+            <geom name="Crank_1_vis" type="mesh" mesh="Crank_1" pos="0.091515 -0.05922 -0.04088" contype="0" conaffinity="0" group="2" />
+            <geom name="Crank_1_col" type="mesh" mesh="Crank_1" pos="0.091515 -0.05922 -0.04088" group="3" />
+          </body>
+        </body>
+        <body name="ShaftHandle_1" pos="0 0.004066 -0.009604">
+          <inertial pos="4.84248628e-07 -0.00300044121 -3.99759969e-08" mass="0.00376641907" fullinertia="5.05784e-07 7.19e-09 5.05784e-07 0 0 0" />
+          <geom name="ShaftHandle_1_vis" type="mesh" mesh="ShaftHandle_1" pos="0.074015 -0.063286 -0.004776" contype="0" conaffinity="0" group="2" />
+          <geom name="ShaftHandle_1_col" type="mesh" mesh="ShaftHandle_1" pos="0.074015 -0.063286 -0.004776" group="3" />
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <contact><exclude name="ex_M_Bottom_1_base_link" body1="M_Bottom_1" body2="base_link" /><exclude name="ex_M_Left2_1_base_link" body1="M_Left2_1" body2="base_link" /><exclude name="ex_LeftSlider2_1_base_link" body1="LeftSlider2_1" body2="base_link" /><exclude name="ex_M_Right2_1_base_link" body1="M_Right2_1" body2="base_link" /><exclude name="ex_RightSlider2_1_base_link" body1="RightSlider2_1" body2="base_link" /><exclude name="ex_M_Back_1_base_link" body1="M_Back_1" body2="base_link" /><exclude name="ex_M_Left1_1_base_link" body1="M_Left1_1" body2="base_link" /><exclude name="ex_M_Right1_1_base_link" body1="M_Right1_1" body2="base_link" /><exclude name="ex_M_Top_1_base_link" body1="M_Top_1" body2="base_link" /><exclude name="ex_M_LeftLink_1_base_link" body1="M_LeftLink_1" body2="base_link" /><exclude name="ex_M_RightLink_1_base_link" body1="M_RightLink_1" body2="base_link" /><exclude name="ex_M_LeftLink2_copy_1_base_link" body1="M_LeftLink2_copy_1" body2="base_link" /><exclude name="ex_F_Back_1_M_Bottom_1" body1="F_Back_1" body2="M_Bottom_1" /><exclude name="ex_F_Back_1_M_Left2_1" body1="F_Back_1" body2="M_Left2_1" /><exclude name="ex_F_Back_1_LeftSlider2_1" body1="F_Back_1" body2="LeftSlider2_1" /><exclude name="ex_F_Back_1_M_Right2_1" body1="F_Back_1" body2="M_Right2_1" /><exclude name="ex_F_Back_1_RightSlider2_1" body1="F_Back_1" body2="RightSlider2_1" /><exclude name="ex_F_Back_1_M_Back_1" body1="F_Back_1" body2="M_Back_1" /><exclude name="ex_F_Back_1_M_Left1_1" body1="F_Back_1" body2="M_Left1_1" /><exclude name="ex_F_Back_1_M_Right1_1" body1="F_Back_1" body2="M_Right1_1" /><exclude name="ex_F_Back_1_M_Top_1" body1="F_Back_1" body2="M_Top_1" /><exclude name="ex_F_Back_1_M_LeftLink_1" body1="F_Back_1" body2="M_LeftLink_1" /><exclude name="ex_F_Back_1_M_RightLink_1" body1="F_Back_1" body2="M_RightLink_1" /><exclude name="ex_F_Back_1_M_LeftLink2_copy_1" body1="F_Back_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_F_Left_1_M_Bottom_1" body1="F_Left_1" body2="M_Bottom_1" /><exclude name="ex_F_Left_1_M_Left2_1" body1="F_Left_1" body2="M_Left2_1" /><exclude name="ex_F_Left_1_LeftSlider2_1" body1="F_Left_1" body2="LeftSlider2_1" /><exclude name="ex_F_Left_1_M_Right2_1" body1="F_Left_1" body2="M_Right2_1" /><exclude name="ex_F_Left_1_RightSlider2_1" body1="F_Left_1" body2="RightSlider2_1" /><exclude name="ex_F_Left_1_M_Back_1" body1="F_Left_1" body2="M_Back_1" /><exclude name="ex_F_Left_1_M_Left1_1" body1="F_Left_1" body2="M_Left1_1" /><exclude name="ex_F_Left_1_M_Right1_1" body1="F_Left_1" body2="M_Right1_1" /><exclude name="ex_F_Left_1_M_Top_1" body1="F_Left_1" body2="M_Top_1" /><exclude name="ex_F_Left_1_M_LeftLink_1" body1="F_Left_1" body2="M_LeftLink_1" /><exclude name="ex_F_Left_1_M_RightLink_1" body1="F_Left_1" body2="M_RightLink_1" /><exclude name="ex_F_Left_1_M_LeftLink2_copy_1" body1="F_Left_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_LeftSlider1_1_M_Bottom_1" body1="LeftSlider1_1" body2="M_Bottom_1" /><exclude name="ex_LeftSlider1_1_M_Left2_1" body1="LeftSlider1_1" body2="M_Left2_1" /><exclude name="ex_LeftSlider1_1_LeftSlider2_1" body1="LeftSlider1_1" body2="LeftSlider2_1" /><exclude name="ex_LeftSlider1_1_M_Right2_1" body1="LeftSlider1_1" body2="M_Right2_1" /><exclude name="ex_LeftSlider1_1_RightSlider2_1" body1="LeftSlider1_1" body2="RightSlider2_1" /><exclude name="ex_LeftSlider1_1_M_Back_1" body1="LeftSlider1_1" body2="M_Back_1" /><exclude name="ex_LeftSlider1_1_M_Left1_1" body1="LeftSlider1_1" body2="M_Left1_1" /><exclude name="ex_LeftSlider1_1_M_Right1_1" body1="LeftSlider1_1" body2="M_Right1_1" /><exclude name="ex_LeftSlider1_1_M_Top_1" body1="LeftSlider1_1" body2="M_Top_1" /><exclude name="ex_LeftSlider1_1_M_LeftLink_1" body1="LeftSlider1_1" body2="M_LeftLink_1" /><exclude name="ex_LeftSlider1_1_M_RightLink_1" body1="LeftSlider1_1" body2="M_RightLink_1" /><exclude name="ex_LeftSlider1_1_M_LeftLink2_copy_1" body1="LeftSlider1_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_F_Right_1_M_Bottom_1" body1="F_Right_1" body2="M_Bottom_1" /><exclude name="ex_F_Right_1_M_Left2_1" body1="F_Right_1" body2="M_Left2_1" /><exclude name="ex_F_Right_1_LeftSlider2_1" body1="F_Right_1" body2="LeftSlider2_1" /><exclude name="ex_F_Right_1_M_Right2_1" body1="F_Right_1" body2="M_Right2_1" /><exclude name="ex_F_Right_1_RightSlider2_1" body1="F_Right_1" body2="RightSlider2_1" /><exclude name="ex_F_Right_1_M_Back_1" body1="F_Right_1" body2="M_Back_1" /><exclude name="ex_F_Right_1_M_Left1_1" body1="F_Right_1" body2="M_Left1_1" /><exclude name="ex_F_Right_1_M_Right1_1" body1="F_Right_1" body2="M_Right1_1" /><exclude name="ex_F_Right_1_M_Top_1" body1="F_Right_1" body2="M_Top_1" /><exclude name="ex_F_Right_1_M_LeftLink_1" body1="F_Right_1" body2="M_LeftLink_1" /><exclude name="ex_F_Right_1_M_RightLink_1" body1="F_Right_1" body2="M_RightLink_1" /><exclude name="ex_F_Right_1_M_LeftLink2_copy_1" body1="F_Right_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_M_Bottom_1_RightSlider1_1" body1="M_Bottom_1" body2="RightSlider1_1" /><exclude name="ex_M_Left2_1_RightSlider1_1" body1="M_Left2_1" body2="RightSlider1_1" /><exclude name="ex_LeftSlider2_1_RightSlider1_1" body1="LeftSlider2_1" body2="RightSlider1_1" /><exclude name="ex_M_Right2_1_RightSlider1_1" body1="M_Right2_1" body2="RightSlider1_1" /><exclude name="ex_RightSlider1_1_RightSlider2_1" body1="RightSlider1_1" body2="RightSlider2_1" /><exclude name="ex_M_Back_1_RightSlider1_1" body1="M_Back_1" body2="RightSlider1_1" /><exclude name="ex_M_Left1_1_RightSlider1_1" body1="M_Left1_1" body2="RightSlider1_1" /><exclude name="ex_M_Right1_1_RightSlider1_1" body1="M_Right1_1" body2="RightSlider1_1" /><exclude name="ex_M_Top_1_RightSlider1_1" body1="M_Top_1" body2="RightSlider1_1" /><exclude name="ex_M_LeftLink_1_RightSlider1_1" body1="M_LeftLink_1" body2="RightSlider1_1" /><exclude name="ex_M_RightLink_1_RightSlider1_1" body1="M_RightLink_1" body2="RightSlider1_1" /><exclude name="ex_M_LeftLink2_copy_1_RightSlider1_1" body1="M_LeftLink2_copy_1" body2="RightSlider1_1" /><exclude name="ex_F_Top_1_M_Bottom_1" body1="F_Top_1" body2="M_Bottom_1" /><exclude name="ex_F_Top_1_M_Left2_1" body1="F_Top_1" body2="M_Left2_1" /><exclude name="ex_F_Top_1_LeftSlider2_1" body1="F_Top_1" body2="LeftSlider2_1" /><exclude name="ex_F_Top_1_M_Right2_1" body1="F_Top_1" body2="M_Right2_1" /><exclude name="ex_F_Top_1_RightSlider2_1" body1="F_Top_1" body2="RightSlider2_1" /><exclude name="ex_F_Top_1_M_Back_1" body1="F_Top_1" body2="M_Back_1" /><exclude name="ex_F_Top_1_M_Left1_1" body1="F_Top_1" body2="M_Left1_1" /><exclude name="ex_F_Top_1_M_Right1_1" body1="F_Top_1" body2="M_Right1_1" /><exclude name="ex_F_Top_1_M_Top_1" body1="F_Top_1" body2="M_Top_1" /><exclude name="ex_F_Top_1_M_LeftLink_1" body1="F_Top_1" body2="M_LeftLink_1" /><exclude name="ex_F_Top_1_M_RightLink_1" body1="F_Top_1" body2="M_RightLink_1" /><exclude name="ex_F_Top_1_M_LeftLink2_copy_1" body1="F_Top_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_F_LeftLink_1_M_Bottom_1" body1="F_LeftLink_1" body2="M_Bottom_1" /><exclude name="ex_F_LeftLink_1_M_Left2_1" body1="F_LeftLink_1" body2="M_Left2_1" /><exclude name="ex_F_LeftLink_1_LeftSlider2_1" body1="F_LeftLink_1" body2="LeftSlider2_1" /><exclude name="ex_F_LeftLink_1_M_Right2_1" body1="F_LeftLink_1" body2="M_Right2_1" /><exclude name="ex_F_LeftLink_1_RightSlider2_1" body1="F_LeftLink_1" body2="RightSlider2_1" /><exclude name="ex_F_LeftLink_1_M_Back_1" body1="F_LeftLink_1" body2="M_Back_1" /><exclude name="ex_F_LeftLink_1_M_Left1_1" body1="F_LeftLink_1" body2="M_Left1_1" /><exclude name="ex_F_LeftLink_1_M_Right1_1" body1="F_LeftLink_1" body2="M_Right1_1" /><exclude name="ex_F_LeftLink_1_M_Top_1" body1="F_LeftLink_1" body2="M_Top_1" /><exclude name="ex_F_LeftLink_1_M_LeftLink_1" body1="F_LeftLink_1" body2="M_LeftLink_1" /><exclude name="ex_F_LeftLink_1_M_RightLink_1" body1="F_LeftLink_1" body2="M_RightLink_1" /><exclude name="ex_F_LeftLink_1_M_LeftLink2_copy_1" body1="F_LeftLink_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_Handle_1_M_Bottom_1" body1="Handle_1" body2="M_Bottom_1" /><exclude name="ex_Handle_1_M_Left2_1" body1="Handle_1" body2="M_Left2_1" /><exclude name="ex_Handle_1_LeftSlider2_1" body1="Handle_1" body2="LeftSlider2_1" /><exclude name="ex_Handle_1_M_Right2_1" body1="Handle_1" body2="M_Right2_1" /><exclude name="ex_Handle_1_RightSlider2_1" body1="Handle_1" body2="RightSlider2_1" /><exclude name="ex_Handle_1_M_Back_1" body1="Handle_1" body2="M_Back_1" /><exclude name="ex_Handle_1_M_Left1_1" body1="Handle_1" body2="M_Left1_1" /><exclude name="ex_Handle_1_M_Right1_1" body1="Handle_1" body2="M_Right1_1" /><exclude name="ex_Handle_1_M_Top_1" body1="Handle_1" body2="M_Top_1" /><exclude name="ex_Handle_1_M_LeftLink_1" body1="Handle_1" body2="M_LeftLink_1" /><exclude name="ex_Handle_1_M_RightLink_1" body1="Handle_1" body2="M_RightLink_1" /><exclude name="ex_Handle_1_M_LeftLink2_copy_1" body1="Handle_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_F_RightLink_1_M_Bottom_1" body1="F_RightLink_1" body2="M_Bottom_1" /><exclude name="ex_F_RightLink_1_M_Left2_1" body1="F_RightLink_1" body2="M_Left2_1" /><exclude name="ex_F_RightLink_1_LeftSlider2_1" body1="F_RightLink_1" body2="LeftSlider2_1" /><exclude name="ex_F_RightLink_1_M_Right2_1" body1="F_RightLink_1" body2="M_Right2_1" /><exclude name="ex_F_RightLink_1_RightSlider2_1" body1="F_RightLink_1" body2="RightSlider2_1" /><exclude name="ex_F_RightLink_1_M_Back_1" body1="F_RightLink_1" body2="M_Back_1" /><exclude name="ex_F_RightLink_1_M_Left1_1" body1="F_RightLink_1" body2="M_Left1_1" /><exclude name="ex_F_RightLink_1_M_Right1_1" body1="F_RightLink_1" body2="M_Right1_1" /><exclude name="ex_F_RightLink_1_M_Top_1" body1="F_RightLink_1" body2="M_Top_1" /><exclude name="ex_F_RightLink_1_M_LeftLink_1" body1="F_RightLink_1" body2="M_LeftLink_1" /><exclude name="ex_F_RightLink_1_M_RightLink_1" body1="F_RightLink_1" body2="M_RightLink_1" /><exclude name="ex_F_RightLink_1_M_LeftLink2_copy_1" body1="F_RightLink_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_F_RightLink2_1_M_Bottom_1" body1="F_RightLink2_1" body2="M_Bottom_1" /><exclude name="ex_F_RightLink2_1_M_Left2_1" body1="F_RightLink2_1" body2="M_Left2_1" /><exclude name="ex_F_RightLink2_1_LeftSlider2_1" body1="F_RightLink2_1" body2="LeftSlider2_1" /><exclude name="ex_F_RightLink2_1_M_Right2_1" body1="F_RightLink2_1" body2="M_Right2_1" /><exclude name="ex_F_RightLink2_1_RightSlider2_1" body1="F_RightLink2_1" body2="RightSlider2_1" /><exclude name="ex_F_RightLink2_1_M_Back_1" body1="F_RightLink2_1" body2="M_Back_1" /><exclude name="ex_F_RightLink2_1_M_Left1_1" body1="F_RightLink2_1" body2="M_Left1_1" /><exclude name="ex_F_RightLink2_1_M_Right1_1" body1="F_RightLink2_1" body2="M_Right1_1" /><exclude name="ex_F_RightLink2_1_M_Top_1" body1="F_RightLink2_1" body2="M_Top_1" /><exclude name="ex_F_RightLink2_1_M_LeftLink_1" body1="F_RightLink2_1" body2="M_LeftLink_1" /><exclude name="ex_F_RightLink2_1_M_RightLink_1" body1="F_RightLink2_1" body2="M_RightLink_1" /><exclude name="ex_F_RightLink2_1_M_LeftLink2_copy_1" body1="F_RightLink2_1" body2="M_LeftLink2_copy_1" /><exclude name="ex_M_Bottom_1_PAWL_1" body1="M_Bottom_1" body2="PAWL_1" /><exclude name="ex_M_Left2_1_PAWL_1" body1="M_Left2_1" body2="PAWL_1" /><exclude name="ex_LeftSlider2_1_PAWL_1" body1="LeftSlider2_1" body2="PAWL_1" /><exclude name="ex_M_Right2_1_PAWL_1" body1="M_Right2_1" body2="PAWL_1" /><exclude name="ex_PAWL_1_RightSlider2_1" body1="PAWL_1" body2="RightSlider2_1" /><exclude name="ex_M_Back_1_PAWL_1" body1="M_Back_1" body2="PAWL_1" /><exclude name="ex_M_Left1_1_PAWL_1" body1="M_Left1_1" body2="PAWL_1" /><exclude name="ex_M_Right1_1_PAWL_1" body1="M_Right1_1" body2="PAWL_1" /><exclude name="ex_M_Top_1_PAWL_1" body1="M_Top_1" body2="PAWL_1" /><exclude name="ex_M_LeftLink_1_PAWL_1" body1="M_LeftLink_1" body2="PAWL_1" /><exclude name="ex_M_RightLink_1_PAWL_1" body1="M_RightLink_1" body2="PAWL_1" /><exclude name="ex_M_LeftLink2_copy_1_PAWL_1" body1="M_LeftLink2_copy_1" body2="PAWL_1" /><exclude name="ex_Shaft_copy_1_base_link" body1="Shaft_copy_1" body2="base_link" /><exclude name="ex_HexNut_1_base_link" body1="HexNut_1" body2="base_link" /><exclude name="ex_NeedleBearing_1_base_link" body1="NeedleBearing_1" body2="base_link" /><exclude name="ex_Bearing1_1_base_link" body1="Bearing1_1" body2="base_link" /><exclude name="ex_Washer_1_base_link" body1="Washer_1" body2="base_link" /><exclude name="ex_RachetGear_1_base_link" body1="RachetGear_1" body2="base_link" /><exclude name="ex_PULLEY_1_base_link" body1="PULLEY_1" body2="base_link" /><exclude name="ex_ShaftHandle_1_base_link" body1="ShaftHandle_1" body2="base_link" /><exclude name="ex_F_Back_1_Shaft_copy_1" body1="F_Back_1" body2="Shaft_copy_1" /><exclude name="ex_F_Back_1_HexNut_1" body1="F_Back_1" body2="HexNut_1" /><exclude name="ex_F_Back_1_NeedleBearing_1" body1="F_Back_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_F_Back_1" body1="Bearing1_1" body2="F_Back_1" /><exclude name="ex_F_Back_1_Washer_1" body1="F_Back_1" body2="Washer_1" /><exclude name="ex_F_Back_1_RachetGear_1" body1="F_Back_1" body2="RachetGear_1" /><exclude name="ex_F_Back_1_PULLEY_1" body1="F_Back_1" body2="PULLEY_1" /><exclude name="ex_F_Back_1_ShaftHandle_1" body1="F_Back_1" body2="ShaftHandle_1" /><exclude name="ex_F_Left_1_Shaft_copy_1" body1="F_Left_1" body2="Shaft_copy_1" /><exclude name="ex_F_Left_1_HexNut_1" body1="F_Left_1" body2="HexNut_1" /><exclude name="ex_F_Left_1_NeedleBearing_1" body1="F_Left_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_F_Left_1" body1="Bearing1_1" body2="F_Left_1" /><exclude name="ex_F_Left_1_Washer_1" body1="F_Left_1" body2="Washer_1" /><exclude name="ex_F_Left_1_RachetGear_1" body1="F_Left_1" body2="RachetGear_1" /><exclude name="ex_F_Left_1_PULLEY_1" body1="F_Left_1" body2="PULLEY_1" /><exclude name="ex_F_Left_1_ShaftHandle_1" body1="F_Left_1" body2="ShaftHandle_1" /><exclude name="ex_LeftSlider1_1_Shaft_copy_1" body1="LeftSlider1_1" body2="Shaft_copy_1" /><exclude name="ex_HexNut_1_LeftSlider1_1" body1="HexNut_1" body2="LeftSlider1_1" /><exclude name="ex_LeftSlider1_1_NeedleBearing_1" body1="LeftSlider1_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_LeftSlider1_1" body1="Bearing1_1" body2="LeftSlider1_1" /><exclude name="ex_LeftSlider1_1_Washer_1" body1="LeftSlider1_1" body2="Washer_1" /><exclude name="ex_LeftSlider1_1_RachetGear_1" body1="LeftSlider1_1" body2="RachetGear_1" /><exclude name="ex_LeftSlider1_1_PULLEY_1" body1="LeftSlider1_1" body2="PULLEY_1" /><exclude name="ex_LeftSlider1_1_ShaftHandle_1" body1="LeftSlider1_1" body2="ShaftHandle_1" /><exclude name="ex_F_Right_1_Shaft_copy_1" body1="F_Right_1" body2="Shaft_copy_1" /><exclude name="ex_F_Right_1_HexNut_1" body1="F_Right_1" body2="HexNut_1" /><exclude name="ex_F_Right_1_NeedleBearing_1" body1="F_Right_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_F_Right_1" body1="Bearing1_1" body2="F_Right_1" /><exclude name="ex_F_Right_1_Washer_1" body1="F_Right_1" body2="Washer_1" /><exclude name="ex_F_Right_1_RachetGear_1" body1="F_Right_1" body2="RachetGear_1" /><exclude name="ex_F_Right_1_PULLEY_1" body1="F_Right_1" body2="PULLEY_1" /><exclude name="ex_F_Right_1_ShaftHandle_1" body1="F_Right_1" body2="ShaftHandle_1" /><exclude name="ex_RightSlider1_1_Shaft_copy_1" body1="RightSlider1_1" body2="Shaft_copy_1" /><exclude name="ex_HexNut_1_RightSlider1_1" body1="HexNut_1" body2="RightSlider1_1" /><exclude name="ex_NeedleBearing_1_RightSlider1_1" body1="NeedleBearing_1" body2="RightSlider1_1" /><exclude name="ex_Bearing1_1_RightSlider1_1" body1="Bearing1_1" body2="RightSlider1_1" /><exclude name="ex_RightSlider1_1_Washer_1" body1="RightSlider1_1" body2="Washer_1" /><exclude name="ex_RachetGear_1_RightSlider1_1" body1="RachetGear_1" body2="RightSlider1_1" /><exclude name="ex_PULLEY_1_RightSlider1_1" body1="PULLEY_1" body2="RightSlider1_1" /><exclude name="ex_RightSlider1_1_ShaftHandle_1" body1="RightSlider1_1" body2="ShaftHandle_1" /><exclude name="ex_F_Top_1_Shaft_copy_1" body1="F_Top_1" body2="Shaft_copy_1" /><exclude name="ex_F_Top_1_HexNut_1" body1="F_Top_1" body2="HexNut_1" /><exclude name="ex_F_Top_1_NeedleBearing_1" body1="F_Top_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_F_Top_1" body1="Bearing1_1" body2="F_Top_1" /><exclude name="ex_F_Top_1_Washer_1" body1="F_Top_1" body2="Washer_1" /><exclude name="ex_F_Top_1_RachetGear_1" body1="F_Top_1" body2="RachetGear_1" /><exclude name="ex_F_Top_1_PULLEY_1" body1="F_Top_1" body2="PULLEY_1" /><exclude name="ex_F_Top_1_ShaftHandle_1" body1="F_Top_1" body2="ShaftHandle_1" /><exclude name="ex_F_LeftLink_1_Shaft_copy_1" body1="F_LeftLink_1" body2="Shaft_copy_1" /><exclude name="ex_F_LeftLink_1_HexNut_1" body1="F_LeftLink_1" body2="HexNut_1" /><exclude name="ex_F_LeftLink_1_NeedleBearing_1" body1="F_LeftLink_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_F_LeftLink_1" body1="Bearing1_1" body2="F_LeftLink_1" /><exclude name="ex_F_LeftLink_1_Washer_1" body1="F_LeftLink_1" body2="Washer_1" /><exclude name="ex_F_LeftLink_1_RachetGear_1" body1="F_LeftLink_1" body2="RachetGear_1" /><exclude name="ex_F_LeftLink_1_PULLEY_1" body1="F_LeftLink_1" body2="PULLEY_1" /><exclude name="ex_F_LeftLink_1_ShaftHandle_1" body1="F_LeftLink_1" body2="ShaftHandle_1" /><exclude name="ex_Handle_1_Shaft_copy_1" body1="Handle_1" body2="Shaft_copy_1" /><exclude name="ex_Handle_1_HexNut_1" body1="Handle_1" body2="HexNut_1" /><exclude name="ex_Handle_1_NeedleBearing_1" body1="Handle_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_Handle_1" body1="Bearing1_1" body2="Handle_1" /><exclude name="ex_Handle_1_Washer_1" body1="Handle_1" body2="Washer_1" /><exclude name="ex_Handle_1_RachetGear_1" body1="Handle_1" body2="RachetGear_1" /><exclude name="ex_Handle_1_PULLEY_1" body1="Handle_1" body2="PULLEY_1" /><exclude name="ex_Handle_1_ShaftHandle_1" body1="Handle_1" body2="ShaftHandle_1" /><exclude name="ex_F_RightLink_1_Shaft_copy_1" body1="F_RightLink_1" body2="Shaft_copy_1" /><exclude name="ex_F_RightLink_1_HexNut_1" body1="F_RightLink_1" body2="HexNut_1" /><exclude name="ex_F_RightLink_1_NeedleBearing_1" body1="F_RightLink_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_F_RightLink_1" body1="Bearing1_1" body2="F_RightLink_1" /><exclude name="ex_F_RightLink_1_Washer_1" body1="F_RightLink_1" body2="Washer_1" /><exclude name="ex_F_RightLink_1_RachetGear_1" body1="F_RightLink_1" body2="RachetGear_1" /><exclude name="ex_F_RightLink_1_PULLEY_1" body1="F_RightLink_1" body2="PULLEY_1" /><exclude name="ex_F_RightLink_1_ShaftHandle_1" body1="F_RightLink_1" body2="ShaftHandle_1" /><exclude name="ex_F_RightLink2_1_Shaft_copy_1" body1="F_RightLink2_1" body2="Shaft_copy_1" /><exclude name="ex_F_RightLink2_1_HexNut_1" body1="F_RightLink2_1" body2="HexNut_1" /><exclude name="ex_F_RightLink2_1_NeedleBearing_1" body1="F_RightLink2_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_F_RightLink2_1" body1="Bearing1_1" body2="F_RightLink2_1" /><exclude name="ex_F_RightLink2_1_Washer_1" body1="F_RightLink2_1" body2="Washer_1" /><exclude name="ex_F_RightLink2_1_RachetGear_1" body1="F_RightLink2_1" body2="RachetGear_1" /><exclude name="ex_F_RightLink2_1_PULLEY_1" body1="F_RightLink2_1" body2="PULLEY_1" /><exclude name="ex_F_RightLink2_1_ShaftHandle_1" body1="F_RightLink2_1" body2="ShaftHandle_1" /><exclude name="ex_PAWL_1_Shaft_copy_1" body1="PAWL_1" body2="Shaft_copy_1" /><exclude name="ex_HexNut_1_PAWL_1" body1="HexNut_1" body2="PAWL_1" /><exclude name="ex_NeedleBearing_1_PAWL_1" body1="NeedleBearing_1" body2="PAWL_1" /><exclude name="ex_Bearing1_1_PAWL_1" body1="Bearing1_1" body2="PAWL_1" /><exclude name="ex_PAWL_1_Washer_1" body1="PAWL_1" body2="Washer_1" /><exclude name="ex_PAWL_1_RachetGear_1" body1="PAWL_1" body2="RachetGear_1" /><exclude name="ex_PAWL_1_PULLEY_1" body1="PAWL_1" body2="PULLEY_1" /><exclude name="ex_PAWL_1_ShaftHandle_1" body1="PAWL_1" body2="ShaftHandle_1" /><exclude name="ex_Crank_1_Shaft_copy_1" body1="Crank_1" body2="Shaft_copy_1" /><exclude name="ex_Crank_1_HexNut_1" body1="Crank_1" body2="HexNut_1" /><exclude name="ex_Crank_1_NeedleBearing_1" body1="Crank_1" body2="NeedleBearing_1" /><exclude name="ex_Bearing1_1_Crank_1" body1="Bearing1_1" body2="Crank_1" /><exclude name="ex_Crank_1_Washer_1" body1="Crank_1" body2="Washer_1" /><exclude name="ex_Crank_1_RachetGear_1" body1="Crank_1" body2="RachetGear_1" /><exclude name="ex_Crank_1_PULLEY_1" body1="Crank_1" body2="PULLEY_1" /><exclude name="ex_Crank_1_ShaftHandle_1" body1="Crank_1" body2="ShaftHandle_1" /><exclude name="ex_Crank_1_M_Bottom_1" body1="Crank_1" body2="M_Bottom_1" /><exclude name="ex_Crank_1_M_Left2_1" body1="Crank_1" body2="M_Left2_1" /><exclude name="ex_Crank_1_LeftSlider2_1" body1="Crank_1" body2="LeftSlider2_1" /><exclude name="ex_Crank_1_M_Right2_1" body1="Crank_1" body2="M_Right2_1" /><exclude name="ex_Crank_1_RightSlider2_1" body1="Crank_1" body2="RightSlider2_1" /><exclude name="ex_Crank_1_M_Back_1" body1="Crank_1" body2="M_Back_1" /><exclude name="ex_Crank_1_M_Left1_1" body1="Crank_1" body2="M_Left1_1" /><exclude name="ex_Crank_1_M_Right1_1" body1="Crank_1" body2="M_Right1_1" /><exclude name="ex_Crank_1_M_Top_1" body1="Crank_1" body2="M_Top_1" /><exclude name="ex_Crank_1_M_LeftLink_1" body1="Crank_1" body2="M_LeftLink_1" /><exclude name="ex_Crank_1_M_RightLink_1" body1="Crank_1" body2="M_RightLink_1" /><exclude name="ex_Crank_1_M_LeftLink2_copy_1" body1="Crank_1" body2="M_LeftLink2_copy_1" /></contact><equality>
+    <connect name="connect_Crank_1_M_Top_1" body1="Crank_1" body2="M_Top_1" anchor="0.06 0 0.006" />
+  </equality>
+  <actuator>
+    <motor name="회전_31_act" joint="회전_31" />
+    </actuator>
+</mujoco>
