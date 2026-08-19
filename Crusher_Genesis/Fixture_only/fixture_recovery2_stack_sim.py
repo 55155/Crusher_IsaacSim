@@ -29,9 +29,21 @@ RECOVERY2_POS 는 그대로 둔다 — 정렬점 (-74.015, 59.22, 1.776)mm 는 F
 앵커 값인데 구 빌드는 자기 샤프트 힌지축이 그 앵커에서 (+30.92, -6.62, 0)mm
 어긋나 있었고 신 빌드는 0.01mm 안에서 일치한다. 즉 **같은 POS 로 회수장치2
 형상이 고정장치 기준 (+30.92, -6.62, 0)mm 옮겨 앉으며, 그래야 원래 의도한
-"Jig 포크가 ShaftHandle 을 돌린다"는 정렬이 실제로 성립한다.** 아래 본문의
-"ShaftHandle 은 Jig 와 전혀 안 겹친다(0/64, 전 회전각)"는 구 빌드에서 잰 값이라
-신 빌드에서는 다시 재야 한다.
+"Jig 포크가 ShaftHandle 을 돌린다"는 정렬이 실제로 성립한다.**
+
+**재측정 완료(2026-08-19, Genesis 1.3.3)**: 아래 본문의 "ShaftHandle 은 Jig 와
+전혀 안 겹친다(0/64, 전 회전각)"는 구 빌드 값이고, 신 빌드에서는 **닿는다** —
+한 바퀴 전 구간 실측이 아래와 같다(64개 Jig hull 중 ShaftHandle AABB 와 겹친 수):
+
+    q(rad)  0.003  0.631  1.260  1.888  2.516  3.145  3.773  4.401  5.030  5.658
+    접촉    0/64   0/64   2/64   4/64   2/64   4/64   4/64   2/64   4/64   2/64
+
+즉 q≈0.63~1.26rad 사이에서 물리기 시작해 나머지 전 구간에서 접촉이 유지된다.
+구 빌드에서 "요(yaw) 미조정이라 아직 안 닿는다"고 본 것은 사실 요 문제가 아니라
+힌지축이 (+30.92, -6.62)mm 어긋나 있던 탓이었다. 두 샤프트 회전축은 이제 월드
+x,y 가 0.0000mm 로 일치한다(MuJoCo xanchor 실측: 고정장치 Servo3_ServoShaft 와
+회수장치2 회전_31 모두 축방향 (0,0,1), 평행 dot=1.000000).
+아래 본문 15-17 행의 "0/64" 서술은 이 값으로 대체된 것으로 읽을 것.
 
 사용법(Anaconda Prompt, Windows cmd):
     conda activate crusher_genesis
@@ -126,9 +138,24 @@ def main(use_viewer: bool = False):
     # compute_mesh_volume: "Calculating volume of open trimesh is meaningless").
     # convexify=False 는 Genesis 의 watertighten(기본 5) 경로를 타서 33개 전부
     # 닫힌 비볼록 메시가 된다(실측: 열린 geom 0개).
+    #
+    # needs_coup=False (2026-08-19): 위 convexify 만으로는 부족하다 —
+    # `enable_rigid_rigid_contact=True` 인 이 씬에서는 회수장치2를 IPC 에 넣는 순간
+    # **빌드가 죽는다**(실측: scene.build() 안 IPC sanity check 에서 교차 수백 건 →
+    # coupler.build() 의 AttributeError: 'NoneType' object has no attribute
+    # 'body_count'). 원인은 배치가 아니라 에셋 자체다: 신 빌드는 33개 부품이 전부
+    # 충돌 메시를 갖는데 실제 CAD 조립체라 압입/동심 부품이 설계상 서로 파고든다
+    # (실측 qpos0 에서 AABB 겹침 57쌍 — 샤프트↔베어링 5.0mm, 샤프트↔HexNut 6.5mm,
+    # 샤프트↔PULLEY 5.9mm, F_Top↔Handle 10.0mm 등). IPC 초기 유효성 검사는 XML 의
+    # <contact><exclude> 200여 쌍을 **무시하고 순수 메시 교차만** 보므로 어떤
+    # 필터링으로도 통과시킬 수 없다(파일 상단 T1 사례와 같은 성질의 문제).
+    # 회수장치2는 이 씬에서 로봇/봉투와 상호작용하지 않는 정적 소품이고, 아래
+    # check_overlap() 은 IPC 접촉이 아니라 **geom AABB 비교**만 쓰므로 커플러에서
+    # 빼도 이 스크립트가 재는 값은 달라지지 않는다. 렌더와 강체 솔버에는 그대로
+    # 남는다. full_workflow.py 가 같은 이유로 이미 쓰는 처방이다.
     recovery = scene.add_entity(
         gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False, convexify=False),
-        material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
+        material=gs.materials.Rigid(needs_coup=False),
     )
 
     cam = None

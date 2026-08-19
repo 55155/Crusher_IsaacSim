@@ -24,7 +24,7 @@
 ```powershell
 & "$env:USERPROFILE\miniconda3\Scripts\conda.exe" create -n crusher_genesis python=3.13 -y
 & "$env:USERPROFILE\miniconda3\envs\crusher_genesis\python.exe" -m pip install --index-url https://download.pytorch.org/whl/cu128 torch
-& "$env:USERPROFILE\miniconda3\envs\crusher_genesis\python.exe" -m pip install genesis-world==1.1.0 numpy trimesh Pillow matplotlib scipy
+& "$env:USERPROFILE\miniconda3\envs\crusher_genesis\python.exe" -m pip install genesis-world==1.3.3 numpy trimesh Pillow matplotlib scipy
 ```
 
 실행 예:
