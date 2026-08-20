@@ -145,6 +145,25 @@ PARK_POS = (-0.035, 0.05920, 0.260)
 F_LINK_FRONT_X = -0.055        # F 링크 앞면(가동턱이 다가오는 쪽)
 PLATE_TOP_Z = 0.058            # F_Top / M_Top 상면 -> 실링부 하단 목표 z
 LINK_MID_Y = 0.05920           # 두 링크 y 중점
+# 턱의 실제 물림 창(MJCF meshes 실측, qpos0 기준 world mm). 링크는 x 로만 움직이므로
+# y/z 는 고정이다. F/M_LeftLink y[11.70,31.70] · F/M_RightLink y[86.70,106.70] ·
+# 네 링크 모두 z[48.00,148.00]. 봉투는 폭 64mm 를 LINK_MID_Y 중심에 두므로
+# y[27.20,91.20] — 즉 턱과 겹치는 실링부는 양쪽 바깥 4.5mm 뿐이다.
+JAW_LEFT_Y_HI = 0.03170
+JAW_RIGHT_Y_LO = 0.08670
+# 자유 패치의 위·아래를 이만큼 고정으로 남겨 3면을 물린다(처짐/펄럭임 억제).
+# 환경변수 BITE_Z_MARGIN_MM 으로 스윕 가능.
+BITE_Z_MARGIN = float(os.environ.get("BITE_Z_MARGIN_MM", "12.0")) * 1e-3
+# 물림창을 **완전 자유**로 두면 6mm 몸통이 고정된 채 1mm 림만 풀려 이음매가 벌어진다
+# (실측 A1/A4: 실링부 x 폭 1.00 -> 20.03mm). BITE_SOFT_K > 0 이면 물림창을 자유 대신
+# **소프트 구속**(투입 위치로 스프링, 임계감쇠)으로 잡아 벌어짐만 막는다 — 천은 여전히
+# 동역학적으로 반응하므로 IPC 가 접촉/마찰을 쌓을 수 있다. 0 이면 완전 자유(기존).
+BITE_SOFT_K = float(os.environ.get("BITE_SOFT_K", "0"))
+# **진단용 리프트**(2026-08-21). 기본 배치는 실링부 하단 z = 상판 상면(58mm)이라
+# 해제 후 봉투가 그냥 상판 위에 **얹혀서** 멈춘다 — 클램프가 무는지 아닌지를
+# 낙하량으로 구분할 수 없다. BAG_LIFT_MM > 0 이면 봉투를 그만큼 띄워 상판 지지를
+# 없앤 채 클램프만으로 버티는지 본다(대조군과 반드시 같은 값으로 짝지어 돌릴 것).
+BAG_LIFT = float(os.environ.get("BAG_LIFT_MM", "0")) * 1e-3
 # (BAG_PLACE_CLEARANCE 제거 — 정중앙 배치로 바뀌면서 쓰이지 않는다)
 # 압착 목표 슬라이더(=F-M 링크 틈새). **실링부 자유 두께보다 작아야 누른다.**
 #   경위: 7.0mm -> 실링부 자유 두께 6.31mm 대비 0.68mm 헐거워 압축 0 (닿기만 함).
@@ -292,44 +311,94 @@ def main(use_viewer: bool = False):
     sx0 = p[seal_idx0, 0]
     seal_thick0 = sx0.max() - sx0.min()
     seal_cx0 = (sx0.min() + sx0.max()) / 2.0
-    # **실링부 중심을 "최종 틈새"의 중심에 맞춘다**(2026-08-19 재수정).
-    # 직전 시도는 고정턱 앞면에서 0.1mm 앞에 실링부 뒷면을 붙였는데, 그러면
-    # 실링부(1.00mm)가 최종 틈새(0.77mm)보다 앞으로 삐져나온다 — 실측:
-    #   틈새 [-55.00,-54.23] vs 실링부 [-54.90,-53.90]
-    #   -> 틈새에 든 건 0.67mm 뿐이고 0.33mm 는 가동턱 **앞**에 남는다.
-    # 즉 가동턱 면이 실링부 한가운데를 찍어누르는 꼴이라, 구속을 풀면 실링부가
-    # 앞으로 밀려 빠지고 봉투가 그대로 주저앉았다(해제 후 낙하 14.37mm).
-    # 최종 틈새는 [F앞면, F앞면+CLAMP_SLIDER_MM] 이므로 그 중심에 실링부 중심을
-    # 두면 양쪽 링크가 (실링두께-틈새)/2 씩 **대칭으로** 물어 눌러준다.
-    tgt_seal_cx = F_LINK_FRONT_X + (CLAMP_SLIDER_MM * 1e-3) / 2.0
+    # **관통 0 에서 출발한다**(2026-08-21 재수정, 조건2).
+    # 직전 버전은 실링부 중심을 "최종 틈새"의 중심(F앞면 + CLAMP_SLIDER_MM/2)에
+    # 뒀는데, 그건 **닫힌 뒤**의 틈새다. 실링부 1.00mm 를 0.8mm 틈새 중심에 놓으면
+    # 시작부터 양쪽 링크를 0.10mm 씩 파고든 상태가 된다(틈새 0.4mm 면 0.30mm 씩).
+    # 게다가 봉투는 build() 이후 set_position() 으로 투입돼 IPC 초기 검사를 타지
+    # 않으므로(§빌드 순서 제약), IPC 가 절대 허용하지 않을 배치가 그대로 통과한다.
+    # 해제 순간 IPC 는 발산하는 배리어를 마주하고 천을 가장 짧은 탈출 경로(턱
+    # 바깥)로 밀어낸다 — 낙하량이 관통 깊이와 단조 상관했던 이유다:
+    #     관통 0(대조군) 10.93 / 0.10mm 11.18 · 12.23 / 0.30mm 14.37mm.
+    # 마찰을 0.1 -> 0.8 로 올렸을 때 오히려 악화한 것(11.18 -> 12.23)도 같은 그림이다
+    # — 마찰이 클수록 사출 임펄스가 천에 더 강하게 실린다.
+    #
+    # 그래서 실링부 뒷면을 고정턱 앞면에서 **접촉 오프셋(천두께 + d_hat)만큼 띄운
+    # 곳**에 둔다. 가동턱은 슬라이더 (실링두께 + 2*SAFE_GAP) 에서 첫 접촉하고, 거기서
+    # CLAMP_SLIDER_MM 까지 더 닫으며 그 차이만큼을 **일해서** 누른다. 부수 효과로
+    # 가동턱이 실링부를 쓸고 오는 거리도 최소가 된다(기존 실측 20mm).
+    SAFE_GAP = CLOTH_THICK + IPC_D_HAT
+    tgt_seal_cx = F_LINK_FRONT_X + SAFE_GAP + seal_thick0 / 2.0
     delta = np.array([
-        tgt_seal_cx - seal_cx0,                            # x: 실링부를 고정턱 앞면에 붙임
+        tgt_seal_cx - seal_cx0,                            # x: 실링부 뒷면을 고정턱 앞면에서 SAFE_GAP 만큼 띄움
         LINK_MID_Y - (cur_lo[1] + cur_hi[1]) / 2.0,        # y: 두 링크 중점(정중앙)
-        PLATE_TOP_Z - cur_lo[2],                           # z: 실링부 하단 = 상판 상면
+        PLATE_TOP_Z + BAG_LIFT - cur_lo[2],                           # z: 실링부 하단 = 상판 상면
     ])
-    print(f"\n[2/5 투입] 실링부 두께 {seal_thick0*1e3:.2f}mm -> 실링부를 고정턱 앞면"
-          f"({F_LINK_FRONT_X*1e3:.2f}mm) 기준 최종 틈새 중심 {tgt_seal_cx*1e3:.2f}mm 에 정렬 (F_Top 쪽)")
+    print("")
+    print(f"[2/5 투입] 실링부 두께 {seal_thick0*1e3:.2f}mm -> 고정턱 앞면"
+          f"({F_LINK_FRONT_X*1e3:.2f}mm)에서 {SAFE_GAP*1e3:.2f}mm 띄운 중심 "
+          f"{tgt_seal_cx*1e3:.2f}mm 에 정렬 — **관통 0** (F_Top 쪽)")
+    _s_touch_mm = (seal_thick0 + 2 * SAFE_GAP) * 1e3
+    print(f"    첫 접촉 예상 슬라이더 {_s_touch_mm:.2f}mm -> 목표 {CLAMP_SLIDER_MM:.2f}mm "
+          f"= 눌러야 할 양 {_s_touch_mm - CLAMP_SLIDER_MM:+.2f}mm (이걸 턱이 일해서 만든다)")
     bag.set_position(p + delta)
 
-    # ── 3. 파지: **닫힐 때까지 전 정점을 구속한다**(2026-08-19, 사용자 지시) ──
-    # 이전에는 상단 중앙 42정점(5.4%)만 잡았더니 나머지가 처지고 벌어졌다.
-    # full_workflow.py 는 같은 문제를 바닥+양측면(약 39%)을 잡아 해결했는데,
-    # 사용자 지시는 더 단순하다 — "닫히기 전까지 모든 곳을 다 constraint 걸고,
-    # 닫히고 나서 다 푼다". 실제 시퀀스와도 맞다(로봇이 잡고 있는 동안 봉투는
-    # 형상을 유지하고, 턱이 완전히 다 닫힌 뒤에야 손을 뗀다).
-    # 전 정점을 hard 로 잡으면 봉투는 투입 형상 그대로 정지해 있고, 늘어남/처짐이
-    # 원천적으로 발생하지 않는다. 압착은 해제 직후 IPC 가 겹침을 풀며 만들어낸다.
+    # ── 3. 파지: **실링부만 자유롭게 두고 나머지를 구속한다**(2026-08-21, 조건1) ──
+    # 직전 버전(2026-08-19)은 **전 정점**을 hard 로 잡은 채 턱을 닫고, 다 닫힌 뒤에
+    # 풀었다. 그러면 닫는 내내 천이 운동학적 물체라 IPC 가 접촉력을 실을 대상이
+    # 없고 마찰 상태도 만들어지지 않는다 — 압착이 "안 듣는" 게 아니라 **일어난 적이
+    # 없다**. 그 버전의 주석이 이미 인정하고 있었다: "압착은 해제 직후 IPC 가 겹침을
+    # 풀며 만들어낸다".
+    #
+    # 성공한 레퍼런스는 full_workflow.py 다 — 거기서는 remove_vertex_constraints()
+    # 가 close **앞**에 있고(864행 -> 867행 close), 손가락은 자유로운 천에 닫힌다.
+    # 그래서 IPC 가 접근하는 동안 접촉쌍과 마찰을 점진적으로 쌓는다. 구동 API 는
+    # 양쪽 다 매 스텝 set_dofs_position 이므로(full_workflow 805/827행) **구동
+    # 방식은 원인이 아니다** — docs/DigitalTwin.md §15 의 "위치 지령이 IPC 마찰
+    # 앵커를 리셋한다"는 추정은 이 대조로 기각된다.
+    #
+    # 다만 상단 중앙 42정점(5.4%)만 잡던 더 옛 버전처럼 대부분을 풀면 몸통이
+    # 파우치처럼 벌어져(6.01 -> 21.52mm) 가동턱이 '벌어진 몸통 바깥면'에 먼저 닿는다.
+    # 그래서 **실링부 대역(seal_idx0)만 빼고 나머지를 전부 고정**한다 — 형상 유지
+    # 효과는 그대로 살리면서, 턱이 물어야 할 바로 그 부분에는 IPC 가 실제 접촉을
+    # 만든다. 물리적으로도 맞다: 로봇은 몸통을 잡고 있고, 클램프가 무는 건 가장자리
+    # 실링부다. 압착이 끝난 뒤 [5/5 해제]에서 나머지도 한꺼번에 푼다.
     p_placed = bagp()
     by0, bz0 = p_placed[:, 1], p_placed[:, 2]
     yc0 = (by0.min() + by0.max()) / 2.0
     grip_idx = np.where((bz0 > bz0.max() - GRIP_BAND_H) & (np.abs(by0 - yc0) < GRIP_BAND_W))[0]
     all_idx = np.arange(len(p_placed))
-    bag.set_vertex_constraints(verts_idx_local=all_idx.tolist(), is_soft_constraint=False)
+    # ── 자유 구역 = **턱이 실제로 무는 창**으로 좁힌다(2026-08-21 2차) ─────
+    # 1차(실링부 대역 212정점 전부 자유)는 실패했다: 턱이 열려 있는 동안 봉투 밑에
+    # 받쳐줄 것이 없어(M_Top 이 +35mm 물러나 x[-55,-20] 이 허공) 자유 실링부가
+    # **10.94mm 처지고 두께가 1.00 -> 20.03mm 로 벌어졌다**(실측 A1). 그 상태로
+    # 턱이 닫히니 벌어진 천을 밀고 들어가 실링부가 x[-70.07,-53.08] 로 뭉갰다.
+    # 낙하 10.32mm — 옛 11.18mm 보다는 낫지만 파지는 아니다.
+    #
+    # RG2 가 성공한 이유가 여기서 드러난다 — full_workflow 의 봉투는 close 동안
+    # **선반(SHELF) 위에 놓여 있다**. 즉 "자유로운 천"이되 지지된 천이었다.
+    # 회수장치2 는 허공에 매달린 천이라 같은 조건이 아니다.
+    #
+    # 그래서 자유로 두는 곳을 턱의 실제 물림 창으로 한정한다. 이러면 자유 패치가
+    # **안쪽·위·아래 3면이 고정 정점에 물려** 처짐/벌어짐이 억제되면서도, 턱이
+    # 닿는 바로 그 면은 IPC 가 접촉·마찰을 쌓을 수 있게 열려 있다.
+    #   MJCF 실측(qpos0): F/M_LeftLink y[11.70, 31.70], F/M_RightLink y[86.70,106.70]
+    #   봉투(폭 64mm, LINK_MID_Y 중심) y[27.20, 91.20] -> 겹치는 건 양쪽 4.5mm 뿐이다.
+    in_jaw_y = (p_placed[:, 1] <= JAW_LEFT_Y_HI) | (p_placed[:, 1] >= JAW_RIGHT_Y_LO)
+    _zlo, _zhi = bz0.min() + BITE_Z_MARGIN, bz0.max() - BITE_Z_MARGIN
+    in_bite_z = (bz0 >= _zlo) & (bz0 <= _zhi)
+    free_idx = np.intersect1d(np.where(in_jaw_y & in_bite_z)[0], seal_idx0)
+    hold_idx = np.setdiff1d(all_idx, free_idx)
+    bag.set_vertex_constraints(verts_idx_local=hold_idx.tolist(), is_soft_constraint=False)
+    if BITE_SOFT_K > 0 and len(free_idx):
+        bag.set_vertex_constraints(verts_idx_local=free_idx.tolist(),
+                                   is_soft_constraint=True, stiffness=BITE_SOFT_K)
+    _bite_mode = ('소프트 k=%g' % BITE_SOFT_K) if BITE_SOFT_K > 0 else '완전 자유'
     placed_bottom_z = bz0.min()
     print(f"[2/5 투입] 봉투 두께={bag_thick*1e3:.2f}mm — 투입 직후 실링부 하단 "
           f"z={placed_bottom_z*1e3:.2f}mm (목표 {PLATE_TOP_Z*1e3:.2f}mm)")
-    print(f"[3/5 파지] **전 정점 {len(all_idx)}개 고정** — 턱이 완전히 닫힐 때까지 유지"
-          f" (상단 중앙 파지 대역은 그중 {len(grip_idx)}개)")
+    print(f"[3/5 파지] **{len(hold_idx)}/{len(all_idx)}정점 고정 — 물림창 {len(free_idx)}정점은 {_bite_mode}**"
+          f" (자유창 y<={JAW_LEFT_Y_HI*1e3:.1f} or y>={JAW_RIGHT_Y_LO*1e3:.1f}, z[{_zlo*1e3:.1f},{_zhi*1e3:.1f}]mm)")
 
     for _ in range(N_PLACE):
         scene.step()
@@ -437,9 +506,14 @@ def main(use_viewer: bool = False):
     # 봉투를 잡아주는 건 링크 압착(IPC 접촉/마찰)뿐이다.
     bag.remove_vertex_constraints()
     print(f"\n[5/5 해제] 전 정점 구속 해제 — 이제 링크 압착만으로 버텨야 한다 ({N_RELEASE}스텝)")
+    # 해제 **첫 스텝 직후** COM. 얼어 있던 형상이 풀리는 탄성 스냅이라 파지
+    # 성능이 아니다 — 진짜 지표는 그 뒤의 크리프다(2026-08-21).
+    com_snap = None
     for k in range(N_RELEASE):
         hold_ratchet()          # 라쳇이 계속 물고 있다 — 해제 구간에도 유지
         scene.step()
+        if com_snap is None:
+            com_snap = bagp().mean(axis=0)
         if k % 150 == 0:
             bp = bagp()
             c = bp.mean(axis=0)
@@ -451,6 +525,8 @@ def main(use_viewer: bool = False):
     p_end = bagp()
     com_end = p_end.mean(axis=0)
     drop_mm = (com_clamped[2] - com_end[2]) * 1e3
+    snap_mm = (com_clamped[2] - com_snap[2]) * 1e3
+    creep_mm = (com_snap[2] - com_end[2]) * 1e3
     grip_res = np.linalg.norm(p_end[grip_idx] - grip_p0, axis=1).max() * 1e3
 
     print("\n" + "=" * 70)
@@ -464,6 +540,8 @@ def main(use_viewer: bool = False):
         print(f"  C. 압착 도달                            : 실패 (슬라이더 {slider_mm():+.2f}mm)")
     print(f"  D. 해제 후 낙하량 (COM z 하강)          : {drop_mm:+.2f} mm  "
           f"<- 작을수록 물려 있는 것")
+    print(f"     - 해제 첫 스텝 탄성 스냅                : {snap_mm:+.2f} mm  (형상 이완, 파지와 무관)")
+    print(f"     - **그 뒤 미끄러짐(크리프)**            : {creep_mm:+.2f} mm  <- 이게 파지 지표다")
     print(f"  E. 상단중앙 정점 이동(해제 후)          : {grip_res:.2f} mm")
     print(f"     봉투 COM: 압착 {com_clamped[2]*1e3:.2f}mm -> 최종 {com_end[2]*1e3:.2f}mm")
 
