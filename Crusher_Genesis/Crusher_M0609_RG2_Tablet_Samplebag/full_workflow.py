@@ -137,9 +137,62 @@ WALL_GEOMS_TO_ENABLE = {"base_link", "L1_Wall1_1", "L1_Wall2_1", "L2_Wall3_1"}
 LEFTWALL_CLAMP_FACE = os.environ.get("LEFTWALL_CLAMP_FACE", "0") == "1"
 L7_LINK3_COM = "0.006 0 -0.005"
 
+# ── Left_Wall 충돌 형상 분리 — 기본 켜짐(2026-08-26) ────────────────────────
+# 사용자가 Fusion 에서 Left_Wall 을 본체/플랜지 두 부품으로 쪼개 다시 내보냈다
+# (`Crusher_IsaacSim_mjcf`). 그 둘만 가져와 현재 모델 좌표로 옮기고 본체는 CoACD
+# 로 더 쪼갠 것이 이 경로다 — 굽는 쪽은 `assets/MJCF/build_leftwall_split.py`.
+#
+# **버그 수정이 아니라 개선이다.** 소스인 `Crusher_IsaacSim_colored.xml` 은 이미
+# 통짜 메시를 contype=0 시각 geom 으로 두고 CoACD hull 11개(group=3)를 충돌로
+# 물려 놨다. 즉 단차는 원래도 정확히 재현되고 있었다. 바뀌는 것은:
+#
+#     충돌 geom 수   11개        -> 6개 (본체 hull 5 + 플랜지 1)
+#     부피 충실도    38,847      -> 38,694 mm^3  (101.9% -> 101.5%)
+#     플랜지 표현    hull_000    -> verts 8 정확한 box (100.8% -> 100.0%)
+#     위치           예전 CAD    -> 새 CAD (뒤의 LEFTWALL_GAP_* 주석, 0.50mm)
+#     §18-5 준비     hull 에 섞임 -> 독립 geom 이라 떼어내기 쉬움
+#
+# 배선이 성립하는 근거: Crusher 는 `convexify=True` 로 실리는데 Genesis 는 MJCF 를
+# robot 으로 보고 `decompose_robot_error_threshold`(기본 **inf**)를 쓴다. 임계값이
+# 무한대면 `geoms_must_decompose` 가 영원히 False 라 `must_decompose` 가 False 고,
+# 그러면 **융합(fusion) 분기가 통째로 스킵된다**(genesis/utils/mesh.py:671).
+# 즉 geom 을 나눠 두면 나뉜 채로 유지되고, 이미 볼록한 hull 은 볼록화해도 자기
+# 자신이다. 거꾸로 말하면 **통짜 메시 하나로 두면 hull 하나로 뭉개진다** —
+# 실부피의 3.6배(38,123 -> 136,890 mm^3)가 되고 늘어난 98,767mm^3 가 하필 좌우
+# 세로부재 사이 55mm 개구부, 즉 impact plate 의 분쇄 통로를 메운다(§18-2).
+#
+#     본체   L2_Left_Wall_body(시각) + hull 5개(충돌)  = 실부피의 101.8%
+#     플랜지 L2_Left_Wall_flange     verts 8 정확한 box = 실부피의 100.0%
+#
+# 플랜지를 별도 **body** 가 아니라 별도 **geom** 으로 둔 이유: 충돌 결과가
+# 동일하고(볼록화는 geom 단위) 링크가 늘지 않아 구조 위험이 없다. §18-5 처럼
+# 플랜지를 고정 프레임에 매달려면 그때 진짜 body 로 올려야 한다.
+LEFTWALL_SPLIT = os.environ.get("LEFTWALL_SPLIT", "1") == "1"
+LEFTWALL_BODY_MESH = "L2_Left_Wall_body"
+LEFTWALL_FLANGE_MESH = "L2_Left_Wall_flange"
+LEFTWALL_BODY_HULL_N = 5
+LEFTWALL_BODY_HULLS = [f"L2_Left_Wall_body_hull_{i:03d}" for i in range(LEFTWALL_BODY_HULL_N)]
+if LEFTWALL_SPLIT and LEFTWALL_CLAMP_FACE:
+    raise SystemExit(
+        "[config] LEFTWALL_SPLIT 과 LEFTWALL_CLAMP_FACE 는 같이 못 켠다 — "
+        "clamp_face box 의 좌표는 예전 통짜 메시 기준이라 분리 형상과 어긋난다."
+    )
+
+# 중립(q=0) 압착 간격 — 고정 3벽 면(x=336.28)에서 각 압착면까지, m 단위.
+# **분리하면서 0.50mm 넓어졌다**: 새 CAD 의 Left_Wall 이 그만큼 물러나 있다.
+# 공통 부품 4개(Wall1/Wall2/Wall3/PLATE)로 평행이동을 교차검증했으므로 변환
+# 오차가 아니라 CAD 차이다. build_leftwall_split.py 가 매 빌드마다 이 값을 찍는다.
+LEFTWALL_GAP_FLANGE = 0.01250 if LEFTWALL_SPLIT else 0.01200
+LEFTWALL_GAP_BODY = 0.01750 if LEFTWALL_SPLIT else (
+    0.01200 if LEFTWALL_CLAMP_FACE else 0.01700)
+
 # ── Crusher 슬롯 계산에 필요한 벽 mesh(Crusher_Samplebag.py 동일) ──────────
 WALL_BACK_MESH = "L2_Wall3_1"
-WALL_LEFT_MESH = "L2_Left_Wall1_1"
+# 분리 후에는 벽이 메시 두 장이라 슬롯 AABB 도 둘의 합집합으로 잡아야 한다.
+# 통짜 메시를 계속 쓰면 슬롯 계산만 예전 위치(0.50mm 앞)에 머물러 충돌 형상과
+# 조용히 어긋난다.
+WALL_LEFT_MESH = ((LEFTWALL_BODY_MESH, LEFTWALL_FLANGE_MESH) if LEFTWALL_SPLIT
+                  else ("L2_Left_Wall1_1",))
 LEFTWALL_BODY_POS = (-0.017802, 0.286278, 0.016542)
 LEFTWALL_GEOM_POS = (-0.286278, -0.016542, 0.017802)
 _R_GEOM_HALF = np.array([[0., 0., 1.], [1., 0., 0.], [0., 1., 0.]])
@@ -159,13 +212,17 @@ WALL_OFFSET = 0.006      # 슬롯 개방(+6mm)
 # 면이 전부 y=336.28mm 로 같은 평면이고, L2_Left_Wall1_1 의 면이 y=324.28mm —
 # **중립(q=0) 간격이 12.00mm** 다. 따라서
 #
-# [주의] 이 12.00mm 는 원래 Left_Wall **상단 5mm 플랜지**에서만 성립했다. 본체
-# 면은 y=319.28 로 5mm 더 물러나 있어 간격이 17.00mm 였고, 그래서 벽을 닫아도
-# 플랜지 한 줄만 봉투에 닿았다. `_add_leftwall_clamp_face()` 가 그 단차를 메워
-# 이제 전 높이에서 12.00mm 로 균일하다. 아래 식은 그 처방을 전제로 한다.
-#     gap(q) = 12.00mm + q      (q>0 개방, q<0 폐쇄)
-#     q=-5mm  -> 7.00mm 잔여  : 6mm 두께 봉투에 1mm 여유 → 압착 안 됨
-#     q=-12mm -> 0.00mm       : 벽끼리 맞닿는 완전 폐쇄 지령
+# [주의] 이 12.00mm 는 Left_Wall **상단 5mm 플랜지**에서만 성립한다. 본체 면은
+# y=319.28 로 5mm 더 물러나 있어 간격이 17.00mm 이고, 그래서 벽을 닫아도 플랜지
+# 한 줄만 봉투에 닿는다. 단차는 결함이 아니라 impact plate 의 통로다(§18-2).
+#
+# **LEFTWALL_SPLIT(기본 켜짐, 2026-08-26)이면 두 면 모두 0.50mm 넓다** — 새 CAD
+# 의 Left_Wall 이 그만큼 물러나 있다. 실제 값은 LEFTWALL_GAP_* 를 보라.
+#     gap_flange(q) = LEFTWALL_GAP_FLANGE + q   (분리 12.50 / 예전 12.00mm)
+#     gap_body(q)   = LEFTWALL_GAP_BODY   + q   (분리 17.50 / 예전 17.00mm)
+#     (q>0 개방, q<0 폐쇄)
+#     q=-5mm  -> 플랜지 7.50mm 잔여 : 6mm 두께 봉투에 여유 → 압착 안 됨
+#     q=-12mm -> 플랜지 0.50mm      : 사실상 완전 폐쇄 지령
 #
 # **이 값은 WALL_FORCE_LIM 과 짝으로만 의미가 있다.** 힘 상한 없이 깊은 목표를
 # 주면 위치제어가 IPC 배리어를 무한한 힘으로 밀어 발산한다(실측: -12mm 는 44분
@@ -181,6 +238,29 @@ WALL_KP, WALL_KV = 5000.0, 500.0
 # `Motor2_left_wall` ctrlrange ±100 N (MJCF actuatorfrcrange 와 동일).
 # 적용 이유는 사용처(_fmin/_fmax) 주석 참고.
 WALL_FORCE_LIM = float(os.environ.get("WALL_FORCE_LIM_N", "100.0"))
+
+# ── Phase 11: crush — 고정된 봉투를 두고 Crusher 를 실제로 운전(2026-08-26) ──
+# 여기까지가 "봉투를 슬롯에 넣고 벽으로 문다" 였고, 그 상태에서 크랭크를 돌려
+# impact plate 가 정제를 때리게 한다. 구동 사양·패턴은 Crusher_only.py 를 그대로
+# 따른다(그쪽이 크러셔 단독 검증용으로 이미 확립해 둔 것):
+#
+#   · 8 RPM (docs/Crusher.md §1 "운전 속도 8 RPM", BL4281+PG42 저속 준정적)
+#   · **velocity 제어 + 토크 클램프** — position 제어로 각도를 램프시키면 접촉으로
+#     크랭크가 밀렸을 때 PD 가 무한 토크로 밀어붙인다. Left_Wall 에 WALL_FORCE_LIM
+#     을 건 것과 같은 이유이고, 같은 처방이다.
+#   · τ ≤ 12.5 N·m (Crusher.md §2-2 표 — 슬라이더 실측 625 N 과 매칭되는 값)
+#   · kv 만 쓰므로 크게 잡아 force_range 한계까지 즉시 saturate 시킨다.
+#
+# **기본 꺼짐(CRUSH_SECONDS=0)**. 60s 는 DT=5e-3 에서 12,000 스텝이라 기존 2,430
+# 스텝짜리 런에 20분 이상을 더한다 — 매 런마다 물릴 값이 아니다.
+# 매 스텝 render_cams() 를 부르면 3대 x 12,000 프레임이 되므로 이 구간만
+# CRUSH_RENDER_EVERY 로 솎는다(30fps 기준 10 이면 60s -> 40s 클립).
+CRUSH_SECONDS = float(os.environ.get("CRUSH_SECONDS", "0"))
+CRUSH_RENDER_EVERY = int(os.environ.get("CRUSH_RENDER_EVERY", "10"))
+CRANK_RPM = 8.0
+CRANK_OMEGA = CRANK_RPM * 2.0 * np.pi / 60.0     # 0.8378 rad/s
+CRANK_TORQUE_LIM = float(os.environ.get("CRANK_TORQUE_LIM_NM", "12.5"))
+CRANK_KV_SPIN = 5000.0
 
 
 def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999 1e-5"):
@@ -201,6 +281,8 @@ def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999
             if g.get("mesh") in WALL_GEOMS_TO_ENABLE:
                 g.attrib.pop("contype", None)
                 g.attrib.pop("conaffinity", None)
+        if LEFTWALL_SPLIT:
+            _split_leftwall_collision(root, wb)
         if LEFTWALL_CLAMP_FACE:
             _add_leftwall_clamp_face(wb)
         for body in wb.iter("body"):
@@ -209,6 +291,89 @@ def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999
                 if inertial is not None:
                     inertial.set("pos", L7_LINK3_COM)
     tree.write(dst)
+
+
+def _split_leftwall_collision(root, wb):
+    """Left_Wall 의 시각 메시 + CoACD hull 11개를 "본체 hull 5개 + 플랜지 box" 로 간다.
+
+    소스(`Crusher_IsaacSim_colored.xml`)의 L2_Left_Wall1_1 body 는 이렇게 생겼다:
+        geom mesh=L2_Left_Wall1_1            contype=0/conaffinity=0  (시각, material)
+        geom mesh=L2_Left_Wall1_1_hull_000~010  group=3               (충돌 11개)
+        geom mesh=L3_RackGear_1              contype=0/conaffinity=0  (시각, 남긴다)
+    앞의 12개를 통째로 걷어내고 새 6+1개를 넣는다. **옛 hull 을 남기면 새 형상과
+    겹쳐 충돌 geom 이 이중으로 깔리고 IPC build 가 죽는다.**
+
+    근거는 LEFTWALL_SPLIT 상수 주석. 여기서는 배선만 한다.
+
+    geom 별 역할 배정은 Genesis 의 MJCF 규칙을 따른다(genesis/utils/mjcf.py):
+      - `contype or conaffinity` 가 참이면 충돌 geom 이 된다.
+      - 그중 `group` 이 0/1/2 면 시각 geom 으로도 **복제**된다(MuJoCo 규칙).
+    그래서 hull 은 group=3 으로 둬 충돌만 시키고(뭉툭한 hull 이 렌더되면 벽이
+    덩어리로 보인다), 본체 원형은 contype/conaffinity=0 으로 시각만 맡긴다.
+    플랜지는 verts 8개짜리 정확한 box 라 볼록화해도 자기 자신이므로 시각/충돌을
+    겸한다 — 렌더와 충돌이 같은 형상이라는 뜻이라 오히려 정직하다.
+
+    **부피 겹침 금지**: IPC 의 build-time 검사는 contype/conaffinity 필터를
+    무시하고 순수 메시 교차만 본다. 같은 body 안 형제 geom 이라도 겹치면
+    "Intersection detected" 후 `'NoneType' object has no attribute 'body_count'`
+    로 죽는다(§9 조합9 후속4 와 같은 서명). 본체와 플랜지는 y=81.43 에서
+    **맞닿기만** 하고(겹침 0) CoACD hull 도 그 선을 넘지 않는 것을
+    build_leftwall_split.py 가 매 빌드마다 검사한다. 맞닿는 것은 괜찮다.
+    """
+    asset = root.find("asset")
+    if asset is None:
+        print("[mjcf] 경고: <asset> 이 없어 Left_Wall 분리를 건너뛴다")
+        return
+    for name in (LEFTWALL_BODY_MESH, LEFTWALL_FLANGE_MESH, *LEFTWALL_BODY_HULLS):
+        ET.SubElement(asset, "mesh", {
+            "name": name, "content_type": "model/stl",
+            "file": f"{name}.stl", "scale": "0.001 0.001 0.001",
+        })
+
+    for body in wb.iter("body"):
+        if body.get("name") != "L2_Left_Wall1_1":
+            continue
+        # 시각 메시와 hull 11개를 한꺼번에 잡는다 — 접두사로 걸러야 옛 hull 이
+        # 남아 새 형상과 이중으로 깔리는 일이 없다. L3_RackGear_1 은 안 건드린다.
+        old = [g for g in body.findall("geom")
+               if (g.get("mesh") or "").startswith("L2_Left_Wall1_1")]
+        if not old:
+            print("[mjcf] 경고: L2_Left_Wall1_1 geom 을 못 찾아 분리를 건너뛴다")
+            return
+        # 새 geom 은 옛 geom 과 같은 pos/quat/material 을 그대로 쓴다 — 분리 메시가
+        # 애초에 같은 STL 프레임으로 옮겨져 있으므로 프레임 보정이 필요 없고,
+        # material 을 빠뜨리면 벽만 기본색으로 렌더돼 눈에 띈다.
+        base = next((g for g in old if g.get("mesh") == "L2_Left_Wall1_1"), old[0])
+        pos, quat, mat = base.get("pos"), base.get("quat"), base.get("material")
+        n_old = len(old)
+        for g in old:
+            body.remove(g)
+
+        def _geom(name, mesh, visual, **kw):
+            attrs = {"name": name, "type": "mesh", "mesh": mesh}
+            if pos:
+                attrs["pos"] = pos
+            if quat:
+                attrs["quat"] = quat
+            if visual and mat:
+                attrs["material"] = mat
+            attrs.update(kw)
+            ET.SubElement(body, "geom", attrs)
+
+        _geom("L2_Left_Wall_body_vis", LEFTWALL_BODY_MESH, True,
+              contype="0", conaffinity="0", group="2")
+        for i, h in enumerate(LEFTWALL_BODY_HULLS):
+            _geom(f"L2_Left_Wall_body_col_{i:03d}", h, False,
+                  contype="1", conaffinity="1", group="3")
+        _geom("L2_Left_Wall_flange", LEFTWALL_FLANGE_MESH, True,
+              contype="1", conaffinity="1", group="0")
+
+        print(f"[mjcf] Left_Wall 형상 교체: 옛 geom {n_old}개(시각 1 + hull "
+              f"{n_old-1}) -> 본체 hull {len(LEFTWALL_BODY_HULLS)}개 + 플랜지 1개 "
+              f"+ 시각 1개. 중립 간격 플랜지 {LEFTWALL_GAP_FLANGE*1000:.2f}mm / "
+              f"본체 {LEFTWALL_GAP_BODY*1000:.2f}mm")
+        return
+    print("[mjcf] 경고: L2_Left_Wall1_1 body 를 찾지 못해 분리를 건너뛴다")
 
 
 def _add_leftwall_clamp_face(wb):
@@ -284,6 +449,15 @@ def _prepare_crusher_mjcf():
 
 
 def crusher_mesh_world_aabb(mesh_name, body_pos=(0., 0., 0.), geom_pos=(0., 0., 0.)):
+    """메시의 world AABB. 이름 하나든 여러 개든 받는다 — 여러 개면 합집합.
+
+    LEFTWALL_SPLIT 이후 WALL_LEFT_MESH 가 (본체, 플랜지) 두 장이 됐다. 호출부를
+    일일이 고치는 대신 여기서 흡수한다 — full_workflow_rigid / slot_fit_check /
+    slot_ik_check / interactive_probe 가 이 함수에 그 상수를 그대로 넘긴다.
+    두 조각은 같은 body/geom 프레임을 쓰므로 pos 인자는 공유해도 된다."""
+    if not isinstance(mesh_name, str):
+        los, his = zip(*(crusher_mesh_world_aabb(n, body_pos, geom_pos) for n in mesh_name))
+        return np.min(los, axis=0), np.max(his, axis=0)
     yaw = np.radians(CRUSHER_EULER[2])
     R_e = np.array([[np.cos(yaw), -np.sin(yaw), 0.],
                     [np.sin(yaw), np.cos(yaw), 0.],
@@ -1180,8 +1354,8 @@ def main(use_viewer: bool = False):
     # docs/Crusher.md §11-5: 래칫/락 없이 모터를 계속 구동해 강하게 고정하는
     # 방식 — WALL_OFFSET(+6mm)에서 CLAMP_TARGET(-12mm)까지 완전 폐쇄를 지령하되,
     # 실제 정지 위치는 WALL_FORCE_LIM(±100N)이 결정한다 = 실효 압착 두께 실측.
-    # 잔여 간격 = 12.00mm + CLAMP_TARGET 이라 -5mm 는 7mm 를 남겨 6mm 봉투를
-    # 스치기만 했다 — 상단 CLAMP_TARGET 정의부의 실측 근거 참고.
+    # 잔여 간격 = LEFTWALL_GAP_FLANGE + CLAMP_TARGET 이라 -5mm 는 7.5mm 를 남겨
+    # 6mm 봉투를 스치기만 했다 — 상단 CLAMP_TARGET 정의부의 실측 근거 참고.
     print(f"\n[phase] 9 clamp ({N_CLAMP*DT:.1f}s) — Left_Wall {WALL_OFFSET*1000:+.1f}mm -> "
           f"{CLAMP_TARGET*1000:+.1f}mm (실링부 압착)")
     for k in range(N_CLAMP):
@@ -1205,11 +1379,12 @@ def main(use_viewer: bool = False):
             f"WALL_FORCE_LIM={WALL_FORCE_LIM}N 로도 안정화되지 않았다 — "
             f"CLAMP_TARGET({CLAMP_TARGET*1000:+.1f}mm)을 줄이거나 힘 상한을 낮출 것."
         )
-    # 잔여 간격은 **면마다 다르다**(§18-2): 상단 플랜지는 중립 12.00mm, 본체 면은
-    # 17.00mm 에서 출발한다. 하나만 찍으면 다른 쪽을 오해하므로 둘 다 낸다.
-    # LEFTWALL_CLAMP_FACE 가 켜져 있으면 본체 면이 플랜지와 같은 평면이 된다.
-    _g_flange = (0.01200 + wq_final) * 1000
-    _g_body = (0.01200 if LEFTWALL_CLAMP_FACE else 0.01700) + wq_final
+    # 잔여 간격은 **면마다 다르다**(§18-2): 상단 플랜지와 본체 면이 5mm 어긋나
+    # 서로 다른 값에서 출발한다. 하나만 찍으면 다른 쪽을 오해하므로 둘 다 낸다.
+    # 출발값은 LEFTWALL_GAP_* 가 쥐고 있다 — LEFTWALL_SPLIT(신 CAD, 12.50/17.50)
+    # 인지 LEFTWALL_CLAMP_FACE(본체 면을 플랜지 평면까지 메움)인지에 따라 다르다.
+    _g_flange = (LEFTWALL_GAP_FLANGE + wq_final) * 1000
+    _g_body = LEFTWALL_GAP_BODY + wq_final
     print(f"[phase] clamp    @done  wall={wq_final*1000:+.2f}mm  "
           f"(잔여: 플랜지면 {_g_flange:.2f}mm / 본체면 {_g_body*1000:.2f}mm)  "
           f"bag_com={_bag_com()}")
@@ -1225,6 +1400,67 @@ def main(use_viewer: bool = False):
     WALL_PRELOAD = 0.0005
     run_arm("release", qpos_insert, qpos_insert, FING_CLOSE, FING_OPEN, N_RELEASE,
             crank_q=CRANK_START_Q, wall_q=wq_final - WALL_PRELOAD, trace=True)
+
+    # ── Phase 11: crush — 벽이 문 상태로 Crusher 를 실제 운전 ─────────────────
+    # 근거·사양은 CRUSH_SECONDS 정의부 주석. 기본은 꺼져 있고 CRUSH_SECONDS 로 켠다.
+    if CRUSH_SECONDS > 0:
+        n_crush = int(round(CRUSH_SECONDS / DT))
+        wall_hold = wq_final - WALL_PRELOAD
+
+        def _tablet_extent():
+            """정제 AABB (dx, dy, dz) mm — 분쇄 진행도의 대리 지표."""
+            if tablet is None:
+                return (float("nan"),) * 3
+            p = _npy(tablet.get_state().pos).squeeze()
+            return tuple((p.max(0) - p.min(0)) * 1e3)
+
+        # 크랭크를 position -> velocity 제어로 바꾸고 토크를 실기 한계로 묶는다.
+        # 벽의 force_range 는 그대로 둬야 하므로 배열을 새로 만들어 둘 다 건다.
+        crusher.set_dofs_kv(np.array([CRANK_KV_SPIN]), dofs_idx_local=[crank_dof])
+        _fmin2 = np.full(crusher.n_dofs, -np.inf)
+        _fmax2 = np.full(crusher.n_dofs,  np.inf)
+        _fmin2[wall_dof], _fmax2[wall_dof] = -WALL_FORCE_LIM, WALL_FORCE_LIM
+        _fmin2[crank_dof], _fmax2[crank_dof] = -CRANK_TORQUE_LIM, CRANK_TORQUE_LIM
+        crusher.set_dofs_force_range(lower=_fmin2, upper=_fmax2)
+
+        q0_crank = float(_npy(crusher.get_dofs_position())[crank_dof])
+        e0 = _tablet_extent()
+        n_rev = CRUSH_SECONDS * CRANK_OMEGA / (2 * np.pi)
+        print(f"\n[phase] 11 crush ({CRUSH_SECONDS:.0f}s, {n_crush} step) — 크랭크 "
+              f"{CRANK_RPM:.1f} RPM ({CRANK_OMEGA:.4f} rad/s) 연속 회전 ≈ {n_rev:.1f} 바퀴")
+        print(f"[ctrl] crank torque clip: ±{CRANK_TORQUE_LIM:.1f} N·m "
+              f"(docs/Crusher.md §2-2), kv={CRANK_KV_SPIN:.0f} — velocity 제어")
+        print(f"[crush] 시작 정제 크기 {e0[0]:.2f} x {e0[1]:.2f} x {e0[2]:.2f} mm")
+
+        _log_every = max(1, n_crush // 30)
+        for k in range(n_crush):
+            # 팔은 release 자세 그대로 유지(핑거 z=0.134 는 impact plate 의 z대역
+            # 0.024~0.074 보다 위라 간섭하지 않는다 — 회피 동작을 넣지 않는 이유).
+            robot.set_dofs_position(np.concatenate([qpos_insert, [FING_OPEN] * 6]))
+            crusher.control_dofs_velocity(np.array([CRANK_OMEGA]), dofs_idx_local=[crank_dof])
+            crusher.control_dofs_position(np.array([wall_hold]), dofs_idx_local=[wall_dof])
+            scene.step()
+            _step_n[0] += 1
+            if k % CRUSH_RENDER_EVERY == 0:
+                render_cams()
+            if k % _log_every == 0:
+                qc = float(_npy(crusher.get_dofs_position())[crank_dof])
+                vc = float(_npy(crusher.get_dofs_velocity())[crank_dof])
+                qw = float(_npy(crusher.get_dofs_position())[wall_dof])
+                e = _tablet_extent()
+                print(f"    [crush t={k*DT:5.1f}s] crank={np.degrees(qc-q0_crank):+8.1f}deg "
+                      f"({vc*60/(2*np.pi):5.2f} RPM)  wall={qw*1e3:+6.2f}mm  "
+                      f"정제 {e[0]:5.2f}x{e[1]:5.2f}x{e[2]:5.2f}mm")
+
+        qc = float(_npy(crusher.get_dofs_position())[crank_dof])
+        e1 = _tablet_extent()
+        print(f"[phase] crush    @done  크랭크 {np.degrees(qc-q0_crank):+.1f}deg "
+              f"({(qc-q0_crank)/(2*np.pi):.2f} 바퀴)  wall={_npy(crusher.get_dofs_position())[wall_dof]*1e3:+.2f}mm")
+        print(f"[crush] 정제 {e0[0]:.2f}x{e0[1]:.2f}x{e0[2]:.2f} -> "
+              f"{e1[0]:.2f}x{e1[1]:.2f}x{e1[2]:.2f} mm  "
+              f"(변화 {e1[0]-e0[0]:+.2f}/{e1[1]-e0[1]:+.2f}/{e1[2]-e0[2]:+.2f})")
+        print(f"[crush] bag_com={_bag_com()}  tilt={_bag_tilt():.1f}deg  "
+              f"bag_bottom={_bag_extent()[2]:.4f}")
 
     # ── Y 스윕 PASS/FAIL 판정(사용자 지시, 2026-07-23) ───────────────────────
     # 실제 그리퍼 마찰 파지 경로라 slot_fit_check.py 의 carrier 판정보다 여유를

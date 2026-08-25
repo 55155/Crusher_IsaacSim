@@ -1,0 +1,95 @@
+[cfg] 봉투 Samplebag_seal_pouch3_sealslab3mm.stl  실링 자유두께 3.00mm + 2 x CLOTH_THICK 1.00mm = 실효 5.00mm
+[cfg] 압착 목표 틈새 4.60mm (auto: 실효 - 0.40) -> 눌리는 양 +0.40mm
+======================================================================
+ recovery2_bag_clamp — 실링부 압착 고정 전체 시퀀스 (viewer=False)
+======================================================================
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+[38;5;226m[Genesis] [04:43:20] [WARNING] At least one of the meshes contain many faces (15762). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+
+[build] scene.build() 시작... (봉투는 PARK_Z 에 띄운 채)
+[38;5;226m[Genesis] [04:43:21] [WARNING] Link 'M_Bottom_1' has dubious center of mass [x=0.166, y=0.030, z=-0.073] compared to the bounding box from geometry [x=(0.106, 0.155), y=(-0.011, 0.071), z=(-0.078, -0.068)].[0m
+[38;5;226m[Genesis] [04:43:21] [WARNING] Link 'M_Back_1' has dubious center of mass [x=0.003, y=0.021, z=0.011] compared to the bounding box from geometry [x=(-0.035, -0.030), y=(-0.033, 0.076), z=(-0.005, 0.028)].[0m
+[38;5;226m[Genesis] [04:43:21] [WARNING] Link 'M_Left1_1' has dubious center of mass [x=-0.025, y=-0.002, z=-0.014] compared to the bounding box from geometry [x=(-0.088, -0.032), y=(-0.005, -0.000), z=(-0.038, 0.010)].[0m
+[38;5;226m[Genesis] [04:43:21] [WARNING] Link 'M_Right1_1' has dubious center of mass [x=-0.025, y=0.003, z=-0.014] compared to the bounding box from geometry [x=(-0.087, -0.033), y=(0.000, 0.005), z=(-0.038, 0.010)].[0m
+[38;5;226m[Genesis] [04:43:21] [WARNING] Link 'M_Top_1' has dubious center of mass [x=-0.024, y=0.028, z=0.005] compared to the bounding box from geometry [x=(-0.088, -0.032), y=(-0.031, 0.088), z=(-0.000, 0.010)].[0m
+[38;5;226m[Genesis] [04:43:21] [WARNING] Link 'M_LeftLink_1' has dubious center of mass [x=-0.002, y=0.005, z=0.046] compared to the bounding box from geometry [x=(-0.040, -0.035), y=(-0.005, 0.015), z=(-0.005, 0.095)].[0m
+[38;5;226m[Genesis] [04:43:21] [WARNING] Link 'M_RightLink_1' has dubious center of mass [x=-0.002, y=-0.005, z=0.046] compared to the bounding box from geometry [x=(-0.040, -0.035), y=(-0.015, 0.005), z=(-0.005, 0.095)].[0m
+[38;5;226m[Genesis] [04:43:21] [WARNING] Link 'M_LeftLink2_copy_1' has dubious center of mass [x=-0.005, y=-0.005, z=0.021] compared to the bounding box from geometry [x=(-0.044, -0.032), y=(-0.015, 0.005), z=(-0.000, 0.045)].[0m
+C:\Users\user\AppData\Local\Programs\Python\Python311\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+[build] 성공  recovery2 n_dofs=3
+[38;5;226m[Genesis] [04:43:29] [WARNING] fps=30 is not reachable with dt=0.005. Recording at fps=28.57142857142857 instead.[0m
+
+[1/5 열기] 회전_31 0 -> 180deg (700스텝) — 슬라이더가 +35mm 로 벌어져야 한다
+    k=   0 q=   0.3deg  슬라이더= +0.00mm
+    k= 200 q=  51.7deg  슬라이더= +4.75mm
+    k= 400 q= 103.1deg  슬라이더=+18.35mm
+    k= 600 q= 154.5deg  슬라이더=+32.45mm
+[1/5 열기] 완료 — 슬라이더=+35.05mm  (F-M 틈새 = 이 값)
+
+[2/5 투입] 실링부 두께 31.04mm -> 고정턱 앞면(-55.00mm)에서 1.10mm 띄운 중심 -38.38mm 에 정렬 — **관통 0** (F_Top 쪽)
+    [경고] 씬 실측 실링두께 31.038mm 가 STL 값 3.000mm 와 다르다 — CLAMP_SLIDER_MM 산출 근거가 흔들린다
+    첫 접촉 예상 슬라이더 33.24mm -> 목표 4.60mm = 눌러야 할 양 +28.64mm (이걸 턱이 일해서 만든다)
+[38;5;226m[Genesis] [04:44:43] [WARNING] Manually setting element positions. This is not recommended and could break gradient flow.[0m
+[2/5 투입] 봉투 두께=34.64mm — 투입 직후 실링부 하단 z=58.00mm (목표 58.00mm)
+[3/5 파지] **594/714정점 고정 — 물림창 120정점은 완전 자유** (자유창 y<=31.7 or y>=86.7, z[70.0,133.0]mm)
+[2/5 투입] 안정화 400스텝 후:
+    x[ -55.88,  14.20]  y[  24.42,  91.28]  z[  58.00, 144.97]
+    실링부 하단 z=58.00mm  (목표 58.00mm = F_Top/M_Top 상면)
+    정점 714개 — 실링부 좌84/우85, 파지(상단중앙) 35
+    실링부 x[ -53.90,  14.20] -> 실링부 두께 68.10mm (몸통 전체 두께 70.08mm)
+    => 압착 목표 슬라이더 = 4.60mm (고정값, 실링부 두께 기준)
+
+[4/5 잠금] 샤프트 180deg -> 압착 (3500스텝 상한, 슬라이더 4.60mm 에서 정지)
+    k=   0 q= 180.1deg  슬라이더=+35.00mm  M링크x[ -20.00, -15.00]  실링부x[ -53.90,  14.21]
+    k= 100 q= 185.2deg  슬라이더=+34.93mm  M링크x[ -20.07, -15.07]  실링부x[ -53.90,  14.53]
+    k= 200 q= 190.3deg  슬라이더=+34.67mm  M링크x[ -20.33, -15.33]  실링부x[ -53.90,  14.66]
+    k= 300 q= 195.5deg  슬라이더=+34.24mm  M링크x[ -20.76, -15.76]  실링부x[ -53.90,  14.66]
+    k= 400 q= 200.6deg  슬라이더=+33.64mm  M링크x[ -21.36, -16.36]  실링부x[ -53.90,  14.49]
+    k= 500 q= 205.8deg  슬라이더=+32.87mm  M링크x[ -22.13, -17.13]  실링부x[ -53.90,  14.16]
+    k= 600 q= 210.9deg  슬라이더=+31.94mm  M링크x[ -23.06, -18.06]  실링부x[ -53.90,  13.67]
+    k= 700 q= 216.1deg  슬라이더=+30.88mm  M링크x[ -24.12, -19.12]  실링부x[ -53.90,  13.08]
+    k= 800 q= 221.2deg  슬라이더=+29.68mm  M링크x[ -25.32, -20.32]  실링부x[ -53.90,  12.35]
+    k= 900 q= 226.3deg  슬라이더=+28.37mm  M링크x[ -26.63, -21.63]  실링부x[ -53.90,  11.51]
+    k=1000 q= 231.5deg  슬라이더=+26.96mm  M링크x[ -28.04, -23.04]  실링부x[ -53.90,  10.56]
+    k=1100 q= 236.6deg  슬라이더=+25.47mm  M링크x[ -29.53, -24.53]  실링부x[ -53.90,   9.51]
+    k=1200 q= 241.8deg  슬라이더=+23.92mm  M링크x[ -31.08, -26.08]  실링부x[ -53.90,   8.41]
+    k=1300 q= 246.9deg  슬라이더=+22.32mm  M링크x[ -32.68, -27.68]  실링부x[ -53.90,   7.27]
+    k=1400 q= 252.1deg  슬라이더=+20.69mm  M링크x[ -34.31, -29.31]  실링부x[ -53.90,   6.11]
+    k=1500 q= 257.2deg  슬라이더=+19.06mm  M링크x[ -35.94, -30.94]  실링부x[ -53.90,   4.94]
+    k=1600 q= 262.3deg  슬라이더=+17.42mm  M링크x[ -37.58, -32.58]  실링부x[ -53.90,   3.80]
+    k=1700 q= 267.5deg  슬라이더=+15.81mm  M링크x[ -39.19, -34.19]  실링부x[ -53.90,   2.70]
+    k=1800 q= 272.6deg  슬라이더=+14.24mm  M링크x[ -40.76, -35.76]  실링부x[ -53.90,   1.66]
+    k=1900 q= 277.8deg  슬라이더=+12.71mm  M링크x[ -42.29, -37.29]  실링부x[ -53.90,   0.69]
+    k=2000 q= 282.9deg  슬라이더=+11.24mm  M링크x[ -43.76, -38.76]  실링부x[ -53.90,  -0.18]
+    k=2100 q= 288.1deg  슬라이더= +9.84mm  M링크x[ -45.16, -40.16]  실링부x[ -53.90,  -0.95]
+    k=2200 q= 293.2deg  슬라이더= +8.52mm  M링크x[ -46.48, -41.48]  실링부x[ -53.90,  -1.61]
+    k=2300 q= 298.3deg  슬라이더= +7.28mm  M링크x[ -47.72, -42.72]  실링부x[ -53.90,  -2.15]
+    k=2400 q= 303.5deg  슬라이더= +6.13mm  M링크x[ -48.87, -43.87]  실링부x[ -53.90,  -2.62]
+    k=2500 q= 308.6deg  슬라이더= +5.08mm  M링크x[ -49.92, -44.92]  실링부x[ -53.90,  -2.99]
+    >> 압착 도달: k=2549 q=311.1deg 슬라이더=+4.60mm
+[4/5 잠금] 압착 후 — 실링부 평균 z=98.95mm  봉투 COM z=100.76mm
+    실링부 x[ -53.90,  -0.13]  두께 68.10 -> 53.77mm  (압축 +14.34mm)
+    링크 틈새 4.52mm vs 실링부 두께 53.77mm -> 눌리고 있음
+
+[5/5 해제] 전 정점 구속 해제 — 이제 링크 압착만으로 버텨야 한다 (700스텝)
+    k=   0  봉투 COM z=  97.43mm  (해제 시점 대비  -3.33mm)  슬라이더= 4.52mm  실링부두께=52.12mm
+    k= 150  봉투 COM z=  89.30mm  (해제 시점 대비 -11.46mm)  슬라이더= 4.52mm  실링부두께=57.44mm
+    k= 300  봉투 COM z=  79.78mm  (해제 시점 대비 -20.97mm)  슬라이더= 4.52mm  실링부두께=64.01mm
+    k= 450  봉투 COM z=  72.64mm  (해제 시점 대비 -28.11mm)  슬라이더= 4.52mm  실링부두께=70.89mm
+    k= 600  봉투 COM z=  67.18mm  (해제 시점 대비 -33.58mm)  슬라이더= 4.52mm  실링부두께=73.15mm
+
+======================================================================
+ 검증 결과
+======================================================================
+  A. 턱 열림 (슬라이더 최대)              : +35.05 mm
+  B. 실링부 하단 z (목표 58.0mm) : 투입직후 58.00 mm / 안정화후 58.00 mm
+  C. 압착 도달 (샤프트각 / 슬라이더)      : 311.1deg / +4.60 mm
+  D. 해제 후 낙하량 (COM z 하강)          : +36.47 mm  <- 작을수록 물려 있는 것
+     - 해제 첫 스텝 탄성 스냅                : +3.33 mm  (형상 이완, 파지와 무관)
+     - **그 뒤 미끄러짐(크리프)**            : +33.14 mm  <- 이게 파지 지표다
+  E. 상단중앙 정점 이동(해제 후)          : 56.31 mm
+     봉투 COM: 압착 100.76mm -> 최종 64.28mm
+
+[saved] C:\Users\user\Desktop\Crusher_IsaacSim\Crusher_Genesis\Recovery2_only\RESULT\recovery2_bag_clamp_gap4.60mm_20260826_044313.mp4
+완료.

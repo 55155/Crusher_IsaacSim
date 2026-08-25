@@ -95,8 +95,9 @@ from fem_ipc_workarounds import patch_fem_vertex_constraints
 OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RESULT")
 os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
-_CLAMP_MM_ENV = os.environ.get("CLAMP_MM", "0.8")   # 파일명 구분용(§CLAMP_SLIDER_MM)
-MP4 = os.path.join(OUT_DIR, f"recovery2_bag_clamp_gap{_CLAMP_MM_ENV}mm_{_TS}.mp4")
+# "auto"(기본) 면 실링부 실측 두께에서 산출한다(§CLAMP_SLIDER_MM). 숫자를 주면 고정.
+_CLAMP_MM_ENV = os.environ.get("CLAMP_MM", "auto")
+_MP4_TPL = os.path.join(OUT_DIR, "recovery2_bag_clamp_gap{:.2f}mm_" + _TS + ".mp4")
 
 RECOVERY_MJCF = os.path.join(paths.ROBOTS_DIR, "recovery2_mjcf", "recovery2.xml")
 RECOVERY_POS = (0.0, 0.0, 0.0)
@@ -108,7 +109,18 @@ RECOVERY_POS = (0.0, 0.0, 0.0)
 # 기존 thin2mm/thin4mm 변형본은 폭 전체를 균일하게 줄여 몸통까지 납작해지므로 부적합.
 # 재생성:
 #   V[:,2] *= f,  f = 1.0 (|x|<=22mm) / 1.0->1/6 선형전이 (22~24) / 1/6 (|x|>=24)
-BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3_seal1mm.stl")
+#
+# **2026-08-26: 기본을 `_sealslab3mm` 로 바꾼다(사용자 지시 "지금 사용하고 있는
+# 샘플백 규격으로 다시 테스트").** full_workflow.py 가 그 사이 이 봉투로 옮겨갔고
+# (BAG_STL_NAME 기본값), 두 씬이 서로 다른 봉투를 쓰면 압착 결과를 이어서 읽을 수
+# 없다. 실측 대조 — 평탄 실링부 폭은 둘 다 가장자리 8mm 로 같아 SEAL_BAND_WIDTH 는
+# 그대로 유효하고, 바뀌는 건 **실링 두께 1.0 -> 3.0mm** 와 전이 구간 형태다:
+#     _seal1mm     |x|>=24mm 에서 1.000mm, 20mm 부터 곧바로 6.000mm (급전이)
+#     _sealslab3mm |x|>=24mm 에서 3.000mm, 20mm=4.0 / 16mm=5.0 (완만한 전이)
+# 실링을 3mm 로 되돌린 이유는 full_workflow §17 쪽에 있다 — IPC 가 천의 자기간격을
+# 2*CLOTH_THICK 이상 요구하는데 1mm 실링은 CLOTH_THICK 을 0.4mm 이하로 묶어버린다.
+BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag",
+                       os.environ.get("BAG_STL_NAME", "Samplebag_seal_pouch3_sealslab3mm.stl"))
 
 DT = 5e-3
 IPC_D_HAT = 1.0e-4
@@ -120,13 +132,19 @@ IPC_D_HAT = 1.0e-4
 # 상단 중앙만 잡고 매달렸을 때 봉투가 12% 늘어나고(높이 90 -> 100mm) 두께가
 # 6 -> 22mm 로 벌어졌다. E 를 4.0e5 -> 4.0e6 으로 올려 E x t = 400 N/m 을 복원한다
 # — 즉 얇아진 건 접촉 오프셋만이고, 천의 뻣뻣함은 원래대로다.
-CLOTH_E, CLOTH_NU, CLOTH_RHO = 4.0e6, 0.499, 200.0
-# CLOTH_THICK: full_workflow 는 1.0mm 인데, 실링부 형상이 1mm 인 지금 그 값을 쓰면
-# IPC 접촉 오프셋(면당 ~1mm)이 형상 두께를 덮어써 압착이 의미를 잃는다.
-# 0.2mm 도 실패했다 — IPC 는 천의 **자기 근접**도 두께의 2배 이상을 요구하는데,
-# 실링부를 1/6 로 줄이면서 가장자리 끝단이 0.398mm 까지 좁아져 0.4mm 요구에 걸렸다
-# (실측: "cloth_0_0 is too close (distance=0.000398, thickness=0.0004)"). -> 0.1mm.
-CLOTH_THICK, CLOTH_BEND = 1.0e-4, 400.0
+# **2026-08-26: full_workflow 와 같은 값으로 되돌린다** (t=1.0mm, E=4.0e5).
+# 아래 0.1mm 는 실링부가 1mm 형상이던 시절의 값이다 — 접촉 오프셋(면당 1mm)이
+# 형상 두께를 덮어써 압착이 무의미해지는 걸 피하려고 낮췄었다. 실링이 3mm 로
+# 두꺼워진 지금은 그 제약이 풀린다: `_sealslab3mm` 의 자기간격 2.278mm 가
+# CLOTH_THICK <= 1.139mm 를 허용하므로 검증된 1.0mm 가 그대로 들어간다.
+# E*t = 400 N/m 은 어느 조합이든 보존된다(막 강성이 바뀌면 봉투가 늘어난다, §15).
+#     예전: t=0.1mm, E=4.0e6   지금: t=1.0mm, E=4.0e5
+# 두 값 다 환경변수로 덮어쓸 수 있다 — 예전 조합으로 돌리려면
+#     set BAG_STL_NAME=Samplebag_seal_pouch3_seal1mm.stl
+#     set CLOTH_THICK_MM=0.1 && set CLOTH_E=4.0e6
+CLOTH_E, CLOTH_NU, CLOTH_RHO = float(os.environ.get("CLOTH_E", "4.0e5")), 0.499, 200.0
+CLOTH_THICK = float(os.environ.get("CLOTH_THICK_MM", "1.0")) * 1e-3
+CLOTH_BEND = 400.0
 CLOTH_FRICTION = 0.8
 FEM_DAMPING = 0.2
 
@@ -165,15 +183,54 @@ BITE_SOFT_K = float(os.environ.get("BITE_SOFT_K", "0"))
 # 없앤 채 클램프만으로 버티는지 본다(대조군과 반드시 같은 값으로 짝지어 돌릴 것).
 BAG_LIFT = float(os.environ.get("BAG_LIFT_MM", "0")) * 1e-3
 # (BAG_PLACE_CLEARANCE 제거 — 정중앙 배치로 바뀌면서 쓰이지 않는다)
-# 압착 목표 슬라이더(=F-M 링크 틈새). **실링부 자유 두께보다 작아야 누른다.**
+# 압착 목표 슬라이더(=F-M 링크 틈새). **실링부 실효 두께보다 작아야 누른다.**
 #   경위: 7.0mm -> 실링부 자유 두께 6.31mm 대비 0.68mm 헐거워 압축 0 (닿기만 함).
 #         4.0mm -> 압축은 걸릴 값이었지만 유지 구간에서 되풀려 무의미했다(§hold_ratchet).
-#   지금은 실링부 형상이 1mm 이므로 0.8mm 로 닫는다. 여기에 IPC 접촉 오프셋
-#   (CLOTH_THICK 0.1mm x 2면)이 더해져 실효 두께 약 1.2mm > 틈새 0.8mm 가 되므로
-#   약 0.4mm 가 실제로 눌린다.
-#   환경변수 CLAMP_MM 으로 덮어쓸 수 있다(값 비교 스윕용):
-#       set CLAMP_MM=0.4 && python recovery2_bag_clamp.py
-CLAMP_SLIDER_MM = float(_CLAMP_MM_ENV)
+#         0.8mm -> 실링 1mm + 접촉 오프셋 0.2mm = 실효 1.2mm 에서 0.4mm 를 누름.
+#
+# **2026-08-26: 고정 상수에서 자동 산출로 바꾼다.** 위 0.8mm 는 (실링 1.0mm,
+# CLOTH_THICK 0.1mm) 조합에 손으로 맞춘 값이라, 봉투를 `_sealslab3mm`(실링 3.0mm,
+# CLOTH_THICK 1.0mm)로 바꾸면 실효 두께가 1.2 -> 5.0mm 가 되는데 틈새는 0.8mm 로
+# 남는다 — 4.2mm 를 억지로 밀어넣는 꼴이라 IPC 배리어가 폭발한다. 봉투 규격을
+# 바꿀 때마다 이 숫자를 손으로 따라가는 건 재현이 안 되므로 관계식으로 못 박는다:
+#
+#     실효 두께 = 실링부 자유 두께 + 2 * CLOTH_THICK   (IPC 접촉 오프셋 = 면당 t)
+#     목표 틈새 = 실효 두께 - CLAMP_PRESS_MM
+#
+# 즉 "얼마나 눌러 물 것인가"(CLAMP_PRESS_MM)만 물리적 의도로 남기고, 나머지는
+# 그때그때 메시에서 잰다. 0.4mm 는 위 0.8mm 케이스에서 실제로 눌리던 양이다.
+# 실링부 자유 두께는 build 이후 메시에서 재므로(§2단계 seal_thick0), 여기서는
+# None 으로 두고 그 시점에 확정한다. CLAMP_MM 을 주면 그 값으로 고정된다.
+CLAMP_PRESS_MM = float(os.environ.get("CLAMP_PRESS_MM", "0.4"))
+
+# 실링부 자유 두께를 **STL 에서 직접** 잰다. 런타임(§2단계 seal_thick0)은 씬이
+# 세워진 뒤 world 좌표로 같은 값을 재는데, 틈새와 mp4 파일명은 그보다 앞서
+# 필요하므로(녹화는 배치보다 먼저 시작된다) 여기서 확정한다. 두 값이 어긋나면
+# 2단계에서 경고를 낸다.
+#   로컬 축: x=폭(+-32mm), y=높이, z=두께. BAG_EULER 로 x->world Y, z->world X 가 된다.
+#   실링 밴드는 폭 방향 양 끝 SEAL_BAND_WIDTH 구간 — 런타임 선택자와 같은 규칙이다.
+def _measure_seal_thickness(stl_path):
+    import trimesh
+    v = trimesh.load(stl_path, force="mesh").vertices * BAG_SCALE
+    x = v[:, 0]
+    band = (x < x.min() + SEAL_BAND_WIDTH) | (x > x.max() - SEAL_BAND_WIDTH)
+    return float(v[band, 2].max() - v[band, 2].min())
+
+SEAL_THICK0 = _measure_seal_thickness(BAG_STL)
+# 실효 두께 = 실링부 자유 두께 + 2*CLOTH_THICK (IPC 접촉 오프셋은 면당 t).
+SEAL_EFF_MM = (SEAL_THICK0 + 2 * CLOTH_THICK) * 1e3
+CLAMP_SLIDER_MM = (SEAL_EFF_MM - CLAMP_PRESS_MM if _CLAMP_MM_ENV == "auto"
+                   else float(_CLAMP_MM_ENV))
+MP4 = _MP4_TPL.format(CLAMP_SLIDER_MM)
+print(f"[cfg] 봉투 {os.path.basename(BAG_STL)}  실링 자유두께 {SEAL_THICK0*1e3:.2f}mm "
+      f"+ 2 x CLOTH_THICK {CLOTH_THICK*1e3:.2f}mm = 실효 {SEAL_EFF_MM:.2f}mm")
+print(f"[cfg] 압착 목표 틈새 {CLAMP_SLIDER_MM:.2f}mm "
+      f"({'auto: 실효 - ' + format(CLAMP_PRESS_MM, '.2f') if _CLAMP_MM_ENV == 'auto' else 'CLAMP_MM 고정'})"
+      f" -> 눌리는 양 {SEAL_EFF_MM - CLAMP_SLIDER_MM:+.2f}mm")
+if CLAMP_SLIDER_MM > SEAL_EFF_MM:
+    print("[cfg] 경고: 틈새가 실효 두께보다 크다 — 닿기만 하고 누르지 않는다")
+elif SEAL_EFF_MM - CLAMP_SLIDER_MM > 2.0:
+    print("[cfg] 경고: 2mm 넘게 누른다 — 과압착으로 IPC 배리어가 터질 수 있다")
 # NO_CLOSE=1 : 턱을 닫지 않는 대조군(§4단계). 배치·파지·해제는 동일하게 진행된다.
 NO_CLOSE = os.environ.get("NO_CLOSE", "0") == "1"
 
@@ -339,6 +396,13 @@ def main(use_viewer: bool = False):
           f"({F_LINK_FRONT_X*1e3:.2f}mm)에서 {SAFE_GAP*1e3:.2f}mm 띄운 중심 "
           f"{tgt_seal_cx*1e3:.2f}mm 에 정렬 — **관통 0** (F_Top 쪽)")
     _s_touch_mm = (seal_thick0 + 2 * SAFE_GAP) * 1e3
+    # 실효 두께 = 실링부 자유 두께 + 2*CLOTH_THICK (IPC 접촉 오프셋). 목표 틈새는
+    # 거기서 CLAMP_PRESS_MM 만큼 뺀 값 — 그 차이를 턱이 일해서 누른다.
+    # 모듈 로드 시 STL 에서 잰 SEAL_THICK0 와 실제 씬 값이 어긋나면 틈새 산출이
+    # 통째로 틀어진다 — 어긋나면 바로 알린다(메시가 바뀌었거나 축 해석이 틀린 것).
+    if abs(seal_thick0 - SEAL_THICK0) > 2e-4:
+        print(f"    [경고] 씬 실측 실링두께 {seal_thick0*1e3:.3f}mm 가 STL 값 "
+              f"{SEAL_THICK0*1e3:.3f}mm 와 다르다 — CLAMP_SLIDER_MM 산출 근거가 흔들린다")
     print(f"    첫 접촉 예상 슬라이더 {_s_touch_mm:.2f}mm -> 목표 {CLAMP_SLIDER_MM:.2f}mm "
           f"= 눌러야 할 양 {_s_touch_mm - CLAMP_SLIDER_MM:+.2f}mm (이걸 턱이 일해서 만든다)")
     bag.set_position(p + delta)

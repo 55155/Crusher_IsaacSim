@@ -134,9 +134,12 @@ RB_FRICTION = 1.0
 RB_ARM_KP, RB_ARM_KV = 20000.0, 1200.0
 RB_FING_KP, RB_FING_KV = 60.0, 3.0
 
-# Left_Wall 은 원본 MJCF 에서 contype=0/conaffinity=0 이라 리지드 솔버가 충돌을
-# 걸러낸다. 되살리면 클램프 접촉을 볼 수 있지만 §13-7 의 잼이 생긴다.
-WALL_GEOM_LEFTWALL = "L2_Left_Wall1_1"
+# Left_Wall 의 **시각** geom 은 contype=0/conaffinity=0 이라 리지드 솔버가 충돌을
+# 걸러낸다. 되살리면 클램프 접촉을 볼 수 있지만 §13-7 의 잼이 생긴다 — 비볼록
+# 통짜 메시가 hull 하나로 뭉개져 개구부를 메우기 때문이다.
+# LEFTWALL_SPLIT(2026-08-26) 이후 그 시각 geom 의 mesh 이름이 바뀌었다. 옛 이름을
+# 그대로 두면 토글이 아무 것도 못 찾고 조용히 무력화되므로 여기서 따라간다.
+WALL_GEOM_LEFTWALL = fw.LEFTWALL_BODY_MESH if fw.LEFTWALL_SPLIT else "L2_Left_Wall1_1"
 
 # 2026-08-14: 이 상수(구 0.052 로컬 복사본)는 fw 로 올라갔다 —
 # `fw.BAG_HANG_BELOW_FINGER`. 구값은 "핑거-Crusher 충돌이 안 나는 최소 여유"였을
@@ -191,12 +194,20 @@ def _prepare_crusher_mjcf():
         return dst
     tree = ET.parse(dst); root = tree.getroot()
     wb = root.find("worldbody")
+    n = 0
     for g in wb.iter("geom"):
         if g.get("mesh") == WALL_GEOM_LEFTWALL:
             g.attrib.pop("contype", None)
             g.attrib.pop("conaffinity", None)
+            n += 1
     tree.write(dst)
-    print(f"[crusher] {WALL_GEOM_LEFTWALL} 충돌 ON — §13-7 잼 주의")
+    # 이름이 어긋나면 "충돌 ON" 을 찍고도 아무 것도 안 바뀐다 — 조용히 넘어가면
+    # 실험 결과를 통째로 오독하게 되므로 못 찾았을 때는 크게 알린다.
+    if n:
+        print(f"[crusher] {WALL_GEOM_LEFTWALL} 충돌 ON ({n}개 geom) — §13-7 잼 주의")
+    else:
+        print(f"[crusher] 경고: mesh='{WALL_GEOM_LEFTWALL}' geom 을 못 찾아 "
+              f"RB_LEFTWALL_COLLISION 이 아무 효과가 없다")
     return dst
 
 
