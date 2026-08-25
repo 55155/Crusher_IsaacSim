@@ -1,450 +1,288 @@
-# Crusher 시뮬레이션 워크플로우
+# Crusher 공정 시뮬레이션 워크플로우
 
-Crusher 분쇄기 시뮬레이션의 **전체 흐름**을 단계별로 정리합니다.
+정제 분쇄 공정 전체를 디지털 트윈으로 옮기기 위한 **엔티티 구성과 공정 절차**를
+정의한다. 스크립트 실행 방법이 아니라 *무엇을 왜 시뮬레이션하는가*를 다룬다.
 
----
-
-## 전체 흐름 다이어그램
-
-```
-[1] 정제 형상 생성
-    viewer_desktop.py (R / AR / CV 슬라이더)
-         │
-         ▼  tablet_R{R}_AR{AR}_CV{CV}.stl
-[2] 단일 시뮬레이션
-    crusher_velocity_ctrl.py
-         │                         ─────────────────────
-         ▼                        │ 선택적 경로            │
-    CSV + Plot PNG          [2-A] crusher_tablet_sim.py  │  (stall 역전 방식)
-         │                  [2-B] crusher_tablet_slidejoint.py │
-         │                        ─────────────────────
-         ▼
-[3] 배치 / 파라미터 스윕
-    batch_cv_sweep.py  /  batch_tablet_sim.py
-         │
-         ▼
-    overlay PNG + summary CSV
-         │
-         ▼
-[4] 결과 분석
-    force_profile_analysis.py  /  test_tdp_position.py
-         │
-         ▼
-    dF/dt 분류, F_max vs θ_contact 그래프
-         │
-         ▼
-[5] 디버그 (필요 시)
-    debug_headless.py
-         │
-         ▼
-    6채널 진단 PNG (NaN / RPM / 솔버 수렴 자동 감지)
-```
+- 기법·트러블슈팅 누적 기록 → [`docs/DigitalTwin.md`](DigitalTwin.md)
+- 반력 프로파일 준정적 재현(MuJoCo 트랙) → [`docs/Real2Sim.md`](Real2Sim.md)
+- MuJoCo 정제 분쇄 스크립트 실행 가이드 → [`docs/WorkFlow_MuJoCo.md`](WorkFlow_MuJoCo.md)
 
 ---
 
-## 단계별 상세
+## 1. 왜 설계를 바꿨나
+
+### 초기 설계
+
+| 엔티티 | 속성 |
+|---|---|
+| Crusher | 1자유도, closed-loop 기구 |
+| Tablet | Shape, Hardness, Orientation |
+
+**문제: 이렇게 환경을 구성하면 DT를 통해 구할 수 있는 솔루션이 없다.**
+분쇄기와 정제만 있으면 "이 정제가 이 기구에서 깨진다"는 사실 확인에 그치고,
+실험자가 트윈에서 가져갈 수 있는 산출물이 나오지 않는다.
+
+### 수정 설계
+
+기존 엔티티는 그대로 두고, **솔루션을 만들어내는 장치**를 추가한다.
+
+| 추가 엔티티 | 이 엔티티가 만들어내는 솔루션 |
+|---|---|
+| Robot manipulator (6자유도) | path planning — 별도 teaching 없이 이동정책 재사용 |
+| Sample Bag | 변형률 |
+| 회수 장치 | 파우더 회수 시 **position calibration error 에 따른 회수 실패 발생확률** 탐색 |
+| (선택) 공압 장치 | 봉투 개구 — 회수 성공률의 선행 조건 |
+
+즉 트윈의 산출물은 "깨지는가"가 아니라 **파쇄 예상 소요시간**(§2-4)과
+**회수 실패 확률**(§2-6·2-8)이다.
 
 ---
 
-### STEP 1 — 정제(Tablet) 형상 생성
+## 2. 공정 시뮬레이션 절차
 
-**목적**: 분쇄 대상 정제의 3D STL 파일을 파라미터로부터 생성합니다.
-
-#### 파라미터 정의
-
-| 파라미터 | 기호 | 의미 | 단위 |
-|---------|------|------|------|
-| 반지름 | R | 정제 반경 | mm |
-| 종횡비 | AR | 높이 / (2R) | — |
-| 왕관비 | CV | 크라운 높이 / R | — |
-
-두께(thickness) 계산:
-
-```python
-cd = CV * 2 * R          # crown depth [mm]
-th = R * 0.20 + 2 * cd   # 총 두께 [mm]
-```
-
-#### 실행
-
-```bash
-# PyVista 3-슬라이더 뷰어 (R / AR / CV 실시간 미리보기)
-python MuJoCo_PlayGround/20260603/viewer_desktop.py
-
-# 또는 20260527 버전
-python tablets_stl/Codes/viewer_desktop.py
-```
-
-**[MuJoCo에서 열기]** 버튼 → 선택한 STL을 즉시 물리 시뮬레이션으로 연결.
-
-#### 출력
-
-```
-tablets_stl/stl/
-└── tablet_R{R}_AR{AR}_CV{CV}.stl   ← 파일명에 파라미터 인코딩
-```
-
-> STL 파일명 파싱 정규식: `R([\d.]+)_AR([\d.]+)_CV([\d.]+)`  
-> `crusher_velocity_ctrl.py`의 `_parse_params()` 함수가 이 형식에 의존합니다.
+각 절의 **[설계]** 는 의도, **[구현]** 은 2026-08-25 기준 코드 실측 상태다.
 
 ---
 
-### STEP 2 — 단일 시뮬레이션
+### 2-1. 샘플백 파지·리프트
 
-세 가지 시뮬레이션 방식이 있으며, 모두 동일한 MJCF 모델을 사용합니다.
+**[설계]** 샘플백에 분주되어 있는 알약을 매니퓰레이터로 잡고 들어올린다.
 
----
+커플링은 PBD-Rigid 중 Legacy Coupler 사용.
 
-#### 2-A. 속도 제어 방식 (권장) — `crusher_velocity_ctrl.py`
+파지 방식 두 가지:
 
-**특징**: 실제 모터 스펙(BL4281 + 1:212) 기반, 준정적 조건, 뷰어 없음(headless)
+| 방식 | 성격 | 우려 |
+|---|---|---|
+| manipulator–samplebag **weld** | 물리적이진 않지만 매우 간단한 테크닉 | — |
+| finger gripper **friction** 파지 | 실제 물리 현상과 같은 아이디어 | 최소 파티클 간격을 조절하는 아이디어가 제약조건에 문제를 일으킬 가능성 |
 
-```bash
-python MuJoCo_PlayGround/20260603/crusher_velocity_ctrl.py <tablet.stl>
-python MuJoCo_PlayGround/20260603/crusher_velocity_ctrl.py <tablet.stl> --rpm 8 --kv 14.9 --density 1200
-```
+**[구현]** ✅ 동작 — 단, 설계와 두 군데 다르다.
 
-**시뮬레이션 단계:**
+1. **커플러가 Legacy(PBD) 가 아니라 IPC(FEM.Cloth) 다.** Legacy PBD 조합은
+   실패해 폐기됐고(§9 조합 1), FEM.Cloth + IPC 조합이 성공했다(§9 조합 2).
+   현재 타깃 구성은 `Samplebag(FEM.Cloth) + Tablet(FEM.Elastic 3D) + 그 외 Rigid`
+   이다(§12-1 갱신).
+2. **weld 없이 순수 마찰로 성립했다.** `full_workflow.py` 헤더 기록:
+   grasp 는 처음부터 끝까지 순수 마찰 접촉이었고 치트가 없었다. 초기 실패는
+   파지 실패가 아니라 **봉투 형상이 먼저 무너진 것**이었다.
 
-| Phase | 조건 | 내용 |
-|-------|------|------|
-| **Phase 1** (500 step, 약 0.5 s) | `lock_crank` equality 활성 | 크랭크 −90° 고정, 메커니즘 수렴 대기 |
-| **Phase 2 — 대기** (0 ~ 2 s) | 모터 OFF | 정제 mocap 위치 확인 |
-| **Phase 2 — 압축** (2 s ~) | `lock_crank` 해제, 모터 ON (CCW) | 크랭크 회전 → 슬라이더 전진 → 접촉력 측정 |
+형상 유지는 파지가 아닌 별도 수단으로 해결한다 — `set_vertex_constraints()` 로
+바닥+양 측면(정점 39%, 입구는 완전 자유)을 고정해 두었다가 `close` **직전에
+전부 해제**한다. 이후 grasp/lift 는 다시 순수 마찰이다.
 
-**핵심 파라미터:**
+> 이 "닫기 전에 푼다 + 닫는 동안 선반에 지지된다"가 §2-6 의 회수장치 압착이
+> 실패한 이유를 가르는 결정적 조건이다(§16-2).
 
-```python
-TARGET_RPM     = 8.0          # 크랭크 운전 속도
-VEL_KV_DEFAULT = 14.9         # velocity actuator 게인 [N·m·s/rad]
-MOTOR_FORCELIM = 12.5         # 토크 상한 [N·m]
-PHASE1_STEPS   = 500
-SIM_DURATION   = 20.0         # [s]
-MOTOR_DELAY    = 2.0          # [s] 모터 투입 지연
-```
-
-**출력:**
-
-```
-MuJoCo_PlayGround/Sim_result/
-├── csv/velctrl_{tablet}_{timestamp}.csv   ← 시계열 데이터 (시간, 각도, RPM, 접촉력)
-└── plot/velctrl_{tablet}_{timestamp}__result.png
-         velctrl_{tablet}_{timestamp}__realtime.png
-```
+관련: `Crusher_M0609_RG2_Tablet_Samplebag/full_workflow.py` Phase 1~6
 
 ---
 
-#### 2-B. 뷰어 포함 실행 — `crusher_velocity_ctrl_viewer.py`
+### 2-2. Crusher 홀더에 고정
 
-```bash
-python MuJoCo_PlayGround/20260603/crusher_velocity_ctrl_viewer.py <tablet.stl>
-```
+**[설계]** 샘플백이 들어가야 하는 자리는 `L3_Wall_1` 바로 앞이다.
+홀더에 의해 고정되도록 **샘플백의 강성을 조절해야 한다.**
 
-- MuJoCo 인터랙티브 뷰어와 함께 실시간으로 시뮬레이션 관찰 가능
+**[구현]** ✅ PASS
 
----
+강성 조절은 실제로 필요했고 값이 확정돼 있다 — `CLOTH_E` 1e5 → 4e5,
+`CLOTH_BEND` 50 → 400, `FEM_DAMPING` 0.2 추가(above/insert 구간 흔들림 억제).
 
-#### 2-C. Slide Joint 방식 — `crusher_tablet_slidejoint.py`
+삽입 검증(§14-5, 판정창을 30mm → 15mm 로 조인 뒤):
 
-```bash
-python MuJoCo_PlayGround/20260603/crusher_tablet_slidejoint.py <tablet.stl>
-```
+| 지표 | 값 |
+|---|---|
+| `bag_bottom_z` 오차 | +9.7mm |
+| `height_z` | 94.4mm (baseline 91.2, 수축 없음) |
+| insert 시점 tilt | 0.2° |
+| IK 오차 | 0.005mm |
 
-- 정제를 mocap(고정 벽)이 아닌 **slide joint**로 구속 → 정제가 반력으로 밀릴 수 있음
-- 접촉 물리가 더 현실적이나, 수치 불안정성이 높음
+파지 위치는 절벽이 **가장자리 4mm** 에 있다(§14-8) — 이 창을 벗어나면 실패한다.
 
----
-
-#### 2-D. Stall 감지 역전 방식 — `crusher_tablet_sim.py` (20260527)
-
-```bash
-python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py <tablet.stl>
-python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py <tablet.stl> --density 1500
-python MuJoCo_PlayGround/20260527/crusher_tablet_sim.py <tablet.stl> --mass 320
-```
-
-- 크랭크 각속도 |ω| < 0.05 rad/s 가 `STALL_TIME_S` (2 s) 연속 → CCW ↔ CW 자동 역전
-- 뷰어 포함 인터랙티브 모드
-- 밀도 → solref τ 자동 계산 (Hertzian Contact Theory)
-
-**밀도 → 접촉 경도 변환:**
-
-| 밀도 | solref τ | 경도 분류 |
-|------|----------|----------|
-| 900 kg/m³ | 0.0200 s | 연질 |
-| 1,200 kg/m³ | 0.0080 s | 기본 |
-| 1,800 kg/m³ | 0.0010 s | 경질 |
+관련: `full_workflow.py` Phase 7~9, §14 전체
 
 ---
 
-### STEP 3 — GUI 실행 (선택적)
+### 2-3. Crushing 공정
 
-```bash
-python MuJoCo_PlayGround/20260527/tablet_sim_gui.py
-python MuJoCo_PlayGround/20260527/tablet_sim_gui.py --stl tablets_stl/stl/tablet_R8.0_AR0.80_CV0.25.stl
-```
+**[설계]** Crank 를 작동시키면서 파쇄를 진행한다.
+이때 **velocity control** 을 하고, **반력 프로파일은 이 값을 맞추는 식으로**
+설계해야 할 것 같다. 센싱은 정확하지 않다.
 
-**입력:**
-- 무게(mg) 또는 밀도(kg/m³) 직접 입력
-- R / AR / CV 슬라이더
-- STL 파일 경로
+**[구현]** ⚠️ 부분 — 단독 검증은 끝났으나 **시퀀스에 결합되지 않았다.**
 
-**실시간 계산 결과:**
-- 추정 부피, 밀도
-- solref τ (접촉 시정수)
-- 경도 게이지 (0~100%)
+- `Crusher_only.py`: Motor1 velocity 제어 + 토크 cap(±12.5 N·m) 검증 완료.
+- `full_workflow.py`: 크랭크를 `CRANK_START_Q`(−180°, 크러싱헤드 완전 후퇴)로
+  **잡아만 둔다.** 분쇄 구간이 존재하지 않는다.
 
-**실행 버튼:**
-- `▶ 시뮬레이션 실행` → `crusher_tablet_sim.py` 단일 실행
-- `📦 배치 시뮬레이션` → `batch_tablet_sim.py` 호출
+결합 시 주의 — `Crusher_only.py:403` 기록대로 **크랭크 kv 가 커서 position 램프로는
+느리다.** `full_workflow.py` 는 position 제어(`CRANK_KP/KV = 2000/100`)이므로
+분쇄 구간만 `control_dofs_velocity` + `set_dofs_force_range` 로 전환해야 한다.
+
+반력 프로파일 매칭 방법론은 MuJoCo 트랙에서 이미 정립돼 있다 — 감속기 반영관성을
+`armature` 로, 준정적을 속도서보로, 힘의 창발을 강체 벽으로([`Real2Sim.md`](Real2Sim.md) §5).
 
 ---
 
-### STEP 4 — 배치 / 파라미터 스윕
+### 2-4. 파쇄 예상 소요시간 산출 ★ 트윈의 핵심 산출물
 
-#### 4-A. CV 스윕 — `batch_cv_sweep.py`
+**[설계]** 파쇄 시간이 **경도·Size·Shape·Orientation** 에 의해 결정되고,
+파쇄 예상 소요시간이 출력된다. 이 과정은 디지털 트윈을 통해 **실제 실험과
+시뮬레이션의 관계를 엮어** 파쇄 예상 소요시간을 솔루션으로 준다.
 
-같은 R / AR에 대해 CV(왕관비)를 변화시키며 힘 프로파일을 비교합니다.
+**[구현]** ❌ 미착수.
 
-```bash
-# 기본 (R=4.0, AR=1.00, CV 전체)
-python MuJoCo_PlayGround/20260603/batch_cv_sweep.py
-
-# 특정 R/AR 그룹
-python MuJoCo_PlayGround/20260603/batch_cv_sweep.py --R 4.0 --AR 1.17
-
-# 밀도 / RPM 지정
-python MuJoCo_PlayGround/20260603/batch_cv_sweep.py --density 1400 --rpm 8
-
-# 기존 CSV만 재플롯 (시뮬 재실행 없음)
-python MuJoCo_PlayGround/20260603/batch_cv_sweep.py --csv_dir MuJoCo_PlayGround/Sim_result/csv
-```
-
-**출력:**
-
-```
-MuJoCo_PlayGround/Sim_result/cv_sweep/
-├── cv_sweep_{timestamp}.csv                  ← 요약 테이블
-├── cv_sweep_{timestamp}_CV{xx}.png           ← CV별 개별 그래프
-├── cv_sweep_{timestamp}_F_timeseries.png     ← 힘 시계열 오버레이
-├── cv_sweep_{timestamp}_P_A_timeseries.png   ← 위치/각도 오버레이
-├── cv_sweep_{timestamp}_contact_type.png     ← 접촉 유형 분류
-└── cv_sweep_{timestamp}_summary_metrics.png  ← F_max / 충격량 요약
-```
-
-#### 4-B. 배치 정제 스윕 — `batch_tablet_sim.py`
-
-`tablets_stl/stl/_tablet_index.csv`에 등록된 정제를 순차/병렬 실행합니다.
-
-```bash
-# 순차 실행
-python MuJoCo_PlayGround/20260527/batch_tablet_sim.py
-
-# 병렬 실행 (8 workers)
-python MuJoCo_PlayGround/20260527/batch_tablet_sim.py --parallel --workers 8 --density 1500
-
-# 빠른 테스트 (10개 + 플롯 저장)
-python MuJoCo_PlayGround/20260527/batch_tablet_sim.py --limit 10 --save-plots --density 1200
-```
+§2-3 이 결합되어야 시작할 수 있다. 입력 파라미터 축(R/AR/CV/경도)을 스윕하는
+하네스는 MuJoCo 트랙에 이미 있으나([`WorkFlow_MuJoCo.md`](WorkFlow_MuJoCo.md) STEP 4),
+Genesis 공정 시퀀스 쪽에는 없다.
 
 ---
 
-### STEP 5 — 결과 분석
+### 2-5. 파쇄 완료 후 이송
 
-#### 5-A. 힘 프로파일 분석 — `force_profile_analysis.py`
+**[설계]** 파쇄가 모두 끝났다고 판단되면 로봇 매니퓰레이터가 샘플백을 이송한다.
 
-dF/dt 기반으로 준정적 vs 충격 접촉을 자동 분류합니다.
+**오픈루프로 돌아가야 하기 때문에**, 파쇄 완료에 대한 실제 센싱을 하지 않고
+시뮬레이션에서 나온 결과값을 통해 **rule-based** 로 돌아간다.
 
-```bash
-# 이론 비교 플롯만 출력
-python MuJoCo_PlayGround/20260603/force_profile_analysis.py
+**[구현]** ❌ 미구현. `full_workflow.py` 는 Phase 10 `release` 로 끝난다.
 
-# 실제 CSV 로드
-python MuJoCo_PlayGround/20260603/force_profile_analysis.py --csv result.csv
-
-# mocap vs slidejoint 비교
-python MuJoCo_PlayGround/20260603/force_profile_analysis.py --csv mocap.csv --csv2 slidejoint.csv
-```
-
-**분류 기준:**
-
-| 유형 | dF/dt 특성 | 원인 |
-|------|-----------|------|
-| 준정적(quasi-static) | 완만한 상승 → 정체(plateau) | 속도 제어, 낮은 stiffness |
-| 충격(impact) | 접촉 직후 급격한 spike | 높은 solref, 딱딱한 정제 |
-
-#### 5-B. TDP 위치 검증 — `test_tdp_position.py`
-
-접촉 각도(θ_contact)와 F_max의 관계를 검증합니다.
-
-```bash
-python MuJoCo_PlayGround/20260603/test_tdp_position.py
-python MuJoCo_PlayGround/20260603/test_tdp_position.py --stl tablet_R4.0_AR1.00_CV0.20.stl
-python MuJoCo_PlayGround/20260603/test_tdp_position.py --offsets 0 5 10 20 30
-```
-
-**가설**: y_offset 증가 → θ_contact가 TDP(상사점, 0°)에서 멀어짐 → F_max 감소
-
-**역산 공식:**
-
-```
-F_slider = τ_crank / (r × sin θ_contact)
-
-θ_contact 가 0° 에 가까울수록 sin θ → 0 → F_slider → ∞ (이론적 증폭)
-```
-
-**출력:**
-
-```
-MuJoCo_PlayGround/Sim_result/tdp_test/
-├── tdp_{tablet}_{timestamp}_01_timeseries.png
-├── tdp_{tablet}_{timestamp}_02_fmax_vs_offset.png
-├── tdp_{tablet}_{timestamp}_03_tdp_verification.png
-└── tdp_{tablet}_{timestamp}_04_bar.png
-```
-
-#### 5-C. 방식 비교 — `run_comparison_headless.py`
-
-mocap 고정 방식 vs slide joint 방식 반력 프로파일을 한 번에 비교합니다.
-
-```bash
-python MuJoCo_PlayGround/20260603/run_comparison_headless.py tablet_R6.0_AR1.50_CV0.20.stl
-```
+> 이 단계가 §2-4 의 소비처다 — 소요시간 예측이 곧 rule-based 트리거이므로,
+> §2-4 없이는 §2-5 를 하드코딩할 수밖에 없다.
 
 ---
 
-### STEP 6 — 디버그 / 진단
+### 2-6. 회수 장치에 고정
 
-**언제 사용**: 비정상적인 움직임, NaN 발생, RPM 불일치, 솔버 발산 의심 시.
+**[설계]** 회수장치는 **ㄷ 형태**로 생겨서, 솔레노이드 혹은 소형 액추에이터에
+의해 열리고 닫힌다.
 
-```bash
-# 15초 헤드리스 진단 (기본 정제)
-python MuJoCo_PlayGround/20260603/debug_headless.py --dur 15
+**[구현]** ❌ 미해결 — **클램프가 봉투를 잡지 못한다**(§16).
 
-# 특정 정제 + 진단 시간
-python MuJoCo_PlayGround/20260603/debug_headless.py tablet_R4.0_AR1.00_CV0.08.stl --dur 20
-```
+시퀀스와 형상 자체는 목표대로 나온다(샤프트 180° 열림 → 봉투 투입 → 340° 잠금).
+잡지 못하는 원인은 마찰이 아니라 **실링부가 틈새에 들어간 적이 없다**는 것이다 —
+턱이 열려 있는 동안 봉투 밑이 허공이라 자유 천이 처지고 이음매가 벌어져
+(두께 1.00 → 16~20mm), 0.77mm 틈새에 그 벌어진 천을 미는 꼴이 된다. 턱은 실링부를
+무는 게 아니라 **옆으로 뭉갠다.**
 
-**6채널 진단 패널:**
+확정된 사실 세 가지:
 
-| 패널 | 측정값 | 정상 범위 |
-|------|--------|----------|
-| ① 크랭크 각도 | qpos[0] [deg] | −180° ~ +180° 연속 회전 |
-| ② 크랭크 RPM | qvel [RPM] | target ± 20% |
-| ③ 모터 ctrl vs actuator_force | [N·m] | forcelim=12.5 N·m 내 |
-| ④ 슬라이더 Y 위치 | data.xpos [mm] | 스트로크 40 mm ± 허용 |
-| ⑤ 솔버 반복 횟수 | solver_niter | avg ≤ 5, max < 50 |
-| ⑥ efc_force 최대값 | [N] | 정상 구동 시 수백 N 이하 |
+- 판정 지표를 `해제 후 낙하량` 이 아니라 **크리프**로 써야 한다. 낙하량은 탄성
+  스냅의 함수라 턱을 전혀 닫지 않은 대조군도 같은 값이 나온다(§16-3).
+- `set_vertex_constraints(is_soft_constraint=True)` 는 이 스택에서 **무효**다 —
+  k=1000 이 완전 자유와 소수점 자리까지 동일했다(§16-4).
+- 이 계측은 **완전히 재현된다**(23.57/23.58/23.59/23.61 vs 대조군 20.88/20.88).
 
-**자동 감지 항목:**
-- `NaN` 발생 여부
-- RPM 목표 대비 ±20% 이탈
-- forcelim 포화율 (saturation %)
-- 솔버 최대 반복 도달
-- efc_force 급등
-- 슬라이더 스트로크 오차
+남은 수단은 §16-7 의 세 가지 — 실링부 메시 재생성 + `CLOTH_THICK` 복원 /
+`coup_links` 를 네 링크 + 두 상판으로 한정 / **지지 조건 재설계**.
+셋째가 근본이다: RG2 가 성공한 조건은 "자유롭되 **선반에 지지된** 천"이었고
+회수장치2 는 그 조건이 아니다.
 
-**출력:**
-
-```
-MuJoCo_PlayGround/Sim_result/debug/
-└── diag_{tablet}_{timestamp}.png
-```
+관련: `Recovery2_only/recovery2_bag_clamp.py`
 
 ---
 
-### STEP 7 — 역산 검증 (Back-calculation)
+### 2-7. 공압 장치로 봉투 벌리기
 
-시뮬레이션 출력값으로부터 하드웨어 실측값을 역산하여 모델 타당성을 확인합니다.
+**[설계]** 이송된 샘플백을 공압 장치가 벌린다. 공압장치는 봉투의 **양옆을
+Suction gripper 처럼 빨아들이는 식**으로 벌려낸다. 소형 액추에이터가 달려 있어
+**석션이 확인되면** 양옆으로 벌려낸다.
 
-```
-실측 Ground Truth          시뮬레이션 출력            역산 공식
-─────────────────          ──────────────────          ──────────────
-슬라이더 반력 600–650 N ←→ actuator_force + θ     F = τ / (r × sin θ)
-크랭크 속도 8 RPM       ←→ qvel[crank_dof]
-스트로크 40 mm          ←→ sliderY 변위
-모터 토크 효율 ~32%     ←→ τ_crank / (τ_motor × n)
-```
+두 가지 쟁점:
 
-**검증 통과 기준 (debug_headless.py 실행 결과):**
+1. **weld 로 묶으면 Entity 레벨로 묶이기 때문에, 파티클을 공압 장치에 부착하는
+   아이디어가 필요하다.**
+2. 이렇게 하면 마치 열리는 듯한 시뮬레이션을 수행할 수 있는데, **물리적으로
+   타당한 것인지는 의문이 존재한다.**
 
-```
-Phase1 크랭크:  −89.94°  ✓  (허용: ±5°)
-NaN 발생:           0회  ✓
-평균 RPM:          7.74  ✓  (목표 8.0 ± 20%)
-스트로크:          40.0 mm ✓  (이론값 2r)
-솔버 niter:        avg 1.0, max 2 ✓
-실측 토크:    −2.52 ~ 12.50 N·m ✓  (forcelim 내)
-```
+**[구현]** ❌ 블로킹 — 씬 build 자체가 안 된다(§9 조합 9 후속 4).
 
----
+석션V1 의 좌우 조 링크가 기본 배치(간격 6.9mm)에서 이미 자기교차 상태이고,
+IPC build-time 유효성 검사가 이를 걸러 `scene.build()` 가 크래시한다. 다른 리지드
+바디와 멀리 떨어져 있을 땐 용인되다가 고정장치/회수장치2 옆에 놓이면 걸린다.
 
-## 스크립트 전체 목록
+작동 확인된 우회책이 있으나 **실파일에 미적용**이다 — 조 링크 y-오프셋을 편측
+**30mm** 바깥으로 확장하면 build 성공(20~29mm 는 전부 실패, 29~30mm 정밀 임계값
+미확정). `contype`/`conaffinity` 비트마스크와 MJCF `<contact><exclude>` 는 둘 다
+효과 없었다.
 
-| 스크립트 | 위치 | 역할 | 방식 |
-|---------|------|------|------|
-| `viewer_desktop.py` | `20260603/` | 정제 형상 뷰어 + MuJoCo 연동 실행 버튼 | 인터랙티브 |
-| `crusher_velocity_ctrl.py` | `20260603/` | 속도 제어 시뮬 (헤드리스) ★ **주력** | headless |
-| `crusher_velocity_ctrl_viewer.py` | `20260603/` | 속도 제어 + MuJoCo 뷰어 | 인터랙티브 |
-| `crusher_tablet_slidejoint.py` | `20260603/` | slide joint 방식 시뮬 | headless |
-| `batch_cv_sweep.py` | `20260603/` | CV 파라미터 스윕 배치 | headless |
-| `run_comparison_headless.py` | `20260603/` | mocap vs slidejoint 비교 | headless |
-| `force_profile_analysis.py` | `20260603/` | 힘 프로파일 dF/dt 분류 | 분석 |
-| `test_tdp_position.py` | `20260603/` | TDP 위치 vs F_max 검증 | headless |
-| `debug_headless.py` | `20260603/` | 6채널 진단 (NaN/RPM/솔버) | headless |
-| `crusher_tablet_sim.py` | `20260527/` | stall 역전 방식 시뮬 (뷰어 포함) | 인터랙티브 |
-| `batch_tablet_sim.py` | `20260527/` | 정제 인덱스 배치 실행 | headless |
-| `batch_cv_sweep.py` | `20260527/` | CV 스윕 (구버전) | headless |
-| `tablet_sim_gui.py` | `20260527/` | tkinter GUI 프론트엔드 | GUI |
-| `check_placement.py` | `20260527/` | 정제 배치 좌표 검증 | 디버그 |
+> 쟁점 2(물리적 타당성)는 아직 판단이 내려지지 않았다. 석션을 압력장으로 풀지,
+> 파티클 부착으로 근사할지가 미결이며, 후자면 §2-1 에서 weld 없이 순수 마찰로
+> 성립시킨 것과 일관성이 깨진다.
+
+관련: `SuctionV1_only/suctionV1_only.py`, `assets/robots/석션V1_description/석션V1.xml`
 
 ---
 
-## 출력 디렉토리 구조
+### 2-8. 회수 장치 회전 → 파우더 회수
 
-```
-MuJoCo_PlayGround/Sim_result/
-├── csv/                      ← 시계열 원시 데이터 (.csv)
-│   └── velctrl_{tablet}_{ts}.csv
-│
-├── plot/                     ← 단일 시뮬 결과 플롯 (.png)
-│   ├── velctrl_{tablet}_{ts}__result.png
-│   └── velctrl_{tablet}_{ts}__realtime.png
-│
-├── cv_sweep/                 ← CV 스윕 결과
-│   ├── cv_sweep_{ts}.csv
-│   └── cv_sweep_{ts}_CV{xx}.png  (개별) + 오버레이 + 요약
-│
-├── debug/                    ← 헤드리스 진단 PNG
-│   └── diag_{tablet}_{ts}.png
-│
-└── tdp_test/                 ← TDP 위치 검증 그래프
-    └── tdp_{tablet}_{ts}_0{n}_*.png
-```
+**[설계]** 회수 장치가 돌면서 파우더를 회수한다. **진동 장치가 있으면 좋을 것 같다.**
+
+**[구현]** ⚠️ 기하 검증만 완료. 파우더 회수는 미착수.
+
+`Fixture_only/fixture_recovery2_stack_sim.py` 로 고정장치 위에 회수장치2 를 얹고
+`Servo3_ServoShaft` 를 한 바퀴 돌리는 것까지 확인했다. fusion2xml 빌드로 교체한 뒤
+재측정 결과 **Jig 포크가 ShaftHandle 을 실제로 문다**(q≈0.63~1.26rad 부터 접촉 시작,
+이후 전 구간 유지). 구 빌드에서 "안 닿는다"고 본 것은 요(yaw) 문제가 아니라 힌지축이
+(+30.92, −6.62)mm 어긋나 있던 탓이었다.
+
+파우더 자체는 §9 조합 10(MPM 과립 + 봉투 + Legacy 커플러)이 **부분 해결** 상태다.
 
 ---
 
-## 환경 설정
-
-```bash
-# Conda 환경
-conda activate isaaclab   # (또는 isaac_sim)
-
-# Python 실행 파일 (Windows)
-C:\Anaconda3\envs\isaaclab\python.exe
-
-# 주요 의존성 버전
-# MuJoCo   3.5.0
-# numpy    2.3.1
-# matplotlib 3.10.8
-```
+### 2-9. *(미정)*
 
 ---
 
-## 관련 문서
+## 3. 구현 상태 요약
 
-| 문서 | 내용 |
-|------|------|
-| [`docs/Crusher.md`](Crusher.md) | 기구·형상·재질·관성 상세 사양 |
-| [`docs/motor_spec.md`](motor_spec.md) | 모터·감속기·액추에이터 파라미터 |
-| [`README.md`](../../README.md) | 프로젝트 개요·빠른 시작·변경 이력 |
+| # | 단계 | 상태 | 블로커 |
+|---|---|---|---|
+| 1 | 샘플백 파지·리프트 | ✅ | — |
+| 2 | Crusher 홀더 고정 | ✅ | — |
+| 3 | Crushing | ⚠️ | 단독 검증 O, 시퀀스 결합 X |
+| 4 | 파쇄 소요시간 산출 | ❌ | §2-3 선행 필요 |
+| 5 | 파쇄 후 이송 | ❌ | §2-4 선행 필요 |
+| 6 | 회수 장치 고정 | ❌ | 실링부가 틈새에 안 들어감 (§16-7) |
+| 7 | 공압 장치 개구 | ❌ | 석션V1 자기교차로 build 크래시 |
+| 8 | 회수 장치 회전·파우더 회수 | ⚠️ | 기하 O, 파우더 X |
+
+**연결된 최장 구간은 1→2 이며, `full_workflow.py` 가 이를 Phase 0~10 으로 구현한다.**
+
+---
+
+## 4. 설계 문서와 구현이 갈린 지점
+
+이후 판단에 영향을 주므로 명시해 둔다.
+
+| 항목 | 설계 문서 | 실제 구현 | 근거 |
+|---|---|---|---|
+| 커플러 | PBD-Rigid Legacy | **FEM.Cloth + IPC** | §9 조합 1 실패 → 조합 2 성공 |
+| 파지 | weld 또는 friction 택일 | **friction 단독으로 성립** | `full_workflow.py` 헤더 |
+| 형상 유지 | (언급 없음) | vertex constraints, close 직전 해제 | §2-1 |
+| 봉투 위치 | `L3_Wall_1` 바로 앞 | Wall3 ~ Left_Wall gap | `full_workflow.py` 슬롯 계산 |
+
+---
+
+## 5. 미해결 설계 질문
+
+1. **§2-7 물리적 타당성** — 석션을 파티클 부착으로 근사하는 것이 타당한가.
+   압력장으로 푸는 대안과 비교 판단이 필요하다.
+2. **§2-6 지지 조건** — 로봇 파지를 구속이 아니라 실제 그리퍼 링크로 모델링할지,
+   투입을 턱이 거의 닫힌 뒤로 옮기는 순서 변경을 할지(§16-7).
+3. **§2-4 실험–시뮬 정합 방식** — 어떤 관계식으로 엮어 소요시간을 낼 것인가.
+   현재 문서에 방법이 정의돼 있지 않다.
+4. **§2-9** — 미정.
+
+---
+
+## 6. 계산비용 (일정 계획 시 참고)
+
+| 하네스 | 구성 | 소요 |
+|---|---|---|
+| `full_workflow_rigid.py` | 전 Rigid, 기하 검증 전용 | **약 90초** |
+| `full_workflow.py` | 타깃 조합(FEM 봉투+정제) | **약 16분** |
+
+§12-1 갱신에 따라 `full_workflow_rigid.py` 는 산출물이 아니라 **저비용 기하 검증
+하네스**다. 반복이 필요한 작업(페이즈 이어붙이기, 타이밍, 크랭크 각도)은 rigid 에서
+끝내고 FEM 은 확인용으로 돌린다.

@@ -127,6 +127,14 @@ PLATE_PATH = paths.ALUMINUM_PLATE
 PLATE_POSITIONS = [(0.5, -0.5, 0), (0.5, 0.5, 0), (-0.5, -0.5, 0), (-0.5, 0.5, 0)]
 
 WALL_GEOMS_TO_ENABLE = {"base_link", "L1_Wall1_1", "L1_Wall2_1", "L2_Wall3_1"}
+# Left_Wall 압착면 평탄화 — **기본 꺼짐(2026-08-25, 사용자 지적으로 폐기)**.
+# 본체 면이 플랜지보다 5mm 물러난 건 결함이 아니라 **impact plate(L9_PLATE_v3_1)의
+# 통로**다. 실측: 슬라이더 q=-15/-10/-5mm 에서 플레이트가 그 5mm 구간을 통과하며
+# 겹침이 6244 / 12500 / 6256 mm^3 다. 메우면 분쇄가 불가능해진다.
+# 상단 플랜지(z 81.43~86.43)는 플레이트 작동 z(24.43~74.43)보다 위라 분쇄를 막지
+# 않는다 — 비산 방지 립이다(사용자 확인). 즉 형상은 설계대로 옳다.
+# 실험 재현용으로만 남긴다. 자세한 근거는 _add_leftwall_clamp_face() docstring.
+LEFTWALL_CLAMP_FACE = os.environ.get("LEFTWALL_CLAMP_FACE", "0") == "1"
 L7_LINK3_COM = "0.006 0 -0.005"
 
 # ── Crusher 슬롯 계산에 필요한 벽 mesh(Crusher_Samplebag.py 동일) ──────────
@@ -145,9 +153,34 @@ WALL_OFFSET = 0.006      # 슬롯 개방(+6mm)
 # 봉투를 gap 근처까지만 넣어주면 되고, 이후 이 벽이 닫히며 실링부를 Wall3 에
 # 눌러 고정한다 — Crusher_Samplebag.py 의 CLAMP_TARGET 재사용(개방 +6mm →
 # 클램프 -5mm, 총 11mm 이동해 6mm 두께 봉투를 압착).
-CLAMP_TARGET = -0.005
+#
+# **-5mm 는 봉투를 압착하지 못한다(2026-08-25 실측, 사용자 지적)**. MJCF 로컬
+# 프레임에서 재보면 고정 3벽(L1_Wall1_1 / L1_Wall2_1 / L2_Wall3_1)의 마주보는
+# 면이 전부 y=336.28mm 로 같은 평면이고, L2_Left_Wall1_1 의 면이 y=324.28mm —
+# **중립(q=0) 간격이 12.00mm** 다. 따라서
+#
+# [주의] 이 12.00mm 는 원래 Left_Wall **상단 5mm 플랜지**에서만 성립했다. 본체
+# 면은 y=319.28 로 5mm 더 물러나 있어 간격이 17.00mm 였고, 그래서 벽을 닫아도
+# 플랜지 한 줄만 봉투에 닿았다. `_add_leftwall_clamp_face()` 가 그 단차를 메워
+# 이제 전 높이에서 12.00mm 로 균일하다. 아래 식은 그 처방을 전제로 한다.
+#     gap(q) = 12.00mm + q      (q>0 개방, q<0 폐쇄)
+#     q=-5mm  -> 7.00mm 잔여  : 6mm 두께 봉투에 1mm 여유 → 압착 안 됨
+#     q=-12mm -> 0.00mm       : 벽끼리 맞닿는 완전 폐쇄 지령
+#
+# **이 값은 WALL_FORCE_LIM 과 짝으로만 의미가 있다.** 힘 상한 없이 깊은 목표를
+# 주면 위치제어가 IPC 배리어를 무한한 힘으로 밀어 발산한다(실측: -12mm 는 44분
+# 미완, -10.4mm 는 한 번은 -9.21mm 균형 · 한 번은 wall=-2.09e9mm 발산 — 안정
+# 한계 위에 걸친 값이었다). 힘을 ±100 N 로 묶으면 벽은 봉투 반력과 균형지는
+# 곳에서 물리적으로 멈추므로, 깊은 목표를 줘도 안전하고 **그 정지 위치가 곧
+# 봉투의 실효 압착 두께 실측값**이 된다. 참고로 압착 지점은 실링부라 정제가 없고
+# 필름 두 겹(2 x CLOTH_THICK = 2.00mm)뿐이므로 이론 하한은 잔여 2.00mm 부근이다.
+CLAMP_TARGET = float(os.environ.get("CLAMP_TARGET_MM", "-12.0")) * 1e-3
 CRANK_KP, CRANK_KV = 2000.0, 100.0
 WALL_KP, WALL_KV = 5000.0, 500.0
+# Motor2(Left_Wall, Rack&Pinion) 힘 상한 — docs/Crusher.md §5 의 액추에이터
+# `Motor2_left_wall` ctrlrange ±100 N (MJCF actuatorfrcrange 와 동일).
+# 적용 이유는 사용처(_fmin/_fmax) 주석 참고.
+WALL_FORCE_LIM = float(os.environ.get("WALL_FORCE_LIM_N", "100.0"))
 
 
 def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999 1e-5"):
@@ -168,12 +201,74 @@ def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999
             if g.get("mesh") in WALL_GEOMS_TO_ENABLE:
                 g.attrib.pop("contype", None)
                 g.attrib.pop("conaffinity", None)
+        if LEFTWALL_CLAMP_FACE:
+            _add_leftwall_clamp_face(wb)
         for body in wb.iter("body"):
             if body.get("name") == "L7_Link3_1":
                 inertial = body.find("inertial")
                 if inertial is not None:
                     inertial.set("pos", L7_LINK3_COM)
     tree.write(dst)
+
+
+def _add_leftwall_clamp_face(wb):
+    """Left_Wall 의 압착면을 상단 플랜지와 같은 평면으로 채우는 box geom 추가.
+
+    **문제(2026-08-25 실측, 사용자 지적 "관통하는 듯한 현상")**
+    L2_Left_Wall1_1 은 평평한 벽이 아니다. STL 을 재보면 마주보는 면이 두 단이다:
+
+        상단 플랜지  z[81.43, 86.43] (5mm)   면 y=324.28  -> 고정벽과 간격 12.00mm
+        본체 면      z[ 9.43, 81.43] (72mm)  면 y=319.28  -> 고정벽과 간격 17.00mm
+
+    (고정 3벽 L1_Wall1_1 / L1_Wall2_1 / L2_Wall3_1 의 면은 전부 y=336.28)
+
+    볼록분해(hull_000~010)는 이 형상을 정확히 재현한다 — hull_000 만 324.28 에
+    닿고 나머지 10개는 319.28 에서 끝난다. 즉 **분해 누락이 아니라 부품 형상이다.**
+
+    결과: 벽을 닫으면 **상단 5mm 플랜지만 봉투에 닿고** 본체 72mm 는 17mm 간격이라
+    8mm 봉투를 영영 건드리지 못한다. 벽은 플랜지가 봉투에 걸린 지점(q=-4.97mm)에서
+    멈추고, 그 아래는 계속 헐렁하다. 봉투가 위 모서리 한 줄로만 눌려 release 때
+    tilt 2.5deg -> 6.9deg 로 기울고 x 로 2.9mm 밀린 것이 이 때문이다.
+    게다가 플랜지(z 81.43~86.43)는 Wall3 상단(80.43)보다 **위**라 서로 z 가 겹치지
+    않는다 — 지금 형상으로는 두 벽이 애초에 맞물릴 수 없다.
+
+    **처방(사용자 지시: "맞물릴 수 있도록 ... 해줘라")**
+    본체 면의 5mm 단차를 box 로 메워 압착면을 77mm 전체에서 평평하게 만든다.
+    그러면 간격이 전 높이에서 12.00mm 로 균일해지고 벽이 봉투를 면으로 문다.
+    box 는 analytic SDF 라 메시 충돌보다 빠르고 터널링에도 강하다(Twin.md §5).
+
+    좌표는 STL 프레임(= 기존 mesh geom 들과 같은 로컬 프레임, x->world y,
+    y->world z, z->world x)에서 잡고 mesh geom 과 같은 pos 오프셋을 뺀다.
+    """
+    # z_hi 는 **플랜지 하단(81.39)까지만** 이다. 처음에 벽 높이 전체(86.43)로 채웠다가
+    # hull_000(플랜지, y[306.28,324.28] z[81.39,86.43])과 1638mm^3 겹쳐서 IPC build 가
+    # 죽었다 — `AttributeError: 'NoneType' object has no attribute 'body_count'`
+    # (coupler.py:722 _init_accessors, 직전에 "Intersection detected"). §9 조합9 후속4
+    # 석션V1 조 링크 자기교차와 **정확히 같은 서명**이다. IPC 의 build-time 유효성
+    # 검사는 contype/conaffinity 필터링을 무시하고 순수 메시 교차만 보므로, 같은
+    # body 안의 형제 geom 이라도 부피가 겹치면 안 된다. 맞닿는 것(겹침 0)은 괜찮다 —
+    # 기존 hull 11개가 이미 서로 맞닿아 있고 정상 빌드된다.
+    GEOM_OFF = np.array([-0.286278, -0.016542, 0.017802])   # 기존 mesh geom 들의 pos
+    face_y, body_y = 0.32428, 0.31928        # 플랜지 면 / 본체 면
+    z_lo, z_hi = 0.00943, 0.08139            # 본체 하단 ~ 플랜지 하단(hull_000 회피)
+    x_lo, x_hi = -0.07980, -0.01480          # 벽 폭 전체
+    half = np.array([(face_y - body_y) / 2, (z_hi - z_lo) / 2, (x_hi - x_lo) / 2])
+    ctr = np.array([(face_y + body_y) / 2, (z_hi + z_lo) / 2, (x_hi + x_lo) / 2]) + GEOM_OFF
+    for body in wb.iter("body"):
+        if body.get("name") != "L2_Left_Wall1_1":
+            continue
+        ET.SubElement(body, "geom", {
+            "name": "L2_Left_Wall1_1_clampface",
+            "type": "box",
+            "pos": " ".join(f"{v:.6f}" for v in ctr),
+            "size": " ".join(f"{v:.6f}" for v in half),
+            "rgba": "0.15 0.15 0.18 1",
+        })
+        print(f"[mjcf] Left_Wall 압착면 box 추가: 단차 {(face_y-body_y)*1000:.2f}mm 를 "
+              f"높이 {(z_hi-z_lo)*1000:.1f}mm x 폭 {(x_hi-x_lo)*1000:.1f}mm 전체에 메움 "
+              f"-> 압착 간격이 전 높이에서 12.00mm 로 균일")
+        return
+    print("[mjcf] 경고: L2_Left_Wall1_1 body 를 찾지 못해 압착면 box 를 추가하지 못했다")
 
 
 def _prepare_crusher_mjcf():
@@ -204,7 +299,35 @@ def crusher_mesh_world_aabb(mesh_name, body_pos=(0., 0., 0.), geom_pos=(0., 0., 
 ROBOT_MJCF = os.path.join(paths.ROBOTS_DIR, "m0609_rg2_v2.xml")
 COACD_DIR_REL = "rg2/reference_onrobot_ros/meshes/rg2_v1/coacd"
 FLEX_FINGER_HULLS = [f"flex_finger_hull_{i:03d}.stl" for i in range(7)]
-BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl")
+# 실링부 1mm 판으로 전환(2026-08-25, 사용자 지시). 기존 `Samplebag_seal_pouch3.stl`
+# 은 X 컬럼 17개가 전부 두께 6.000mm 인 **실링부 없는** 균일 파우치라, Phase 9 가
+# "실링부 압착"이라고 찍으면서 실제로는 파우치 몸통을 누르고 있었다.
+# `_seal1mm` 은 양측 가장자리 3컬럼(|x|=24,28,32mm)이 1.000mm 로 눌린 판이지만
+# **IPC build 를 통과하지 못한다** — 측면/바닥 패널의 z=0 중간선이 +-0.5mm 면 사이
+# 정가운데 남아 자기간격이 0.500mm 로 반토막 나기 때문이다(IPC 요구 2*CLOTH_THICK).
+#   Object[cloth_0_0] is too close (distance=0.000398, thickness=0.002) to itself
+# 그래서 `_sealslab1mm` 을 새로 생성했다(§16-7 "등두께 슬래브"):
+#   1) z=0 중간선 57정점을 제거하고 둘레(좌21/바닥17/우21)를 front-back 직결 quad 로
+#      재삼각화 -> 중간선발 근접이 원천 소멸 (정점 771->714, 면 1504->1392)
+#   2) 실링 대역 |x|>=24mm 를 z=+-0.5mm **등두께 슬래브**로 (비례축소 아님)
+#   3) 테이퍼를 x 20->24(4mm)에서 **16->24(8mm)** 로 늘림 — 4mm 테이퍼는 비틀린 quad
+#      대각이 반대편 모서리에 0.759mm 까지 접근해 여전히 부족했다
+# 실측 최소 자기거리: 원본 2.500 / _seal1mm 0.500 / _sealslab1mm 1.000mm
+#
+# **실링 두께는 CLOTH_THICK 의 2배 이상이어야 한다.** IPC 요구가 자기간격 >=
+# 2*CLOTH_THICK 이고 슬래브 실링의 자기간격이 곧 실링 두께이기 때문이다. 물리적
+# 으로도 같다 — 실링부는 앞뒤 필름이 맞붙어 용착된 자리라 두께가 곧 필름 2겹이다.
+# 1.0mm 필름으로 1mm 실링은 성립할 수 없다.
+# `_sealslab1mm`(실링 1.0mm) 은 build 는 통과하지만 CLOTH_THICK 을 0.4mm 로
+# 낮춰야 해서 **파지가 깨졌다**(lift 에서 그리퍼만 +126mm, 봉투 제자리 -> tilt
+# 78.3deg -> 바닥 낙하, FAIL 오차 -49.9mm). FING_CLOSE=1.20 이 1.0mm 기준이라
+# 0.4mm 천에는 닿지 못한다 — §17-7 의 0.1mm 실패와 같은 서명.
+#
+# 그래서 **`_sealslab3mm`(실링 3.0mm, 테이퍼 12->24mm)** 을 쓴다. 실측 최소
+# 자기거리 2.278mm 로 CLOTH_THICK=1.0mm 요구치 2.000mm 를 278um 여유로 통과한다.
+# 실링 폭은 편측 8mm 로 동일, 몸통은 6.0mm 유지.
+BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag",
+                       os.environ.get("BAG_STL_NAME", "Samplebag_seal_pouch3_sealslab3mm.stl"))
 # 고정장치(fixture jig, fusion2urdf URDF → MJCF 변환, 2026-07-20): 사용자 지시대로
 # 나머지 부품(base_link/L1/Back/R1/F1/MotorDriver/T1/Servo1~3/ServoShaft)은 전부
 # contype=0/conaffinity=0(collision-free, 시각 전용)이고, 실제로 뭔가를 붙잡는
@@ -326,8 +449,24 @@ IPC_D_HAT = 1.0e-4
 # 봉투 stiffen(2026-07-15): above/insert 구간에서 봉투가 과하게 흔들려 E/굽힘
 # 강성을 올림(1e5->4e5, bend 50->400) — 이동 속도를 늦추는 것(N_ABOVE/N_INSERT)과
 # 함께 스윙을 줄이기 위한 조합 처방.
-CLOTH_E, CLOTH_NU, CLOTH_RHO = 4.0e5, 0.499, 200.0
-CLOTH_THICK, CLOTH_BEND = 1.0e-3, 400.0
+# CLOTH_THICK 스윕(2026-08-25, 사용자 지시 "봉투 두께를 실제와 비슷하게"):
+# 기본 1.0mm 는 실측 필름 두께가 아니라 §13-3 프록시 질량 일치 트릭에 맞춘 값이다
+# (STL 의 6mm 는 파우치 공동 두께이지 천 두께가 아니며, 실제 필름 실측 기록은 없다).
+# recovery2_bag_clamp.py 는 0.1mm 를 쓴다 — 이쪽이 실물 약포지 필름에 가깝다.
+# CLOTH_THICK 은 접촉 두께이자 막 강성 계수라 단독으로 낮추면 봉투가 그 비율만큼
+# 물러지므로(§15), 막 강성 E*t=400 N/m 를 보존하도록 CLOTH_E 를 함께 준다.
+#   기본       : t=1.0mm, E=4.0e5  -> E*t = 400 N/m
+#   실물 근사  : t=0.1mm, E=4.0e6  -> E*t = 400 N/m
+# 실물 필름은 약 0.2mm 지만 질량/관성이 너무 작아 수치적으로 불안정해질 소지가
+# 커서 **1.0mm 로 합의**했다(2026-08-25, 사용자). 0.1mm 를 시도했을 때 파지가
+# 아예 성립하지 않은 실측도 있다(§17-7) — 이 값은 FING_CLOSE 캘리브레이션과
+# 묶여 있어 단독으로 못 낮춘다.
+# _sealslab3mm 의 자기간격 2.278mm 가 CLOTH_THICK <= 1.139mm 를 허용하므로
+# 검증된 1.0mm 를 그대로 쓴다(E 도 원래 4.0e5, E*t = 400 N/m).
+CLOTH_THICK = float(os.environ.get("CLOTH_THICK_MM", "1.0")) * 1e-3
+CLOTH_E = float(os.environ.get("CLOTH_E", "4.0e5"))
+CLOTH_NU, CLOTH_RHO = 0.499, 200.0
+CLOTH_BEND = 400.0
 CLOTH_FRICTION = 0.8
 FEM_DAMPING = 0.2
 
@@ -737,6 +876,28 @@ def main(use_viewer: bool = False):
     crusher.set_dofs_kp(np.array([WALL_KP]), dofs_idx_local=[wall_dof])
     crusher.set_dofs_kv(np.array([WALL_KV]), dofs_idx_local=[wall_dof])
 
+    # ── Motor2(Left_Wall) 힘 상한 — 발산 방지의 근본 처방(2026-08-25) ────────
+    # 힘 제한이 없으면 WALL_KP=5000 위치제어가 IPC 배리어(간격→0 에서 반력이
+    # 무한대로 커짐)를 상대로 무한한 힘을 낼 수 있어 되먹임이 발산한다. 실측:
+    #   CLAMP_TARGET=-12.0mm -> 배리어 폭발, 44분 미완(스텝당 ~4.7s)
+    #   CLAMP_TARGET=-10.4mm -> 1차 런은 -9.21mm 에서 균형(단 release 24s/step),
+    #                            2차 런은 clamp 에서 **발산**(wall=-2.09e9 mm).
+    #                            같은 설정이 갈린다 = 안정 한계 위에 걸친 값(§13-11).
+    # 실기 Motor2 는 그런 힘을 못 낸다 — docs/Crusher.md §5 `Motor2_left_wall`
+    # motor, **ctrlrange ±100 N** (MJCF actuatorfrcrange 와 일치). Genesis 의
+    # control_dofs_position 경로는 MJCF 의 그 값을 적용하지 않으므로 직접 건다.
+    # 힘을 제한하면 벽은 봉투 반력과 균형지는 곳에서 **물리적으로** 멈추고
+    # 발산할 수 없다 — §11-5 의 "래칫 lock 없이 모터를 계속 구동해 강하게 고정"이
+    # 정확히 이 거동이다. 그래서 CLAMP_TARGET 을 깊게 줘도 안전해지고, 정지
+    # 위치가 곧 봉투의 실효 압착 두께 실측값이 된다.
+    # (Crusher_only.py 가 크랭크에 대해 같은 처방을 이미 쓴다 — 318~327행)
+    _fmin = np.full(crusher.n_dofs, -np.inf)
+    _fmax = np.full(crusher.n_dofs,  np.inf)
+    _fmin[wall_dof], _fmax[wall_dof] = -WALL_FORCE_LIM, WALL_FORCE_LIM
+    crusher.set_dofs_force_range(lower=_fmin, upper=_fmax)
+    print(f"[ctrl] Left_Wall force clip: ±{WALL_FORCE_LIM:.0f} N (Motor2 ctrlrange, "
+          f"docs/Crusher.md §5) — 벽은 이 힘에서 균형지는 위치에 멈춘다")
+
     gripper_link = robot.get_link("gripper_body")
     left_link = robot.get_link(FINGER_LINKS[0])
 
@@ -1017,8 +1178,10 @@ def main(use_viewer: bool = False):
 
     # ── Phase 9: clamp — Left_Wall(Motor2, Rack&Pinion) 닫아 실링부 고정 ─────
     # docs/Crusher.md §11-5: 래칫/락 없이 모터를 계속 구동해 강하게 고정하는
-    # 방식 — Crusher_Samplebag.py 의 CLAMP_TARGET(-5mm) 재사용, WALL_OFFSET
-    # (+6mm)에서 총 11mm 이동해 6mm 두께 봉투를 압착.
+    # 방식 — WALL_OFFSET(+6mm)에서 CLAMP_TARGET(-12mm)까지 완전 폐쇄를 지령하되,
+    # 실제 정지 위치는 WALL_FORCE_LIM(±100N)이 결정한다 = 실효 압착 두께 실측.
+    # 잔여 간격 = 12.00mm + CLAMP_TARGET 이라 -5mm 는 7mm 를 남겨 6mm 봉투를
+    # 스치기만 했다 — 상단 CLAMP_TARGET 정의부의 실측 근거 참고.
     print(f"\n[phase] 9 clamp ({N_CLAMP*DT:.1f}s) — Left_Wall {WALL_OFFSET*1000:+.1f}mm -> "
           f"{CLAMP_TARGET*1000:+.1f}mm (실링부 압착)")
     for k in range(N_CLAMP):
@@ -1031,11 +1194,37 @@ def main(use_viewer: bool = False):
         _step_n[0] += 1
         render_cams()
     wq_final = _npy(crusher.get_dofs_position())[wall_dof]
-    print(f"[phase] clamp    @done  wall={wq_final*1000:+.2f}mm  bag_com={_bag_com()}")
+    # 발산 검증(2026-08-25) — 2차 -10.4mm 런에서 벽 DOF 가 -2.09e9 mm 로 터졌는데
+    # 그 값이 그대로 release 의 wall_q 로 흘러들어가 다음 페이즈까지 망가뜨렸다.
+    # 물리적으로 가능한 범위는 [CLAMP_TARGET - 1mm, WALL_OFFSET + 1mm] 뿐이다.
+    _wq_lo, _wq_hi = min(CLAMP_TARGET, 0.0) - 0.001, max(WALL_OFFSET, 0.0) + 0.001
+    if not (np.isfinite(wq_final) and _wq_lo <= wq_final <= _wq_hi):
+        raise RuntimeError(
+            f"[clamp] Left_Wall DOF 발산: wall={wq_final*1000:.2f}mm "
+            f"(허용 {_wq_lo*1000:+.1f}~{_wq_hi*1000:+.1f}mm). "
+            f"WALL_FORCE_LIM={WALL_FORCE_LIM}N 로도 안정화되지 않았다 — "
+            f"CLAMP_TARGET({CLAMP_TARGET*1000:+.1f}mm)을 줄이거나 힘 상한을 낮출 것."
+        )
+    # 잔여 간격은 **면마다 다르다**(§18-2): 상단 플랜지는 중립 12.00mm, 본체 면은
+    # 17.00mm 에서 출발한다. 하나만 찍으면 다른 쪽을 오해하므로 둘 다 낸다.
+    # LEFTWALL_CLAMP_FACE 가 켜져 있으면 본체 면이 플랜지와 같은 평면이 된다.
+    _g_flange = (0.01200 + wq_final) * 1000
+    _g_body = (0.01200 if LEFTWALL_CLAMP_FACE else 0.01700) + wq_final
+    print(f"[phase] clamp    @done  wall={wq_final*1000:+.2f}mm  "
+          f"(잔여: 플랜지면 {_g_flange:.2f}mm / 본체면 {_g_body*1000:.2f}mm)  "
+          f"bag_com={_bag_com()}")
 
     # ── Phase 10: release — 그리퍼 개방, 고정은 이제 Left_Wall 이 담당 ───────
+    # **wall_q 를 CLAMP_TARGET 이 아니라 실제 도달 위치로 준다(2026-08-25)**.
+    # clamp 는 목표를 램프로 올려 마지막 스텝에만 CLAMP_TARGET 을 지령하지만,
+    # release 는 100 스텝 내내 그 값을 유지한다. 벽은 봉투 반력과 균형지는
+    # 지점(-9.21mm, 잔여 2.79mm)에서 이미 멈춰 있는데 -10.4mm 를 계속 밀면
+    # 도달 불가능한 1.19mm 를 매 스텝 IPC 배리어에 밀어붙이는 꼴이라, 실측에서
+    # 스텝당 >24초로 폭발했다(16분에 40스텝 미만). 도달 위치에서 WALL_PRELOAD
+    # 만큼만 더 눌러 파지력(kp x 0.5mm = 2.5N)은 유지하되 배리어와 싸우지 않는다.
+    WALL_PRELOAD = 0.0005
     run_arm("release", qpos_insert, qpos_insert, FING_CLOSE, FING_OPEN, N_RELEASE,
-            crank_q=CRANK_START_Q, wall_q=CLAMP_TARGET, trace=True)
+            crank_q=CRANK_START_Q, wall_q=wq_final - WALL_PRELOAD, trace=True)
 
     # ── Y 스윕 PASS/FAIL 판정(사용자 지시, 2026-07-23) ───────────────────────
     # 실제 그리퍼 마찰 파지 경로라 slot_fit_check.py 의 carrier 판정보다 여유를
