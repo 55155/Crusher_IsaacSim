@@ -119,12 +119,39 @@ MP4_OVERVIEW = os.path.join(CASE_DIR, f"full_workflow_{_TAG}_overview.mp4")
 MP4_BAGCAM = os.path.join(CASE_DIR, f"full_workflow_{_TAG}_bagcam.mp4")
 MP4_SIDE = os.path.join(CASE_DIR, f"full_workflow_{_TAG}_sideview.mp4")
 
+# ── 실설계 배치 (Hardware_setup.step / Base_ver2.step 실측, 2026-08-28) ─────
+# STEP 어셈블리를 파싱해 각 조립품의 배치를 얻고, **동일 부품의 bbox 를 MJCF 와
+# 대조**해 MJCF 원점 -> 어셈블리 좌표 변환을 실측했다(오프셋 lo/hi 가 일치하면
+# 회전 성분 0). 월드 원점은 **알루미늄 판 상면 중심** = 어셈블리 (-375, 400, 30)mm
+# 으로 잡는다 — 실물 장착 기준면이라 판 상면이 z=0 이 되어 해석이 깔끔하다.
+#
+#   조립품      MJCF->어셈블리 평행이동(mm)   회전   검증
+#   Crusher     (-115.20,  64.72,  30.57)   없음   1_Wall1/2_Wall3 표준편차 0
+#   고정장치     (-315.00,  52.50,  30.00)   없음   MotorDriver     표준편차 0
+#   회수장치2    (-378.99,  65.78, 182.52)   없음   M_Top/F_Top/RachetGear 0.002
+#   석션V1      (-366.55, 202.50,  30.00)   Z+90   Hbeam_L/B/M, Dummy 로 확인
+#   로봇 M0609   (-600.00, 650.00,  30.00)   없음   STEP BASE_M0609 배치 (미대조)
+#
+# **Crusher 는 EULER 0 이다** — MJCF 의 모든 geom 이 quat="0.5 0.5 0.5 0.5"
+# (X->+Y, Y->+Z, Z->+X)를 이미 갖고 있고 이것이 STEP 의 Crusher 자세 (90,0,90)과
+# 같은 회전이다. 여기에 (90,0,90)이나 기존 (0,0,90)을 또 주면 이중 회전이 된다.
+# 검산: 이 변환에서 MJCF 원점의 z 가 판 상면 +0.57mm — 판 위에 정확히 얹힌다.
+LAYOUT_FROM_STEP = os.environ.get("LAYOUT_FROM_STEP", "0") == "1"
+LAYOUT_ONLY = os.environ.get("LAYOUT_ONLY", "0") == "1"      # 배치만 렌더하고 종료
+if LAYOUT_ONLY:
+    LAYOUT_FROM_STEP = True
+
 # ── Crusher + plate (scene_setup.py 동일) ───────────────────────────────────
 CRUSHER_SRC_XML = paths.MJCF_MAIN
-CRUSHER_POS = (0.0, 0.0, 0.0)
-CRUSHER_EULER = (0.0, 0.0, 90.0)
+CRUSHER_POS = (0.2598, -0.3353, 0.00057) if LAYOUT_FROM_STEP else (0.0, 0.0, 0.0)
+CRUSHER_EULER = (0.0, 0.0, 0.0) if LAYOUT_FROM_STEP else (0.0, 0.0, 90.0)
 PLATE_PATH = paths.ALUMINUM_PLATE
 PLATE_POSITIONS = [(0.5, -0.5, 0), (0.5, 0.5, 0), (-0.5, -0.5, 0), (-0.5, 0.5, 0)]
+# 실판: 750 x 800 x 30mm, D6.0 나사구멍 240개(15x16 격자, 피치 50mm, 여백 25mm).
+# 구멍은 IPC 충돌비용만 올리고 접촉에 기여하지 않으므로 **충돌은 box primitive**로
+# 두고 구멍은 시각/치수 근거로만 남긴다(Twin.md §5: 사전정의 primitive 가 유리).
+PLATE_SIZE = (0.750, 0.800, 0.030)
+PLATE_HOLE_D, PLATE_HOLE_PITCH, PLATE_HOLE_MARGIN = 0.006, 0.050, 0.025
 
 WALL_GEOMS_TO_ENABLE = {"base_link", "L1_Wall1_1", "L1_Wall2_1", "L2_Wall3_1"}
 # Left_Wall 압착면 평탄화 — **기본 꺼짐(2026-08-25, 사용자 지적으로 폐기)**.
@@ -513,7 +540,7 @@ BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag",
 # 겹치는 플레이트 위 한쪽에 배치, z는 조립체 최저점(~-0.117m)이 플레이트
 # 상단(z=0)보다 위로 오도록 여유를 둠.
 FIXTURE_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "고정장치_description", "고정장치.xml"))
-FIXTURE_POS = (0.5, -0.3, 0.12)
+FIXTURE_POS = (0.0600, -0.3475, 0.0000) if LAYOUT_FROM_STEP else (0.5, -0.3, 0.12)
 
 # 석션V1 배치(2026-07-29 재작성, 사용자 지시): 더 이상 정사각형 레이아웃의
 # 대칭 위치가 아니다 — 실제 작업 구조("회수장치2가 봉투를 고정하고, 석션V1의
@@ -541,7 +568,9 @@ FIXTURE_POS = (0.5, -0.3, 0.12)
 # 자체가 깨짐). 사용자 확인 필요 - 아래 SUCTIONV1_POS는 좌표 계산은 맞지만
 # 현재 이 상태로는 전체 파이프라인이 build 단계에서 죽는다.
 SUCTION_MJCF = paths.ascii_safe_mjcf(os.path.join(paths.ROBOTS_DIR, "석션V1_description", "석션V1.xml"))
-SUCTIONV1_POS = (0.675, -0.29501900, 0.08158463)
+SUCTIONV1_POS = (0.0085, -0.1975, 0.0000) if LAYOUT_FROM_STEP else (0.675, -0.29501900, 0.08158463)
+# 석션V1 만 MJCF 에 회전이 안 들어 있어 Z+90 이 필요하다(Hbeam_L/B/M, Dummy 대조).
+SUCTIONV1_EULER = (0.0, 0.0, 90.0) if LAYOUT_FROM_STEP else (0.0, 0.0, 0.0)
 
 # 회수장치2는 정사각형 레이아웃이 아니라 고정장치 위에 조립(2026-07-27, 사용자
 # 지시) — 각자의 원점(0,0,0) 기준 상대좌표로 준 두 정렬점을 world 좌표에서
@@ -595,7 +624,7 @@ SUCTIONV1_POS = (0.675, -0.29501900, 0.08158463)
 #     15k face) 을 달고 있어, 정적 소품이라 접촉이 무의미해도 빌드 비용과
 #     IPC 교차 검사에는 그대로 들어간다.
 RECOVERY2_MJCF = os.path.join(paths.ROBOTS_DIR, "recovery2_mjcf", "recovery2.xml")
-RECOVERY2_POS = (0.436015, -0.28672, 0.269524)
+RECOVERY2_POS = (-0.0040, -0.3342, 0.1525) if LAYOUT_FROM_STEP else (0.436015, -0.28672, 0.269524)
 # 실링부 색칠(2026-07-15 4차, 사용자 지시): Genesis 는 로드된 mesh 의
 # vertex_colors 를 그대로 렌더에 반영하지 않는다(격리 테스트로 확인 — PLY에
 # vertex_colors 를 구워도 단색으로만 나옴). UV + ImageTexture 조합만 동작
@@ -667,12 +696,19 @@ FINGER_TCP_LOCAL = np.array([-0.020, 0.0, 0.0])  # f1 로컬 프레임 기준 f1
 VERTICAL_QUAT = np.array([0.0, 0.0, 1.0, 0.0])   # 완전 수직(핑거 진행축이 world -Z와 정확히 반대)
 Q_GRASP = np.array([-0.00063, -0.23137, 1.17360, 0.00050, 2.19917, -0.00054], float)
 Q_LIFT = np.array([-0.00063, 0.11974, 0.31246, 0.00097, 2.70918, 0.00005], float)
+# 손목 트위스트(joint 6) — 2026-07-16 에 BAG_EULER 가 (90,0,90) 이 되면서 0 으로
+# 제거됐던 값이다. 실배치에서 봉투를 (90,0,0) 으로 되돌리면 두께축이 world X ->
+# Y 로 옮겨가므로 그리퍼 닫힘축도 같이 90도 돌려야 한다.
+WRIST6_DEG = float(os.environ.get("WRIST6_DEG", "90" if LAYOUT_FROM_STEP else "0"))
+if WRIST6_DEG:
+    Q_GRASP[5] += np.radians(WRIST6_DEG)
+    Q_LIFT[5] += np.radians(WRIST6_DEG)
 FING_OPEN, FING_CLOSE = 1.00, 1.20
 
 # 슬롯(약 (-0.33,-0.05,0.09))에서 0.87m 떨어진 원래 위치((0,0.7,0))는 orientation
 # 고정 IK 오차가 12cm 까지 났다 — 슬롯에 훨씬 가까운 위치로 재배치(오차 <0.001m
 # 확인, 이 스크립트 개발 중 격리 테스트로 검증).
-ROBOT_OFFSET = np.array([-0.330, -0.65, 0.0])
+ROBOT_OFFSET = np.array([-0.2250, 0.2500, 0.0]) if LAYOUT_FROM_STEP else np.array([-0.330, -0.65, 0.0])
 # 2026-07-24 재계산: Q_GRASP_NEW에서 f1-f2 진짜 중앙(FINGER_TCP_LOCAL 적용)을
 # FK로 실측한 값 - ROBOT_OFFSET (이전 FINGER_MID_BASE는 f1 단독 기준이라 위
 # 20mm 어긋남 버그를 그대로 포함하고 있었다).
@@ -689,7 +725,14 @@ BAG_SCALE = 1.0
 # gap 12mm 대비 여유 3mm씩), Y=64mm(폭, gap 65mm 대비 여유 0.5mm씩 — 타이트
 # 하지만 통과 가능)로 정확히 뒤바뀐다. 높이(local Y->world Z)는 이 변경과
 # 무관하게 그대로다(trimesh 로 직접 회전행렬 적용해 검증 완료).
-BAG_EULER = (90, 0, 90)
+# **2026-08-28, STEP 실배치 전환**: 위 논리는 슬롯 간격축이 world X 일 때(구
+# CRUSHER_EULER=(0,0,90)) 성립한다. 실배치(EULER 0)에서는 간격이 world Y(12.5mm),
+# 슬롯 길이가 world X(65mm)로 **정확히 뒤바뀌므로** 봉투도 되돌려야 한다:
+#   (90,0,90) -> X=6(두께)  Y=64(폭)   : 구 배치용
+#   (90,0, 0) -> X=64(폭)   Y=6(두께)  : 실배치용  <- 두께가 간격축 Y 로
+# 되돌리지 않으면 폭 64mm 가 12.5mm 틈에 들어가려다 구겨진다(실측: insert tilt
+# 22.8deg, 높이 90.1 -> 76.1mm, 오차 +25.0mm FAIL).
+BAG_EULER = (90, 0, 0) if LAYOUT_FROM_STEP else (90, 0, 90)
 # SEAL_LOCAL_X 는 로컬 mesh 폭축(파지 지점) 오프셋 — 이제 그 축이 world Y 로
 # 매핑되므로(위 회전 변경), BAG_POS 적용 위치도 X->Y 로 옮긴다.
 # 2026-08-14: 상수에서 GRIP_OFFSET_MM 스윕 파라미터로 승격(파일 상단 주석 참고).
@@ -700,7 +743,10 @@ BAG_HALF_H = 0.045
 # 였는데, 입구에서 8mm 안쪽(맨 가장자리는 잡을 재료가 부족해 8mm 마진)에 오도록
 # BAG_POS(봉투 중심)를 그만큼 아래로 내린다.
 TOP_GRIP_MARGIN = 0.008
-BAG_POS = (FINGER_MID[0], FINGER_MID[1] - SEAL_LOCAL_X,
+# 로컬 폭축이 매핑되는 world 축이 BAG_EULER 에 따라 바뀐다(구: Y / 실배치: X).
+_SEAL_ON_X = LAYOUT_FROM_STEP
+BAG_POS = (FINGER_MID[0] - (SEAL_LOCAL_X if _SEAL_ON_X else 0.0),
+           FINGER_MID[1] - (0.0 if _SEAL_ON_X else SEAL_LOCAL_X),
            FINGER_MID[2] - BAG_HALF_H + TOP_GRIP_MARGIN)
 
 # ── 핑거 TCP ↔ 봉투 몸체의 고정 오프셋 (2026-08-14, 슬롯 미삽입 근본원인) ─────
@@ -893,12 +939,20 @@ def main(use_viewer: bool = False):
         show_viewer=use_viewer,
     )
 
-    for p in PLATE_POSITIONS:
+    if LAYOUT_FROM_STEP:
+        # 실판 1장 — 상면이 월드 z=0 이 되도록 중심을 -두께/2 에 둔다.
         scene.add_entity(
-            gs.morphs.Mesh(file=PLATE_PATH, fixed=True, pos=p),
+            gs.morphs.Box(size=PLATE_SIZE, pos=(0.0, 0.0, -PLATE_SIZE[2] / 2), fixed=True),
             material=gs.materials.Rigid(coup_type="ipc_only"),
             surface=gs.surfaces.Default(color=(0.82, 0.82, 0.85), metallic=0.85, roughness=0.3),
         )
+    else:
+        for p in PLATE_POSITIONS:
+            scene.add_entity(
+                gs.morphs.Mesh(file=PLATE_PATH, fixed=True, pos=p),
+                material=gs.materials.Rigid(coup_type="ipc_only"),
+                surface=gs.surfaces.Default(color=(0.82, 0.82, 0.85), metallic=0.85, roughness=0.3),
+            )
 
     crusher = scene.add_entity(
         gs.morphs.MJCF(file=crusher_xml, pos=CRUSHER_POS, euler=CRUSHER_EULER,
@@ -938,7 +992,7 @@ def main(use_viewer: bool = False):
         material=gs.materials.Rigid(needs_coup=False),
     )
     scene.add_entity(
-        gs.morphs.MJCF(file=SUCTION_MJCF, pos=SUCTIONV1_POS, decimate=False),
+        gs.morphs.MJCF(file=SUCTION_MJCF, pos=SUCTIONV1_POS, euler=SUCTIONV1_EULER, decimate=False),
         material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
 
@@ -1003,6 +1057,30 @@ def main(use_viewer: bool = False):
     _t_build = _time.time()
     scene.build(n_envs=0)
     _build_s = _time.time() - _t_build
+
+    if LAYOUT_ONLY:
+        # 실설계 배치만 확인하는 모드 — 시뮬 없이 정지 프레임만 뽑고 끝낸다.
+        _out = os.path.join(CASE_DIR, f"layout_{_TS}")
+        cam_over.set_pose(pos=(1.30, -1.30, 0.95), lookat=(0.0, -0.10, 0.10))
+        cam_over.render(rgb=True)[0]
+        import PIL.Image as _I
+        for _tag, _pos, _look in (
+            ("iso",  (1.30, -1.30, 0.95), (0.00, -0.10, 0.10)),
+            ("top",  (0.00,  0.00, 1.80), (0.00,  0.00, 0.00)),
+            ("front",(0.00, -1.90, 0.45), (0.00,  0.00, 0.15)),
+            ("side", (1.90,  0.00, 0.45), (0.00,  0.00, 0.15)),
+        ):
+            cam_over.set_pose(pos=_pos, lookat=_look)
+            _I.fromarray(cam_over.render(rgb=True)[0]).save(f"{_out}_{_tag}.png")
+            print(f"[layout] saved {_out}_{_tag}.png")
+        print(f"[layout] 판 {PLATE_SIZE[0]*1000:.0f}x{PLATE_SIZE[1]*1000:.0f}x"
+              f"{PLATE_SIZE[2]*1000:.0f}mm, 상면 z=0")
+        for _n, _p in (("Crusher", CRUSHER_POS), ("고정장치", FIXTURE_POS),
+                       ("회수장치2", RECOVERY2_POS), ("석션V1", SUCTIONV1_POS),
+                       ("로봇", tuple(ROBOT_OFFSET))):
+            print(f"[layout]   {_n:10s} ({_p[0]:+.4f}, {_p[1]:+.4f}, {_p[2]:+.4f})")
+        print("[layout] 완료 — 배치 확인 모드라 시뮬은 건너뛴다.")
+        return
     _t_steps = _time.time()
     # 스텝 수는 런타임에 센다. N_* 를 더하는 정적 합계는 위상이 하나 늘 때마다
     # (예: N_ABOVE_SETTLE) 조용히 어긋나고, trim 은 애초에 가변 회차다.
@@ -1023,12 +1101,25 @@ def main(use_viewer: bool = False):
     # ── Crusher 슬롯 위치 계산 ───────────────────────────────────────────────
     wb_lo, wb_hi = crusher_mesh_world_aabb(WALL_BACK_MESH)
     wl_lo, wl_hi = crusher_mesh_world_aabb(WALL_LEFT_MESH, LEFTWALL_BODY_POS, LEFTWALL_GEOM_POS)
-    gap_lo_x, gap_hi_x = sorted([wb_hi[0], wl_lo[0]])
-    gap_cx = (gap_lo_x + gap_hi_x) / 2.0
-    gap_width = gap_hi_x - gap_lo_x
-    y_lo = max(wb_lo[1], wl_lo[1]); y_hi = min(wb_hi[1], wl_hi[1])
-    gap_cy = (y_lo + y_hi) / 2.0
+    # 슬롯 간격 축을 **기하로 판별**한다(2026-08-28). 예전 코드는 `wb_hi[0]`/
+    # `wl_lo[0]` 처럼 간격이 world X 에 있다고 하드코딩돼 있었는데, 그건
+    # CRUSHER_EULER=(0,0,90) 일 때만 참이다. STEP 실배치(EULER 0)로 바꾸자 간격이
+    # world Y 로 옮겨가 gap_width 가 12mm 대신 **80mm** 로 잡혔다(실측).
+    # 두 벽 AABB 가 겹치지 않는 축이 곧 간격 축이므로 그것으로 찾는다.
+    _ov = [min(wb_hi[i], wl_hi[i]) - max(wb_lo[i], wl_lo[i]) for i in range(2)]
+    GAP_AX = int(np.argmin(_ov))          # 떨어진 축 = 봉투 두께가 들어갈 방향
+    OTH_AX = 1 - GAP_AX                   # 겹치는 축 = 슬롯 길이 방향(봉투 폭)
+    _g_lo = min(wb_hi[GAP_AX], wl_hi[GAP_AX])
+    _g_hi = max(wb_lo[GAP_AX], wl_lo[GAP_AX])
+    gap_width = _g_hi - _g_lo
+    _g_c = (_g_lo + _g_hi) / 2.0
+    _o_lo = max(wb_lo[OTH_AX], wl_lo[OTH_AX]); _o_hi = min(wb_hi[OTH_AX], wl_hi[OTH_AX])
+    _o_c = (_o_lo + _o_hi) / 2.0
+    gap_cx = _g_c if GAP_AX == 0 else _o_c
+    gap_cy = _g_c if GAP_AX == 1 else _o_c
     wall_top_z = max(wb_hi[2], wl_hi[2])
+    print(f"[slot] 간격축 = world {'XY'[GAP_AX]} (겹침 {_ov[GAP_AX]*1000:+.1f}mm), "
+          f"슬롯 길이축 = world {'XY'[OTH_AX]} (겹침 {_ov[OTH_AX]*1000:+.1f}mm)")
     # L1_Wall1_1 = 포켓 바닥 플레이트(Crusher_Samplebag.py 주석: "L1_Wall1_1 은
     # 바닥 플레이트"). gap 슬릿 중심(gap_cx,gap_cy)은 봉투가 "통과하는" 위치일
     # 뿐, 포켓 바닥의 실제 중심과는 다르다(실측: -38mm 가량 로봇 반대쪽으로
