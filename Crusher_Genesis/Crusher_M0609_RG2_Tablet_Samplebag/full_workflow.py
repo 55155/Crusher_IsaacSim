@@ -260,11 +260,32 @@ WALL_OFFSET = 0.006      # 슬롯 개방(+6mm)
 # 필름 두 겹(2 x CLOTH_THICK = 2.00mm)뿐이므로 이론 하한은 잔여 2.00mm 부근이다.
 CLAMP_TARGET = float(os.environ.get("CLAMP_TARGET_MM", "-12.0")) * 1e-3
 CRANK_KP, CRANK_KV = 2000.0, 100.0
-WALL_KP, WALL_KV = 5000.0, 500.0
+# ── 클램프를 **그리퍼 레시피로** 맞춘다 (2026-08-28, 사용자 지시) ────────────
+# 같은 IPC 스택에서 그리퍼는 FEM 봉투를 마찰만으로 안정적으로 파지하는데 벽은
+# 못 잡는다. 두 접촉의 설정을 나란히 놓으면 같은 조건이 아니었다:
+#
+#            그리퍼(성공)              Left_Wall(실패)
+#   kp        30                       5000      <- 167배
+#   kv        1.5                      500
+#   힘상한    2.0 N.m ~= 40 N          100 N
+#   마찰      0.8 (명시)               미지정 -> 기본 0.1
+#
+# kp=30 은 매우 무른 위치제어라 봉투에 닿으면 손가락이 거기서 멈춘다 — 사실상
+# 힘제어에 가까운 파지다(m0609_rg2_v2.xml 주석: "OnRobot 데이터시트 gripping
+# force 3-40N"). 반면 kp=5000 은 0.1mm 오차에 500N 을 요구해 힘 상한에 즉시
+# 포화되고, **매 스텝 최대 힘으로 밀어붙이는 상태**가 되어 IPC 배리어와 정면
+# 충돌한다. 천을 눌러 멈추는 접촉이 아니라 뚫으려는 접촉이었다.
+# 실측: -8.5mm 는 안정하나 압착 못 함, -10.0/-10.5 는 발산(-104.8mm / +625mm).
+#
+# 실기 Motor2 는 랙-피니언이라 강성이 높겠지만, 그 강성을 그대로 쓰면 IPC 가
+# 버티지 못한다. 그리퍼도 같은 타협(kp=30)을 하고 있으므로 동일하게 간다.
+WALL_KP = float(os.environ.get("WALL_KP", "30.0" if LAYOUT_FROM_STEP else "5000.0"))
+WALL_KV = float(os.environ.get("WALL_KV", "1.5" if LAYOUT_FROM_STEP else "500.0"))
 # Motor2(Left_Wall, Rack&Pinion) 힘 상한 — docs/Crusher.md §5 의 액추에이터
 # `Motor2_left_wall` ctrlrange ±100 N (MJCF actuatorfrcrange 와 동일).
 # 적용 이유는 사용처(_fmin/_fmax) 주석 참고.
-WALL_FORCE_LIM = float(os.environ.get("WALL_FORCE_LIM_N", "100.0"))
+WALL_FORCE_LIM = float(os.environ.get("WALL_FORCE_LIM_N",
+                                      "40.0" if LAYOUT_FROM_STEP else "100.0"))
 
 # ── Phase 11: crush — 고정된 봉투를 두고 Crusher 를 실제로 운전(2026-08-26) ──
 # 여기까지가 "봉투를 슬롯에 넣고 벽으로 문다" 였고, 그 상태에서 크랭크를 돌려
@@ -699,10 +720,27 @@ Q_LIFT = np.array([-0.00063, 0.11974, 0.31246, 0.00097, 2.70918, 0.00005], float
 # 손목 트위스트(joint 6) — 2026-07-16 에 BAG_EULER 가 (90,0,90) 이 되면서 0 으로
 # 제거됐던 값이다. 실배치에서 봉투를 (90,0,0) 으로 되돌리면 두께축이 world X ->
 # Y 로 옮겨가므로 그리퍼 닫힘축도 같이 90도 돌려야 한다.
+# 로봇은 삽입 전부터 압착 후까지 봉투를 계속 파지한다(사용자 지시 2026-08-28).
+HOLD_THROUGH_CLAMP = os.environ.get("HOLD_THROUGH_CLAMP",
+                                    "1" if LAYOUT_FROM_STEP else "0") == "1"
 WRIST6_DEG = float(os.environ.get("WRIST6_DEG", "90" if LAYOUT_FROM_STEP else "0"))
 if WRIST6_DEG:
     Q_GRASP[5] += np.radians(WRIST6_DEG)
     Q_LIFT[5] += np.radians(WRIST6_DEG)
+    # **above/insert 의 IK 목표 자세도 같이 돌려야 한다(2026-08-28)**.
+    # `q_insert_quat = VERTICAL_QUAT` 은 고정 상수라, 손목만 돌리면 파지는 ±90도로
+    # 해놓고 IK 가 이송 중 손목을 VERTICAL_QUAT 으로 **되돌려** 봉투를 90도 비튼다.
+    # 실측: 하강 중 봉투가 X 로 밀리는데 그 **부호가 손목 부호를 따라 뒤집혔다**
+    # (+90 -> -9.4mm, -90 -> +10.2mm). 벽 간섭이면 부호가 안 바뀐다.
+    # world Z 축 둘레로 같은 각을 곱해 파지 자세와 삽입 자세를 일치시킨다.
+    _h = np.radians(WRIST6_DEG) / 2.0
+    _qz = np.array([np.cos(_h), 0.0, 0.0, np.sin(_h)])          # (w,x,y,z)
+    _a, _b = _qz, VERTICAL_QUAT
+    VERTICAL_QUAT = np.array([
+        _a[0]*_b[0] - _a[1]*_b[1] - _a[2]*_b[2] - _a[3]*_b[3],
+        _a[0]*_b[1] + _a[1]*_b[0] + _a[2]*_b[3] - _a[3]*_b[2],
+        _a[0]*_b[2] - _a[1]*_b[3] + _a[2]*_b[0] + _a[3]*_b[1],
+        _a[0]*_b[3] + _a[1]*_b[2] - _a[2]*_b[1] + _a[3]*_b[0]])
 FING_OPEN, FING_CLOSE = 1.00, 1.20
 
 # 슬롯(약 (-0.33,-0.05,0.09))에서 0.87m 떨어진 원래 위치((0,0.7,0))는 orientation
@@ -957,7 +995,10 @@ def main(use_viewer: bool = False):
     crusher = scene.add_entity(
         gs.morphs.MJCF(file=crusher_xml, pos=CRUSHER_POS, euler=CRUSHER_EULER,
                        decimate=True, convexify=True),
-        material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
+        # coup_friction 미지정이면 기본 0.1(§15). 핑거는 CLOTH_FRICTION=0.8 로
+        # 봉투를 잡는데 벽만 0.1 이던 비대칭을 없앤다 — 그리퍼 레시피 정렬의 일부.
+        material=gs.materials.Rigid(coup_type="two_way_soft_constraint",
+                                    coup_friction=CLOTH_FRICTION),
         surface=gs.surfaces.Default(smooth=False),
     )
 
@@ -1462,7 +1503,9 @@ def main(use_viewer: bool = False):
     # 발산 검증(2026-08-25) — 2차 -10.4mm 런에서 벽 DOF 가 -2.09e9 mm 로 터졌는데
     # 그 값이 그대로 release 의 wall_q 로 흘러들어가 다음 페이즈까지 망가뜨렸다.
     # 물리적으로 가능한 범위는 [CLAMP_TARGET - 1mm, WALL_OFFSET + 1mm] 뿐이다.
-    _wq_lo, _wq_hi = min(CLAMP_TARGET, 0.0) - 0.001, max(WALL_OFFSET, 0.0) + 0.001
+    # 여유 5mm — 1mm 로 잡았더니 PD 오버슛(목표 -10.0 에 -11.36 도달)을 발산으로
+    # 오탐했다. 실제 발산은 +625mm / -2.09e9mm 규모라 5mm 로도 충분히 걸러진다.
+    _wq_lo, _wq_hi = min(CLAMP_TARGET, 0.0) - 0.005, max(WALL_OFFSET, 0.0) + 0.005
     if not (np.isfinite(wq_final) and _wq_lo <= wq_final <= _wq_hi):
         raise RuntimeError(
             f"[clamp] Left_Wall DOF 발산: wall={wq_final*1000:.2f}mm "
@@ -1489,7 +1532,13 @@ def main(use_viewer: bool = False):
     # 스텝당 >24초로 폭발했다(16분에 40스텝 미만). 도달 위치에서 WALL_PRELOAD
     # 만큼만 더 눌러 파지력(kp x 0.5mm = 2.5N)은 유지하되 배리어와 싸우지 않는다.
     WALL_PRELOAD = 0.0005
-    run_arm("release", qpos_insert, qpos_insert, FING_CLOSE, FING_OPEN, N_RELEASE,
+    # 로봇은 삽입 전부터 압착 후까지 봉투를 계속 파지한다(사용자 지시 2026-08-28).
+    # 그리퍼를 열면 봉투가 포켓으로 흘러내린다(실측 -34.9mm) — 클램프가 플랜지
+    # 한 줄로만 닿아 사실상 고정력이 없기 때문(플랜지 높이엔 마주보는 고정벽이
+    # 없다, §18-2). 놓지 않으면 그 실패모드 자체가 사라진다.
+    _fing_end = FING_CLOSE if HOLD_THROUGH_CLAMP else FING_OPEN
+    run_arm("hold2" if HOLD_THROUGH_CLAMP else "release",
+            qpos_insert, qpos_insert, FING_CLOSE, _fing_end, N_RELEASE,
             crank_q=CRANK_START_Q, wall_q=wq_final - WALL_PRELOAD, trace=True)
 
     # ── Phase 11: crush — 벽이 문 상태로 Crusher 를 실제 운전 ─────────────────
