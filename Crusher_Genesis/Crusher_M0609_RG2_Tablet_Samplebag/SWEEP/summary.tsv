@@ -51,3 +51,6 @@ g7_kin145	OK	211	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-
 g8_kin135_r2	OK	209	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-13.48mm body_gap=+4.02mm stalled=Y drop=-0.0mm tilt=9.1deg width=28.2mm reach_err=-2.4mm verdict=PASS
 g9_kin155	OK	201	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-16.53mm body_gap=+0.97mm stalled=Y drop=-0.0mm tilt=9.3deg width=32.9mm reach_err=-1.9mm verdict=PASS
 g10_kin125_flangeON_r2	OK	210	flange=ON mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-13.04mm body_gap=+4.46mm stalled=Y drop=+0.0mm tilt=7.3deg width=25.7mm reach_err=+0.3mm verdict=PASS
+h1_arm100	ERR(1)	1161	
+h2_arm1000	ERR(1)	197	
+i_F2	ERR(1)	192	
