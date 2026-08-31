@@ -1,0 +1,70 @@
+============================================================
+ Full workflow: tablet drop -> bag catch -> grasp -> lift -> Crusher slot insert (viewer=False)
+============================================================
+[mjcf] Left_Wall 반사 관성 armature=10.0kg (링크 질량 0.312kg + 랙/피니언/감속기/로터). 100N -> 9.7 m/s^2, kv 안정 한계 4125
+[mjcf] Left_Wall 형상 교체: 옛 geom 12개(시각 1 + hull 11) -> 본체 hull 5개 + 플랜지 1개 + 시각 1개. 플랜지 = **시각 전용(접촉 제외)**. 중립 간격 플랜지 12.50mm / 본체 17.50mm
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+[mjcf] 회수장치 턱 충돌메시 6개를 볼록껍질로 교체 (non-watertight -> IPC 투입 가능)
+Traceback (most recent call last):
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\full_workflow.py", line 2333, in <module>
+    main(use_viewer=os.environ.get("VIEWER") == "1")
+    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\full_workflow.py", line 1402, in main
+    recovery = scene.add_entity(
+        gs.morphs.MJCF(file=_prepare_recovery_mjcf(), pos=RECOVERY2_POS,
+    ...<3 lines>...
+                                    coup_friction=CLOTH_FRICTION),
+    )
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\misc.py", line 135, in wrapper
+    return method(self, *args, **kwargs)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\scene.py", line 509, in add_entity
+    entity = self._sim._add_entity(morph, material, surface, visualize_contact, name)
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\simulator.py", line 166, in _add_entity
+    entity = self.rigid_solver.add_entity(
+        self.n_entities, material, morph, surface, visualize_contact, name=name
+    )
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\solvers\rigid\rigid_solver.py", line 362, in add_entity
+    entity = EntityClass(
+        scene=self._scene,
+    ...<24 lines>...
+        name=name,
+    )
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\rigid_entity\rigid_entity.py", line 2554, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        scene,
+        ^^^^^^
+    ...<16 lines>...
+        name,
+        ^^^^^
+    )
+    ^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\rigid_entity\rigid_entity.py", line 165, in __init__
+    self._load_model()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\rigid_entity\rigid_entity.py", line 2677, in _load_model
+    super()._load_model()
+    ~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\rigid_entity\rigid_entity.py", line 414, in _load_model
+    self._load_morph(self._morph)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\rigid_entity\rigid_entity.py", line 197, in _load_morph
+    self._load_scene(morph, self._surface)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\rigid_entity\rigid_entity.py", line 2682, in _load_scene
+    l_infos, links_j_infos, links_g_infos, eqs_info = self._parse_scene(morph, surface)
+                                                      ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\engine\entities\rigid_entity\rigid_entity.py", line 640, in _parse_scene
+    l_infos, links_j_infos, links_g_infos, eqs_info = mju.parse_xml(morph, surface, self._solver._options)
+                                                      ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\mjcf.py", line 261, in parse_xml
+    mj = build_model(
+        morph.file,
+    ...<4 lines>...
+        links_to_keep,
+    )
+  File "C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\genesis\utils\mjcf.py", line 228, in build_model
+    mj = mujoco.MjModel.from_xml_string(data)
+ValueError: Error: Error opening file 'C:\Users/simuser/AppData/Local/Temp/recovery2_fw_b4c0r30b/meshes/Crank_1.stl'
+
+[38;5;9m[Genesis] [19:43:53] [ERROR] ValueError: Error: Error opening file 'C:\Users/simuser/AppData/Local/Temp/recovery2_fw_b4c0r30b/meshes/Crank_1.stl'[0m

@@ -155,7 +155,13 @@ MP4_SIDE = os.path.join(CASE_DIR, f"full_workflow_{_TAG}_sideview.mp4")
 # (X->+Y, Y->+Z, Z->+X)를 이미 갖고 있고 이것이 STEP 의 Crusher 자세 (90,0,90)과
 # 같은 회전이다. 여기에 (90,0,90)이나 기존 (0,0,90)을 또 주면 이중 회전이 된다.
 # 검산: 이 변환에서 MJCF 원점의 z 가 판 상면 +0.57mm — 판 위에 정확히 얹힌다.
-LAYOUT_FROM_STEP = os.environ.get("LAYOUT_FROM_STEP", "0") == "1"
+# **[기본값 1로 승격 2026-08-31]** §19 의 실설계 배치(Hardware_setup.step /
+# Base_ver2.step 실측)가 이제 검증된 구성이다 — 슬롯 삽입(-0.5mm), 압착, 8 RPM
+# 분쇄, 회수장치 이송이 모두 이 배치 위에서만 성립한다. 0 은 구 배치를 재현하기
+# 위한 값으로만 남긴다. 이 플래그가 CRUSHER_POS/ROBOT_OFFSET/BAG_EULER/
+# WRIST6_DEG/HOLD_THROUGH_CLAMP/CLAMP_MODE 를 한꺼번에 바꾸므로, 0 으로 두면
+# 오늘 고친 것들이 대부분 적용되지 않는다.
+LAYOUT_FROM_STEP = os.environ.get("LAYOUT_FROM_STEP", "1") == "1"
 LAYOUT_ONLY = os.environ.get("LAYOUT_ONLY", "0") == "1"      # 배치만 렌더하고 종료
 if LAYOUT_ONLY:
     LAYOUT_FROM_STEP = True
@@ -420,7 +426,14 @@ WALL_ARMATURE = float(os.environ.get("WALL_ARMATURE", "10.0"))
 # 대신 힘 상한이라는 정지 기준이 사라지므로 **어디까지 닫을지를 정해야 한다** —
 # CLAMP_TARGET 이 다시 의미를 갖는다. 압착력은 그 위치에서 봉투가 얼마나 눌렸는지
 # (본체면 잔여)로 읽는다.
-WALL_KINEMATIC = os.environ.get("WALL_KINEMATIC", "0") == "1"
+# **[기본값 1로 승격 2026-08-31]** 임시방편이 아니라 이 봉투에 대한 유일한
+# 방법이라는 것이 오늘 확정됐다. control_dofs_force 스윕(sweep_force_20260831.py)
+# 에서 **2N 으로도 벽이 하드스톱까지 닫히고 40N 과 정지 위치가 0.16mm 차이**였다
+# — 즉 봉투 반력이 2N 에도 못 미쳐 힘 균형점이 아예 존재하지 않는다. 힘으로는
+# 어디서 멈출지 정할 수 없으므로 위치로 직접 정해야 한다.
+# 유령 속도 문제(위치만 쓰고 속도를 안 지워 v 가 누적되던 것)도 오늘 같이
+# 고쳤으므로(set_dofs_velocity 짝짓기) 이 경로가 이제 더 깨끗하다.
+WALL_KINEMATIC = os.environ.get("WALL_KINEMATIC", "1") == "1"
 
 WALL_KP = float(os.environ.get("WALL_KP", "5000.0"))
 WALL_KV = float(os.environ.get("WALL_KV", "500.0"))
@@ -431,6 +444,12 @@ WALL_KV = float(os.environ.get("WALL_KV", "500.0"))
 # 단위가 안 맞았다. 실기 Motor2 의 스펙값인 100N 으로 되돌린다 — 압착력을 정하는
 # 진짜 손잡이가 이것이므로 근거 없는 값을 쓰면 안 된다.
 WALL_FORCE_LIM = float(os.environ.get("WALL_FORCE_LIM_N", "100.0"))
+
+# CLAMP_MODE=force 일 때 벽을 미는 **일정 힘**(N). ±100N 은 Motor2 최대 스펙이지
+# 운전 힘이 아니고, 2.5g 필름은 어떤 두께에서도 100N 을 못 만든다(§20-4-2) —
+# 그래서 균형점이 없어 벽이 항상 끝까지 닫혔다. 성공하는 그리퍼는 40N 으로
+# 봉투를 잡는다. 그 아래 구간을 훑는 것이 sweep 대상이다.
+WALL_PUSH_N = float(os.environ.get("WALL_PUSH_N", "10.0"))
 
 # ── Phase 11: crush — 고정된 봉투를 두고 Crusher 를 실제로 운전(2026-08-26) ──
 # 여기까지가 "봉투를 슬롯에 넣고 벽으로 문다" 였고, 그 상태에서 크랭크를 돌려
@@ -448,12 +467,62 @@ WALL_FORCE_LIM = float(os.environ.get("WALL_FORCE_LIM_N", "100.0"))
 # 스텝짜리 런에 20분 이상을 더한다 — 매 런마다 물릴 값이 아니다.
 # 매 스텝 render_cams() 를 부르면 3대 x 12,000 프레임이 되므로 이 구간만
 # CRUSH_RENDER_EVERY 로 솎는다(30fps 기준 10 이면 60s -> 40s 클립).
+# ── Phase 12: recover — 분쇄 후 회수장치로 이송 (2026-08-31, 사용자 지시) ───
+# 이번 단계는 **이송까지만**이다(샤프트 잠금·그리퍼 해제는 다음). 목표 좌표와
+# 잠금 시퀀스 근거는 Recovery2_only/recovery2_bag_clamp.py 참고.
+RECOVER = os.environ.get("RECOVER", "0") == "1"
+RECOVER_APPROACH_H = float(os.environ.get("RECOVER_APPROACH_H_MM", "80.0")) * 1e-3
+RECOVER_REACH_TOL = float(os.environ.get("RECOVER_REACH_TOL_MM", "15.0")) * 1e-3
+N_UNCLAMP, N_EXTRACT, N_TO_RC, N_RC_SETTLE = 200, 300, 600, 150
+N_RC_DOWN, N_RC_LOCK, N_RC_REL = 300, 400, 150
+
+# 회수장치 샤프트(`회전_31`). recovery2_only.py 실측: 슬라이더 0 -> +35mm(q=pi)
+# -> 0 의 왕복이라 **q=0/2pi 가 닫힘, q=pi 가 열림**이다(사용자 확인 2026-08-31).
+# 슬라이더 안 라쳇(RachetGear_1 + PAWL_1)이 역회전을 막으므로 닫을 때는
+# 180 -> 0 으로 되돌리지 않고 **180 -> 360 으로 계속 전진**한다. 지령이 단조
+# 증가라 라쳇과 모순되지 않는다.
+RC_SHAFT_JOINT = "회전_31"
+RC_OPEN_Q, RC_CLOSE_Q = np.pi, 2 * np.pi
+# 봉투 배치(사용자 지시 2026-08-31): 하단 10mm 를 F_Top 에 걸치고, F_LeftLink /
+# F_RightLink 가 좌우 실링 바로 앞에 오게 한다.
+#   PLATE_TOP_Z = 58mm (F_Top/M_Top 상면) -> 봉투 하단 = 58 - 10 = 48mm
+#   LINK_MID_Y  = 59.20mm (두 링크 y 중점) -> 봉투 폭 64mm 중심
+#   F 링크 앞면 x = -55mm, 가동턱은 x+ 로 다가온다 -> 봉투는 그 바로 앞
+RC_PLATE_TOP_Z, RC_BITE_DEPTH = 0.058, 0.010
+RC_LINK_MID_Y, RC_JAW_X = 0.05920, -0.0525
+# 크러셔는 봉투 폭이 world X(슬롯 길이축), 회수장치는 턱이 X 로 벌어지고 봉투
+# 폭이 world Y 다 — 이송 중 손목을 90도 돌려야 한다.
+RC_WRIST_DEG = float(os.environ.get("RC_WRIST_DEG", "90"))
+# 석션V1 초기 자세(사용자 지시 2026-08-31): 아래 LSM 액추에이터 후방 +100mm,
+# 그리퍼는 개방 -50mm(조인트 range 하한 = 완전 개방).
+SUCTION_BACK_M = float(os.environ.get("SUCTION_BACK_MM", "100.0")) * 1e-3
+SUCTION_OPEN_M = float(os.environ.get("SUCTION_OPEN_MM", "-50.0")) * 1e-3
+# 이송 구간을 Genesis 내장 플래너(RRTConnect)로 푼다. 관절각 직선보간은
+# self-collision 을 전혀 안 보므로 팔끼리 부딪힐 수 있다(사용자 지적).
+# ignore_collision=False 가 기본이라 충돌 검사를 하고, with_entity 로 파지한
+# 봉투까지 함께 볼 수 있다(rigid_entity.py:3467).
+USE_PLANNER = os.environ.get("USE_PLANNER", "1") == "1"
+# 크러셔 위를 지나 반대편으로 가므로 경유점을 이만큼 더 띄운다(프레임 회피).
+RECOVER_CLEAR_H = float(os.environ.get("RECOVER_CLEAR_H_MM", "120.0")) * 1e-3
+
 CRUSH_SECONDS = float(os.environ.get("CRUSH_SECONDS", "0"))
 CRUSH_RENDER_EVERY = int(os.environ.get("CRUSH_RENDER_EVERY", "10"))
 CRANK_RPM = 8.0
 CRANK_OMEGA = CRANK_RPM * 2.0 * np.pi / 60.0     # 0.8378 rad/s
 CRANK_TORQUE_LIM = float(os.environ.get("CRANK_TORQUE_LIM_NM", "12.5"))
-CRANK_KV_SPIN = 5000.0
+# **[정정 2026-08-31 재정정] kv 는 무죄다 — 원래 값 5000 으로 되돌린다.**
+# 한때 "kv 가 유효 관성에 kv*dt 로 더해져(forward_dynamics.py:317) 속도를
+# ω = τ/kv 로 묶는다"고 보고 15 로 낮췄었다. 실측 3점이 그 식에 맞았기 때문인데,
+# **변인통제 결과 틀린 진단이었다.**
+# Crusher_only_20260831_spin.py 로 IPC 만 빼고 같은 조건을 돌린 결과:
+#   A  substep_dt 5e-5, IPC 없음               -> 7.999 RPM (즉시)
+#   B  substep_dt 5e-3, IPC 없음, kv=5000      -> 6.90 RPM (2s 에 86%, 상승 중)
+#   본 파일  substep_dt 5e-3, IPC 있음, kv=5000 -> 0.02 RPM (평탄, 가속 자체가 없음)
+# B 는 타임스텝도 크고 weld 시정수 오버라이드(0.0002->0.01)도 그대로 걸린 채
+# **정상 회전한다.** 따라서 kv 도, substep_dt 도, weld solref 도 원인이 아니다.
+# 남은 차이는 IPC 커플러 하나뿐이고, 매 스텝 계측(CRUSH_LOG_EVERY=1)에서
+# 크랭크가 1스텝째부터 평형이라 **가속을 아예 못 하는** 것이 확인됐다.
+CRANK_KV_SPIN = float(os.environ.get("CRANK_KV_SPIN", "5000.0"))
 
 
 def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999 1e-5"):
@@ -679,6 +748,58 @@ def _prepare_crusher_mjcf():
     return dst
 
 
+# ── 회수장치 턱을 IPC 에 넣기 위한 메시 수리 (2026-08-31, 사용자 지시) ────────
+# 회수장치는 needs_coup=False 로 IPC 밖이라 **턱이 봉투를 통과한다.** 그대로
+# 커플링하면 uipc 가 죽는다 — AffineBodyConstitution 이 부피를 못 구한다
+# ("Calculating volume of open trimesh is meaningless"). 실측으로 확인한 결과
+# 아래 6개 턱 링크의 충돌 메시가 **전부 non-watertight** 였다.
+# 턱은 단순 블록이라 **볼록껍질**로 바꾸면 형상 손실이 거의 없으면서 watertight
+# 가 된다. 원본은 건드리지 않고 임시 디렉터리에 hull STL 을 굽고 MJCF 의 mesh
+# file 만 갈아끼운다.
+RECOVERY_JAW_LINKS = ("F_LeftLink_1", "F_RightLink_1", "M_LeftLink_1",
+                      "M_RightLink_1", "F_Top_1", "M_Top_1")
+
+
+def _prepare_recovery_mjcf():
+    """턱 링크 충돌 메시를 볼록껍질로 교체한 회수장치 MJCF 사본 경로."""
+    src_dir = os.path.dirname(RECOVERY2_MJCF)
+    tmp_dir = tempfile.mkdtemp(prefix="recovery2_fw_")
+    # 메시가 meshes/ 하위에 있으므로 **트리 전체**를 복사한다(파일만 훑으면
+    # 하위 디렉터리가 빠져 Genesis 가 STL 을 못 연다 — 실측 확인).
+    shutil.copytree(src_dir, tmp_dir, dirs_exist_ok=True)
+    tree = ET.parse(RECOVERY2_MJCF)
+    root = tree.getroot()
+    comp = root.find("compiler")
+    mdir = comp.get("meshdir", "") if comp is not None else ""
+    mesh_el = {m.get("name"): m for m in root.iter("mesh")}
+    # 턱 링크에서 **충돌로 쓰이는**(contype!=0) mesh 이름만 모은다.
+    targets = set()
+    for b in root.iter("body"):
+        if b.get("name") not in RECOVERY_JAW_LINKS:
+            continue
+        for g in b.findall("geom"):
+            if g.get("contype", "1") != "0" and g.get("mesh") in mesh_el:
+                targets.add(g.get("mesh"))
+    os.makedirs(os.path.join(tmp_dir, mdir, "_hull"), exist_ok=True)
+    n_fixed = 0
+    for nm in sorted(targets):
+        rel = mesh_el[nm].get("file")
+        src = os.path.join(src_dir, mdir, rel)
+        if not os.path.exists(src):
+            continue
+        m = tm.load(src, process=False)
+        hull = m.convex_hull
+        out_rel = os.path.join("_hull", os.path.basename(rel))
+        hull.export(os.path.join(tmp_dir, mdir, out_rel))
+        mesh_el[nm].set("file", out_rel.replace("\\", "/"))
+        n_fixed += 1
+    dst = os.path.join(tmp_dir, "recovery2_genesis.xml")
+    tree.write(dst, encoding="utf-8", xml_declaration=True)
+    print(f"[mjcf] 회수장치 턱 충돌메시 {n_fixed}개를 볼록껍질로 교체 "
+          f"(non-watertight -> IPC 투입 가능)")
+    return dst
+
+
 def crusher_mesh_world_aabb(mesh_name, body_pos=(0., 0., 0.), geom_pos=(0., 0., 0.)):
     """메시의 world AABB. 이름 하나든 여러 개든 받는다 — 여러 개면 합집합.
 
@@ -896,6 +1017,39 @@ IPC_D_HAT = 1.0e-4
 # 같은 모양으로 터졌으므로 남은 후보가 이 루프다.
 IPC_CONSTRAINT_STRENGTH = float(os.environ.get("IPC_CONSTRAINT_STRENGTH", "100.0"))
 
+# ── Crusher 를 IPC 에 넣을 링크를 **고른다** (§16-7 보류분, 2026-08-31) ────────
+# 로봇은 `coup_links=FINGER_LINKS` 로 손가락만 IPC 에 넣는데 Crusher 는 필터가
+# 없어서 8개 body 전부가 매 스텝 uipc 프록시에 스프링으로 묶인다.
+# **[실측] 이 필터는 크랭크 정체의 원인이 아니었다.** 켜고 돌려도 0.02 RPM 으로
+# 동일했다(k_coupfilt2). 진짜 원인은 CRANK_KV_SPIN 이다(그쪽 주석 참고).
+# 클램프 수치는 필터 유무와 무관하게 동일했으므로(wall -13.04mm / 본체면 4.46mm /
+# drop 0.0mm) 무해하지만, 고친 게 없으므로 **기본 꺼짐**으로 둔다. §16-7 자체는
+# 여전히 유효한 항목이라 코드는 남긴다.
+# IPC 에 들어가야 하는 것은 **봉투/정제에 실제로 닿는 링크뿐**이다:
+#   world              고정 3벽(L1_Wall1_1 / L1_Wall2_1 / L2_Wall3_1) — 봉투가 기댄다
+#                      (worldbody geom 이라 빌드 후 링크 이름이 base_link 가 아니라 world)
+#   L2_Left_Wall1_1    압착 벽 — 클램프 그 자체
+#   L8_Link3_Shaft_1   impact plate(L9_PLATE_v3_1) 를 달고 있다 — 정제를 때린다
+# 빠지는 것은 크랭크 구동계(L4_Shaft_1, L6_Link2_1, L7_Link3_1)와 Motor2 축·베어링
+# (L4_Motor2_Shaft_1, L7_Holder_Bearing1_1/2_1) 뿐이고, 이들은 변형체에 닿지
+# 않는다. §16-7 이 이 필터를 미룬 이유가 "L9_PLATE 가 정제에 닿아야 한다" 였는데
+# 그 링크는 위에 남아 있으므로 보류 사유가 해소된다.
+CRUSHER_COUP_LINKS = tuple(os.environ.get(
+    "CRUSHER_COUP_LINKS", "world,L2_Left_Wall1_1,L8_Link3_Shaft_1").split(","))
+
+# ── Crusher 의 coup_type (2026-08-31) ──────────────────────────────────────
+# 크랭크가 IPC 하에서만 정체한다(변인통제: IPC 뺀 런 B 는 kv/타임스텝 동일 조건에서
+# 6.9 RPM 정상 회전, 본 파일은 0.02 RPM). IPC 안의 파라미터 두 개는 이미 기각됐다 —
+# coup_links 필터도, IPC_CONSTRAINT_STRENGTH 100->1 도 모두 0.02 RPM 으로 동일.
+# 그 0.02 는 Δω = τ·dt/(M + kv·dt) = 0.0239 RPM, **딱 한 스텝치**다. 즉 어떤 설정을
+# 줘도 크랭크가 한 스텝만 움직이고 누적되지 않는다.
+# 남은 후보가 coup_type 자체다. Genesis 의 default_coup_type() 은
+# **n_dofs>0 + 고정베이스면 external_articulation** 을 준다(크러셔가 정확히 그
+# 형태인데 코드는 two_way_soft_constraint 를 명시하고 있다). external_articulation
+# 은 강체 솔버가 IPC 기하를 일방향으로 구동하므로 소프트 구속 루프가 없다.
+CRUSHER_COUP_TYPE = os.environ.get("CRUSHER_COUP_TYPE", "two_way_soft_constraint")
+CRUSHER_COUP_FILTER = os.environ.get("CRUSHER_COUP_FILTER", "0") == "1"
+
 # 봉투 stiffen(2026-07-15): above/insert 구간에서 봉투가 과하게 흔들려 E/굽힘
 # 강성을 올림(1e5->4e5, bend 50->400) — 이동 속도를 늦추는 것(N_ABOVE/N_INSERT)과
 # 함께 스윙을 줄이기 위한 조합 처방.
@@ -1024,6 +1178,19 @@ BAG_POS = (FINGER_MID[0] - (SEAL_LOCAL_X if _SEAL_ON_X else 0.0),
 # (§docs/DigitalTwin.md §13-7 의 "설명 안 되는 tilt 26.3°" 도 같은 원인).
 # → 슬롯 정렬 기준을 핑거가 아니라 **봉투 몸체**로 바꾼다(아래 target_xy).
 BAG_DY_FROM_FINGER = BAG_POS[1] - FINGER_MID[1]             # = -SEAL_LOCAL_X = +0.028
+# X 축에도 같은 보정이 필요하다 (2026-08-31, 사용자 지시 "실링과 Left_Wall 측벽이
+# 일치해야 한다"). LAYOUT_FROM_STEP 에서 실링축이 world Y -> X 로 바뀌면서
+# BAG_DY_FROM_FINGER 가 0 이 되고, 파지 오프셋 전량(-SEAL_LOCAL_X = +28mm)이
+# **무보정으로 X 에 남았다.** 그 결과 봉투(폭 64mm)가 프레임(65mm) 중심에서 28mm
+# 밀려, 좌 실링은 프레임 밖으로 나가고 우 실링은 개구 한가운데 떠서 어느 쪽도
+# 측벽에 닿지 않았다(실측 bag_com X=0.1855 vs 프레임 중심 0.2125).
+# 봉투 중심을 프레임 중심에 맞추면 실링 밴드(|x| 23~32mm)가 좌우 측벽
+# (중심에서 27.5~32.5mm, hull_001/hull_003)과 4.5mm 씩 겹친다.
+# 부호는 **삽입 자세 실측**으로 정한다. BAG_POS 는 스폰 자세(손목 0도) 기준이라
+# BAG_POS[0]-FINGER_MID[0] = +28mm 지만, 삽입은 WRIST6_DEG=90 으로 손목을 돌린
+# 뒤라 오프셋 방향이 뒤집힌다. 두 런 모두 finger_x 와 무관하게
+# bag_com_x - finger_x = -28mm 로 일정했다(0.2125->0.1855, 0.1845->0.1575).
+BAG_DX_FROM_FINGER = SEAL_LOCAL_X                           # = -0.028 (삽입 자세)
 # 봉투는 입구에서 TOP_GRIP_MARGIN 아래를 물리므로 핑거 밑으로 이만큼 늘어진다.
 # "봉투 최하단을 Wall_1 중간 높이에 둔다"(사용자 목표)를 그대로 역산한 값 —
 # insert_z(핑거) = wall_center_z + BAG_HANG_BELOW_FINGER.
@@ -1051,7 +1218,7 @@ N_ABOVE_SETTLE = 200
 # clamp: Left_Wall 이 실링부를 누르는 구간(개방 대비 훨씬 짧고 정밀한 이동이라
 # Crusher_Samplebag.py N_CLAMP=2000(@dt=1e-3, 2.0s)와 동일 시간이 되도록 환산).
 N_CLAMP, N_RELEASE = 400, 100
-if CLAMP_MODE == "velocity":
+if CLAMP_MODE in ("velocity", "force"):
     # 열림(+6mm)에서 하드스톱까지 전 구간을 닫고도 남을 시간 + 스톨 관찰 여유(x1.5).
     # 위치제어처럼 램프를 다 쓸 필요가 없고, 봉투에 걸리면 그 앞에서 멈춘다.
     N_CLAMP = int(round((WALL_OFFSET - WALL_Q_FLOOR) * 1e3 / WALL_CLOSE_MMPS * 1.5 / DT))
@@ -1227,10 +1394,15 @@ def main(use_viewer: bool = False):
                        decimate=True, convexify=True),
         # coup_friction 미지정이면 기본 0.1(§15). 핑거는 CLOTH_FRICTION=0.8 로
         # 봉투를 잡는데 벽만 0.1 이던 비대칭을 없앤다 — 그리퍼 레시피 정렬의 일부.
-        material=gs.materials.Rigid(coup_type="two_way_soft_constraint",
-                                    coup_friction=CLOTH_FRICTION),
+        material=gs.materials.Rigid(coup_type=CRUSHER_COUP_TYPE,
+                                    coup_friction=CLOTH_FRICTION,
+                                    **({"coup_links": list(CRUSHER_COUP_LINKS)}
+                                       if CRUSHER_COUP_FILTER else {})),
         surface=gs.surfaces.Default(smooth=False),
     )
+    if CRUSHER_COUP_FILTER:
+        print(f"[ipc] Crusher coup_links={list(CRUSHER_COUP_LINKS)} — "
+              f"크랭크 구동계는 IPC 에서 뺐다(§16-7)")
 
     # visualization=False: 충돌(안전망)은 유지하되 격자무늬 렌더는 끔 — 씬에는
     # 알루미늄 플레이트만 보이도록(사용자 지시).
@@ -1258,11 +1430,23 @@ def main(use_viewer: bool = False):
     # (실측 확인, scene.build() 안에서 즉사). 어차피 로봇/봉투와 상호작용하지
     # 않는 정적 소품이므로 커플러에서 제외하는 게 예전 거동과도 일치한다 —
     # 렌더와 강체 솔버에는 그대로 남는다.
-    scene.add_entity(
-        gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False),
-        material=gs.materials.Rigid(needs_coup=False),
-    )
-    scene.add_entity(
+    # RECOVER=1 이면 턱이 봉투를 실제로 물어야 하므로 IPC 에 넣는다. 다만 링크
+    # 33개를 통째로 넣으면 위 사유로 죽으므로 **턱 6개만** coup_links 로 고르고,
+    # 그 메시는 _prepare_recovery_mjcf() 가 볼록껍질로 갈아둔 것을 쓴다.
+    if RECOVER:
+        recovery = scene.add_entity(
+            gs.morphs.MJCF(file=_prepare_recovery_mjcf(), pos=RECOVERY2_POS,
+                           decimate=False),
+            material=gs.materials.Rigid(coup_type="two_way_soft_constraint",
+                                        coup_links=list(RECOVERY_JAW_LINKS),
+                                        coup_friction=CLOTH_FRICTION),
+        )
+    else:
+        recovery = scene.add_entity(
+            gs.morphs.MJCF(file=RECOVERY2_MJCF, pos=RECOVERY2_POS, decimate=False),
+            material=gs.materials.Rigid(needs_coup=False),
+        )
+    suction = scene.add_entity(
         gs.morphs.MJCF(file=SUCTION_MJCF, pos=SUCTIONV1_POS, euler=SUCTIONV1_EULER, decimate=False),
         material=gs.materials.Rigid(coup_type="two_way_soft_constraint"),
     )
@@ -1432,6 +1616,34 @@ def main(use_viewer: bool = False):
         return d[0] if isinstance(d, (list, tuple, np.ndarray)) else d
     crank_dof = _scalar_dof(CRANK_JOINT)
     wall_dof = _scalar_dof(WALL_JOINT)
+    # ── 석션V1 초기 자세 (2026-08-31, 사용자 지시) ──────────────────────────
+    # 아래 LSM 액추에이터를 후방(+X) 100mm, 그리퍼는 벌린 상태(-50mm)로 둔다.
+    # 그리퍼 좌우는 MJCF equality `polycoef="0 1 0 0 0"` 로 **R = L 1:1 mimic**
+    # 이고 축이 서로 반대(L: +Y, R: -Y)라 같은 q 가 대칭으로 벌린다 — 실기의
+    # rack&pinion(피니언 하나가 양쪽 랙을 같은 스트로크로 미는) 구조와 같다.
+    # 조인트 range 가 [-0.05, 0] 이므로 **-50mm 가 완전 개방**이다.
+    # 정적 소품이라 한 번만 써넣으면 되고, mimic 이 R 을 따라오게 L 만 준다.
+    _sj = {j.name: j for j in suction.joints if j.name}
+    _lsm = next((n for n in _sj if n.startswith("LSM-")), None)
+    _lgrip = next((n for n in _sj if n.startswith("L_E-SMLG9H")), None)
+    for _n, _v, _tag in ((_lsm, SUCTION_BACK_M, "LSM 후방"),
+                         (_lgrip, SUCTION_OPEN_M, "그리퍼 개방")):
+        if _n is None:
+            print(f"[suction] 경고: 조인트를 못 찾음 ({_tag})")
+            continue
+        _i = _sj[_n].dofs_idx_local
+        _i = _i[0] if isinstance(_i, (list, tuple, np.ndarray)) else _i
+        suction.set_dofs_position(np.array([_v]), dofs_idx_local=[_i])
+        suction.set_dofs_velocity(velocity=None, dofs_idx_local=[_i])
+        print(f"[suction] {_tag} {_v*1000:+.0f}mm  ({_n})")
+
+    rc_shaft_dof = None
+    if RECOVER:
+        _rj = recovery.get_joint(RC_SHAFT_JOINT)
+        _ri = _rj.dofs_idx_local
+        rc_shaft_dof = _ri[0] if isinstance(_ri, (list, tuple, np.ndarray)) else _ri
+        print(f"[recover] 샤프트 '{RC_SHAFT_JOINT}' dof={rc_shaft_dof} "
+              f"(q=0 닫힘 / q=pi 열림, 라쳇 때문에 닫을 땐 pi->2pi)")
     crusher.set_dofs_kp(np.array([CRANK_KP]), dofs_idx_local=[crank_dof])
     crusher.set_dofs_kv(np.array([CRANK_KV]), dofs_idx_local=[crank_dof])
     crusher.set_dofs_kp(np.array([WALL_KP]), dofs_idx_local=[wall_dof])
@@ -1599,6 +1811,16 @@ def main(use_viewer: bool = False):
         s = (k + 1) / N_PREP
         crusher.control_dofs_position(np.array([CRANK_START_Q * s]), dofs_idx_local=[crank_dof])
         crusher.control_dofs_position(np.array([WALL_OFFSET * s]), dofs_idx_local=[wall_dof])
+        if rc_shaft_dof is not None:
+            # 회수장치는 **열린 상태로 시작해야 한다**(사용자 지시). MJCF qpos0 은
+            # q=0 = 닫힘이므로 prep 에서 pi(=열림)까지 올려 둔다.
+            # **기구학 구동이어야 한다** — 회수장치도 크러셔처럼 샤프트가 폐루프로
+            # 슬라이더를 미는 구조라, 게인 없이 control_dofs_position 을 주면
+            # 발산한다(실측: 180->360 지령에 33,153deg = 92바퀴 폭주).
+            # recovery2_bag_clamp.py 도 같은 이유로 set_dofs_position 을 쓴다.
+            recovery.set_dofs_position(np.array([RC_OPEN_Q * s]),
+                                       dofs_idx_local=[rc_shaft_dof])
+            recovery.set_dofs_velocity(velocity=None, dofs_idx_local=[rc_shaft_dof])
         robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN] * 6]))
         scene.step()
         _step_n[0] += 1
@@ -1667,11 +1889,15 @@ def main(use_viewer: bool = False):
     # Y_OFFSET(사용자 지시, 2026-07-23): gap_cy 추정 위치 근방에서 Y 스윕 검증용.
     # BAG_DY_FROM_FINGER 를 빼는 것이 이번 라운드의 핵심 수정 — 슬롯에 정렬돼야
     # 하는 것은 핑거가 아니라 봉투 몸체다(상수 정의부 주석 참고).
-    target_xy = np.array([gap_cx, gap_cy - BAG_DY_FROM_FINGER + Y_OFFSET])
+    target_xy = np.array([gap_cx - BAG_DX_FROM_FINGER,
+                          gap_cy - BAG_DY_FROM_FINGER + Y_OFFSET])
     print(f"[slot] wall_center_z={wall_center_z:.4f}  insert_z(finger)={insert_z:.4f}  "
           f"hang={BAG_HANG_BELOW_FINGER*1000:.0f}mm")
     print(f"[slot] 봉투중심 보정 dy={BAG_DY_FROM_FINGER*1000:+.1f}mm -> finger_y={target_xy[1]:.4f} "
           f"(봉투중심 y={target_xy[1]+BAG_DY_FROM_FINGER:.4f} = gap_cy {gap_cy:.4f})")
+    print(f"[slot] 봉투중심 보정 dx={BAG_DX_FROM_FINGER*1000:+.1f}mm -> finger_x={target_xy[0]:.4f} "
+          f"(봉투중심 x={target_xy[0]+BAG_DX_FROM_FINGER:.4f} = gap_cx {gap_cx:.4f}) "
+          f"— 실링이 측벽에 물린다")
     print(f"[sweep] Y_OFFSET_MM={Y_OFFSET_MM:+.1f}mm -> target_xy={target_xy}  (gap_cy={gap_cy:.4f})")
 
     # 사이드뷰 카메라 확정 — gap(X, "슬롯 두께"=gap_width) vs 삽입 깊이(Z) 단면을
@@ -1811,6 +2037,10 @@ def main(use_viewer: bool = False):
     # 6mm 봉투를 스치기만 했다 — 상단 CLAMP_TARGET 정의부의 실측 근거 참고.
     _wall_q = lambda: float(_npy(crusher.get_dofs_position())[wall_dof])
     _wall_v = lambda: float(_npy(crusher.get_dofs_velocity())[wall_dof])
+    # 모드와 무관하게 초기화한다 — WALL_KINEMATIC 분기와 hold2 가 이 값을 쓰는데,
+    # 예전엔 velocity 분기 안에서만 정의돼 `WALL_KINEMATIC=1 + CLAMP_MODE=position`
+    # 조합에서 UnboundLocalError 로 죽었다(2026-08-31, 기본값 승격하며 실제 발생).
+    _q_cmd = WALL_OFFSET
     if CLAMP_MODE == "velocity":
         # **속도원(velocity source) + 힘 상한을, 지령 램프로 구현한다.**
         #
@@ -1831,7 +2061,6 @@ def main(use_viewer: bool = False):
         # 목표를 배리어에 밀어붙이던 위치 램프의 문제도 사라진다.
         _lead_max = WALL_FORCE_LIM / WALL_KP
         _v_step = WALL_CLOSE_MMPS * 1e-3 * DT
-        _q_cmd = WALL_OFFSET
         print(f"\n[phase] 9 clamp ({N_CLAMP*DT:.1f}s) — Left_Wall {WALL_OFFSET*1000:+.1f}mm 에서 "
               f"**속도지령** {WALL_CLOSE_MMPS:.1f}mm/s 로 계속 닫음 (docs §11-5), "
               f"lead {_lead_max*1e3:.1f}mm = 정지 시 {WALL_FORCE_LIM:.0f}N, "
@@ -1844,11 +2073,27 @@ def main(use_viewer: bool = False):
     # clamp 구간에 출력이 없어 20분을 기다린 뒤에야 이상을 알았다.
     _clamp_log = max(1, N_CLAMP // 25)
     for k in range(N_CLAMP):
-        if WALL_KINEMATIC:
+        if CLAMP_MODE == "force":
+            # **직접 힘지령**(2026-08-31). §20 이 "힘제어"라 부른 것은 전부
+            # control_dofs_position + force_range 클램프였고, control_dofs_force 는
+            # 이 저장소에서 벽에 한 번도 걸린 적이 없다. 둘은 다르다 — 위치제어는
+            # 목표로 PD 가 밀다 상한에 포화하지만, 이쪽은 그냥 일정한 힘으로 민다.
+            # 그래서 봉투 반력과 균형지는 곳에서 **스스로 선다**. 그 정지 위치가
+            # 곧 실효 압착 두께이자 필요 압착력의 첫 측정값이다(§11-5 가 원래
+            # 재려던 것). FORCE 모드는 ctrl_mode(=2) > VELOCITY(=1) 이라
+            # kv*dt 관성 부풀림(forward_dynamics.py:317)도 안 걸린다.
+            crusher.control_dofs_force(np.array([-WALL_PUSH_N]), dofs_idx_local=[wall_dof])
+        elif WALL_KINEMATIC:
             # 지령을 v 만큼 전진시키고 그 위치를 그대로 써넣는다. CLAMP_TARGET
             # 에서 멈춘다 — 접촉이 벽을 되밀 수 없으므로 lead 제한이 필요 없다.
             _q_cmd = max(_q_cmd - _v_step, CLAMP_TARGET)
             crusher.set_dofs_position(np.array([_q_cmd]), dofs_idx_local=[wall_dof])
+            # 위치만 쓰고 속도를 안 지우면 **유령 속도가 쌓인다**(2026-08-31 실측:
+            # 위치 -12.79mm 고정인데 v=-58.8mm/s 가 계속 찍히고, set 이 끊기는
+            # 순간 벽이 0.69mm 튀어 -17.01mm 까지 밀렸다). kernel_set_dofs_position
+            # 은 dofs.pos 만 쓴다. IPC 커플러도 같은 이유로 set_dofs_velocity 를
+            # 짝지어 부른다(coupler.py:1002 "avoid double time integration").
+            crusher.set_dofs_velocity(velocity=None, dofs_idx_local=[wall_dof])
         elif CLAMP_MODE == "velocity":
             # 지령을 v 만큼 전진시키되 (a) 실제 위치보다 lead_max 이상 앞서지 않고
             # (b) 기계적 하드스톱 가드를 넘지 않게 묶는다. max = 덜 음수인 쪽.
@@ -1927,6 +2172,10 @@ def main(use_viewer: bool = False):
     # 이미 실제 위치보다 lead_max 앞서 포화해 있으므로, 그대로 유지하면 계속
     # 힘 상한으로 눌러 고정한다(§11-5). 새로 계산할 것이 없다.
     _wall_hold = _q_cmd if CLAMP_MODE == "velocity" else wq_final - WALL_PRELOAD
+    if CLAMP_MODE == "force":
+        # 힘지령은 위치 목표라는 개념이 없다 — 도달한 곳이 곧 균형점이므로
+        # 그 자리를 유지 목표로 삼는다(hold2/crush 는 위치제어로 유지).
+        _wall_hold = wq_final
     if WALL_KINEMATIC:
         _wall_hold = _q_cmd
     _wall_kw = dict(wall_q=_wall_hold)
@@ -1965,12 +2214,29 @@ def main(use_viewer: bool = False):
               f"(docs/Crusher.md §2-2), kv={CRANK_KV_SPIN:.0f} — velocity 제어")
         print(f"[crush] 시작 정제 크기 {e0[0]:.2f} x {e0[1]:.2f} x {e0[2]:.2f} mm")
 
-        _log_every = max(1, n_crush // 30)
+        # CRUSH_LOG_EVERY=1 이면 매 스텝 찍는다 — 크랭크 속도가 (a) 가속하다
+        # 리셋되는지 (b) 애초에 가속을 안 하는지 가르는 계측용(2026-08-31).
+        _log_every = int(os.environ.get("CRUSH_LOG_EVERY", "0")) or max(1, n_crush // 30)
         for k in range(n_crush):
             # 팔은 release 자세 그대로 유지(핑거 z=0.134 는 impact plate 의 z대역
             # 0.024~0.074 보다 위라 간섭하지 않는다 — 회피 동작을 넣지 않는 이유).
-            robot.set_dofs_position(np.concatenate([qpos_insert, [FING_OPEN] * 6]))
+            # 핑거도 Phase 10 이 끝난 상태(_fing_end)를 그대로 이어받는다 —
+            # HOLD_THROUGH_CLAMP 면 분쇄 내내 봉투를 계속 파지한다(사용자 지시
+            # 2026-08-31). 여기서 FING_OPEN 을 주면 Phase 10 에서 안 놓은 봉투를
+            # 분쇄 시작과 동시에 놓아버려 §18-4 의 낙하 실패모드가 되살아난다.
+            robot.set_dofs_position(np.concatenate([qpos_insert, [_fing_end] * 6]))
             crusher.control_dofs_velocity(np.array([CRANK_OMEGA]), dofs_idx_local=[crank_dof])
+            # **벽을 여기서 set_dofs_position 으로 잡으면 안 된다(2026-08-31 실측).**
+            # set_dofs_position 은 호출마다 collider.reset() + constraint_solver.reset()
+            # 을 부른다(rigid_solver.py:2710). 벽 DOF 하나를 쓰려고 부른 것이지만
+            # **엔티티 전체의 구속 솔버가 리셋**되고, weld 로 닫힌 크랭크-슬라이더
+            # 폐루프가 매 스텝 웜스타트를 잃어 크랭크가 아예 못 돈다.
+            # 격리 매트릭스(Crusher_only_20260831_spin.py, 봉투/IPC 유무 교차):
+            #     base 6.902 / ipc 6.945 / ipc_bag 6.945 / ipc_set 0.024 / ipc_bag_set 0.024
+            # 봉투도 IPC 도 무관하고 **set 단독**이 원인이다. full_workflow 에서도
+            # WALL_KINEMATIC=0 으로 돌리면 크랭크가 8.00 RPM 에 정확히 도달한다.
+            # 압착(clamp)은 여전히 set 이 필요하지만(힘제어는 §20-2 관통), 분쇄
+            # 구간의 벽은 **이미 도달한 위치를 유지만** 하면 되므로 힘제어로 족하다.
             crusher.control_dofs_position(np.array([wall_hold]), dofs_idx_local=[wall_dof])
             scene.step()
             _step_n[0] += 1
@@ -1994,6 +2260,218 @@ def main(use_viewer: bool = False):
               f"(변화 {e1[0]-e0[0]:+.2f}/{e1[1]-e0[1]:+.2f}/{e1[2]-e0[2]:+.2f})")
         print(f"[crush] bag_com={_bag_com()}  tilt={_bag_tilt():.1f}deg  "
               f"bag_bottom={_bag_extent()[2]:.4f}")
+
+    # ── Phase 12: recover — 분쇄 끝난 봉투를 회수장치로 이송 (2026-08-31) ────
+    # 사용자 지시: "Crushing 이후 회수장치로 샘플백을 옮겨서 고정". 이번 단계는
+    # **이송까지만** 한다(잠금·해제는 다음 단계).
+    # 목표 자세는 Recovery2_only/recovery2_bag_clamp.py 의 실측 상수를 월드로
+    # 환산한 것이다. 그 스크립트는 회수장치 단독 씬이라 모델 원점 기준이었고,
+    # 여기서는 RECOVERY2_POS 만큼 평행이동하면 된다(add_entity 에 euler 가 없어
+    # 회전은 항등):
+    #     LINK_MID_Y  = 0.05920   두 링크 y 중점
+    #     PLATE_TOP_Z = 0.058     F_Top/M_Top 상면 = 실링부 하단 목표 z
+    #     F_LINK_FRONT_X = -0.055 / 가동턱은 여기서 x+ 로 다가온다 -> 물림 중심 x
+    # 그리퍼는 중앙 파지(GRIP_OFFSET_MM=0)여야 한다 — 턱이 **양쪽 실링을 바깥
+    # 4.5mm 씩** 물기 때문에 가장자리 파지면 그리퍼가 그 자리를 차지한다
+    # (recovery2_bag_clamp.py 도 이 이관에 상단 중앙 파지를 명시한다).
+    if RECOVER:
+        rc_x = RECOVERY2_POS[0] + RC_JAW_X
+        rc_y = RECOVERY2_POS[1] + RC_LINK_MID_Y
+        # 봉투 하단이 F_Top 상면보다 RC_BITE_DEPTH 만큼 **아래로** 내려가야 한다.
+        rc_seal_z = RECOVERY2_POS[2] + RC_PLATE_TOP_Z - RC_BITE_DEPTH
+        rc_finger_z = rc_seal_z + BAG_HANG_BELOW_FINGER
+        rc_above_z = rc_finger_z + RECOVER_APPROACH_H
+        # **손목을 90도 더 돌린다.** 크러셔에서는 봉투 폭이 world X 인데(슬롯
+        # 길이축), 회수장치는 턱이 X 로 벌어지고 봉투 폭이 world Y 다. 같은
+        # 자세로 가면 봉투가 턱 사이에 90도 어긋나 들어간다 — 앞선 IK 19mm
+        # 실패도 이 자세를 고집해서 생긴 것으로 보인다.
+        _h = np.radians(RC_WRIST_DEG) / 2.0
+        _qz = np.array([np.cos(_h), 0.0, 0.0, np.sin(_h)])
+        _a, _b = _qz, q_insert_quat
+        q_rc_quat = np.array([
+            _a[0]*_b[0] - _a[1]*_b[1] - _a[2]*_b[2] - _a[3]*_b[3],
+            _a[0]*_b[1] + _a[1]*_b[0] + _a[2]*_b[3] - _a[3]*_b[2],
+            _a[0]*_b[2] - _a[1]*_b[3] + _a[2]*_b[0] + _a[3]*_b[1],
+            _a[0]*_b[3] + _a[1]*_b[2] - _a[2]*_b[1] + _a[3]*_b[0]])
+        print(f"\n[recover] 물림 중심 world=({rc_x:.4f}, {rc_y:.4f})  "
+              f"봉투하단 z={rc_seal_z:.4f} (F_Top 상면 -{RC_BITE_DEPTH*1e3:.0f}mm)  "
+              f"finger z={rc_finger_z:.4f}  손목 {RC_WRIST_DEG:+.0f}deg")
+
+        # 도달성부터 확인한다 — 못 가면 팔을 움직이기 전에 멈춘다(런 15분 절약).
+        def _ik(pos, quat):
+            return _npy(robot.inverse_kinematics(
+                link=left_link, pos=pos, quat=quat,
+                local_point=FINGER_TCP_LOCAL, dofs_idx_local=np.arange(6)))[:6]
+
+        def _reach_err(q, pos):
+            """IK 목표는 **TCP**(링크원점 + FINGER_TCP_LOCAL)다 — 링크 원점과
+            비교하면 완벽히 풀려도 항상 |FINGER_TCP_LOCAL| = 20mm 가 나온다.
+            (실제로 그랬다: yaw 를 360도 훑어도 19.7~20.1mm 로 평탄해서 도달
+            불가로 오판했다. 2026-08-31)"""
+            robot.set_dofs_position(np.concatenate([q, [FING_CLOSE] * 6]))
+            _p = _npy(left_link.get_pos()).reshape(-1)[:3]
+            _q = _npy(left_link.get_quat()).reshape(-1)[:4]
+            w, x, y, z = _q
+            _R = np.array([[1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*z+w*y)],
+                           [2*(x*y+w*z), 1-2*(x*x+z*z), 2*(y*z-w*x)],
+                           [2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y)]])
+            e = np.linalg.norm((_p + _R @ FINGER_TCP_LOCAL) - pos)
+            robot.set_dofs_position(np.concatenate([qpos_insert, [FING_CLOSE] * 6]))
+            return e
+
+        # **봉투중심 보정.** 슬롯에서 고친 것과 같은 버그다 — IK 는 TCP 를 물림
+        # 중심에 놓는데 봉투 중심은 거기서 파지 오프셋만큼 떨어져 있다(실측:
+        # 보정 없이 수평오차 27.2mm ~ |SEAL_LOCAL_X| 28mm). 회수장치에서는 손목을
+        # RC_WRIST_DEG 만큼 더 돌리므로 그 방향으로 회전시켜 뺀다.
+        rc_jaw_x, rc_jaw_y = rc_x, rc_y     # 판정은 물림 중심 기준으로 한다
+        _rc_rad = np.radians(RC_WRIST_DEG)
+        _off = np.array([np.cos(_rc_rad) * BAG_DX_FROM_FINGER,
+                         np.sin(_rc_rad) * BAG_DX_FROM_FINGER])
+        rc_x -= _off[0]
+        rc_y -= _off[1]
+        print(f"[recover] 봉투중심 보정 {BAG_DX_FROM_FINGER*1e3:+.1f}mm @ "
+              f"{RC_WRIST_DEG:.0f}deg -> TCP 목표 ({rc_x:.4f}, {rc_y:.4f})")
+        _p_above = np.array([rc_x, rc_y, rc_above_z])
+        _p_down = np.array([rc_x, rc_y, rc_finger_z])
+        # 손목 90도를 넣어도 오차가 19.0 -> 20.0mm 로 그대로였다 — 자세 하나만
+        # 바꿔서 될 문제가 아니다. 베이스~목표 거리 0.62m 는 M0609 도달범위
+        # 0.9m 안이므로 **IK 가 그 자세 조합에서 못 푸는 것**이다. 요(yaw)를
+        # 훑어 실제로 풀리는 구간을 찾는다 — 자세를 고집하다 이송 자체를
+        # 못 하는 것보다, 물림이 되는 자세 중 오차가 최소인 것을 고르는 게 낫다.
+        # **RC_WRIST_DEG(90도)를 우선한다.** 실링이 턱과 나란해지는 자세가 그것
+        # 하나뿐이라, 스윕이 도달오차만 보고 135도를 고르면 실링이 45도 어긋난 채
+        # 물린다(실측: 그 자세로도 낙하 0 이었지만 "물렸다"가 아니라 "끼었다"에
+        # 가깝다). 스윕은 90도가 **못 닿을 때만** 쓰는 대체 수단이다.
+        _best = None
+        for _yaw in [RC_WRIST_DEG] + list(np.arange(0.0, 360.0, 15.0)):
+            _hh = np.radians(_yaw) / 2.0
+            _qz2 = np.array([np.cos(_hh), 0.0, 0.0, np.sin(_hh)])
+            _a2, _b2 = _qz2, q_insert_quat
+            _qc = np.array([
+                _a2[0]*_b2[0] - _a2[1]*_b2[1] - _a2[2]*_b2[2] - _a2[3]*_b2[3],
+                _a2[0]*_b2[1] + _a2[1]*_b2[0] + _a2[2]*_b2[3] - _a2[3]*_b2[2],
+                _a2[0]*_b2[2] - _a2[1]*_b2[3] + _a2[2]*_b2[0] + _a2[3]*_b2[1],
+                _a2[0]*_b2[3] + _a2[1]*_b2[2] - _a2[2]*_b2[1] + _a2[3]*_b2[0]])
+            _qa, _qd = _ik(_p_above, _qc), _ik(_p_down, _qc)
+            _ea, _ed = _reach_err(_qa, _p_above), _reach_err(_qd, _p_down)
+            if _best is None or max(_ea, _ed) < _best[0]:
+                _best = (max(_ea, _ed), _yaw, _qc, _qa, _qd, _ea, _ed)
+            if _yaw == RC_WRIST_DEG and max(_ea, _ed) <= RECOVER_REACH_TOL:
+                print(f"[recover] 실링 정렬 자세 {RC_WRIST_DEG:.0f}deg 로 도달 — "
+                      f"스윕 생략")
+                break
+        print(f"[recover] IK yaw 채택 {_best[1]:.0f}deg — "
+              f"진입 {_best[5]*1000:.1f}mm / 물림 {_best[6]*1000:.1f}mm")
+        q_rc_quat, q_rc_above, q_rc_down = _best[2], _best[3], _best[4]
+        _e_above, _e_down = _best[5], _best[6]
+        print(f"[recover] IK 도달오차  진입 {_e_above*1000:.1f}mm / "
+              f"물림 {_e_down*1000:.1f}mm  (허용 {RECOVER_REACH_TOL*1000:.0f}mm)")
+        if max(_e_above, _e_down) > RECOVER_REACH_TOL:
+            print(f"[recover] **도달 불가 — 이송 생략**")
+        else:
+            # 1) 벽 개방: 봉투를 놓아주지 않으면 뽑을 수 없다. 여는 방향은 되돌리는
+            #    것이라 set 이 아니라 힘제어로 충분하다(§20 의 관통은 닫을 때 문제).
+            print(f"\n[phase] 12a unclamp ({N_UNCLAMP*DT:.1f}s) — Left_Wall "
+                  f"{_wall_hold*1000:+.2f} -> {WALL_OFFSET*1000:+.1f}mm")
+            for k in range(N_UNCLAMP):
+                s = ease((k + 1) / N_UNCLAMP)
+                crusher.control_dofs_position(
+                    np.array([_wall_hold + (WALL_OFFSET - _wall_hold) * s]),
+                    dofs_idx_local=[wall_dof])
+                crusher.control_dofs_velocity(np.array([0.0]), dofs_idx_local=[crank_dof])
+                robot.set_dofs_position(np.concatenate([qpos_insert, [FING_CLOSE] * 6]))
+                scene.step()
+                _step_n[0] += 1
+                render_cams()
+            print(f"[phase] unclamp  @done  wall={_npy(crusher.get_dofs_position())[wall_dof]*1e3:+.2f}mm "
+                  f"bag_com={_bag_com()}")
+
+            # 2) 슬롯에서 수직 인출 — 삽입 웨이포인트를 그대로 역주행한다.
+            q_up = solve_descent_waypoints(robot, left_link, target_xy,
+                                           insert_z, above_z)
+            run_arm_path("extract", q_up, FING_CLOSE, N_EXTRACT,
+                         crank_q=None, wall_q=WALL_OFFSET, trace=True)
+
+            # 3) 회수장치 상공으로 이송. 크러셔 위를 지나 반대편으로 가야 하므로
+            #    **중간 경유점**을 하나 둔다 — 두 자세를 관절각으로 직접 보간하면
+            #    팔이 크러셔 프레임을 스치고 지나간다. 경유점은 두 지점의 수평
+            #    중점을 진입고도보다 더 위로 띄운 곳이다.
+            _p_mid = np.array([(target_xy[0] + rc_x) / 2.0,
+                               (target_xy[1] + rc_y) / 2.0,
+                               max(above_z, rc_above_z) + RECOVER_CLEAR_H])
+            # 경유점이 안 닿으면 고도를 낮춰가며 재시도한다 — 못 닿는 경유점을
+            # 그대로 쓰면 IK 가 엉뚱한 자세로 수렴해 봉투가 크게 흔들린다
+            # (실측: 경유점 오차 44.7mm 로 지나간 런에서 toRC 후 tilt 31.7deg).
+            _way = None
+            if USE_PLANNER:
+                # **Genesis 내장 RRTConnect.** 손으로 만든 경유점은 self-collision
+                # 을 안 보므로 팔끼리 부딪힐 수 있다(사용자 지적 2026-08-31).
+                # 팔 6축만 계획한다 — 핑거는 파지 유지라 고정이다.
+                robot.set_dofs_position(np.concatenate([q_up[-1], [FING_CLOSE] * 6]))
+                try:
+                    _path = _npy(robot.plan_path(
+                        qpos_goal=np.concatenate([q_rc_above, [FING_CLOSE] * 6]),
+                        qpos_start=np.concatenate([q_up[-1], [FING_CLOSE] * 6]),
+                        num_waypoints=N_TO_RC, smooth_path=True,
+                        ignore_collision=False, planner="RRTConnect"))
+                    _way = [w[:6] for w in _path]
+                    print(f"[recover] plan_path(RRTConnect) 성공 — 웨이포인트 "
+                          f"{len(_way)}개, 충돌검사 포함")
+                except Exception as _ex:
+                    print(f"[recover] plan_path 실패({type(_ex).__name__}: "
+                          f"{str(_ex)[:80]}) — 경유점 방식으로 대체")
+                robot.set_dofs_position(np.concatenate([q_up[-1], [FING_CLOSE] * 6]))
+            if _way is None:
+                for _ch in (RECOVER_CLEAR_H, RECOVER_CLEAR_H / 2, 0.0):
+                    _p_mid[2] = max(above_z, rc_above_z) + _ch
+                    _qm = _ik(_p_mid, q_rc_quat)
+                    _em = _reach_err(_qm, _p_mid)
+                    print(f"[recover] 경유점 z={_p_mid[2]:.4f} 도달오차 {_em*1000:.1f}mm")
+                    if _em <= RECOVER_REACH_TOL:
+                        _way = [q_up[-1], _qm, q_rc_above]
+                        break
+                if _way is None:
+                    print("[recover] 경유점 전부 도달 불가 — 직행한다")
+                    _way = [q_up[-1], q_rc_above]
+            run_arm_path("toRC", _way, FING_CLOSE, N_TO_RC,
+                         wall_q=WALL_OFFSET, trace=True)
+            run_arm("rcset", q_rc_above, q_rc_above, FING_CLOSE, FING_CLOSE,
+                    N_RC_SETTLE, wall_q=WALL_OFFSET)
+
+            # 4) 턱 사이로 수직 하강 — 봉투 하단이 F_Top 에 RC_BITE_DEPTH 만큼 걸친다.
+            run_arm("rcdown", q_rc_above, q_rc_down, FING_CLOSE, FING_CLOSE,
+                    N_RC_DOWN, wall_q=WALL_OFFSET, trace=True)
+            _bx, _by, _bz = _bag_com()
+            print(f"[recover] 투입 완료  bag_com=({_bx:.4f}, {_by:.4f}, {_bz:.4f})  "
+                  f"수평오차={np.hypot(_bx-rc_jaw_x, _by-rc_jaw_y)*1000:.1f}mm  "
+                  f"bag_bottom={_bag_extent()[2]:.4f} (목표 {rc_seal_z:.4f})  "
+                  f"tilt={_bag_tilt():.1f}deg")
+
+            # 5) 잠금 — 샤프트 pi -> 2pi. 라쳇 때문에 역회전(pi->0)이 아니라
+            #    전진으로 닫는다. 슬라이더가 +35mm -> 0mm 로 돌아오며 물린다.
+            print(f"\n[phase] 12d rclock ({N_RC_LOCK*DT:.1f}s) — 샤프트 "
+                  f"{np.degrees(RC_OPEN_Q):.0f} -> {np.degrees(RC_CLOSE_Q):.0f}deg (잠금)")
+            for k in range(N_RC_LOCK):
+                s = ease((k + 1) / N_RC_LOCK)
+                recovery.set_dofs_position(
+                    np.array([RC_OPEN_Q + (RC_CLOSE_Q - RC_OPEN_Q) * s]),
+                    dofs_idx_local=[rc_shaft_dof])
+                recovery.set_dofs_velocity(velocity=None, dofs_idx_local=[rc_shaft_dof])
+                robot.set_dofs_position(np.concatenate([q_rc_down, [FING_CLOSE] * 6]))
+                scene.step()
+                _step_n[0] += 1
+                render_cams()
+            _sq = float(_npy(recovery.get_dofs_position())[rc_shaft_dof])
+            print(f"[phase] rclock   @done  샤프트={np.degrees(_sq):.1f}deg  "
+                  f"bag_com={_bag_com()}  tilt={_bag_tilt():.1f}deg")
+
+            # 6) 그리퍼 해제 — 이제 회수장치가 잡고 있어야 한다. 판정은 낙하량.
+            _b4 = _bag_extent()[2]
+            run_arm("rcrel", q_rc_down, q_rc_down, FING_CLOSE, FING_OPEN, N_RC_REL,
+                    wall_q=WALL_OFFSET, trace=True)
+            _drop = (_bag_extent()[2] - _b4) * 1000.0
+            print(f"[recover] **해제 후 낙하 {_drop:+.1f}mm** — "
+                  f"{'회수장치가 봉투를 잡고 있다' if abs(_drop) < 5.0 else '놓쳤다'}")
 
     # ── Y 스윕 PASS/FAIL 판정(사용자 지시, 2026-07-23) ───────────────────────
     # 실제 그리퍼 마찰 파지 경로라 slot_fit_check.py 의 carrier 판정보다 여유를

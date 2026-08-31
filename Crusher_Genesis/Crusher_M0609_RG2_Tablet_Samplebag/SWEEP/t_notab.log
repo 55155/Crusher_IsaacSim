@@ -1,0 +1,192 @@
+============================================================
+ Full workflow: tablet drop -> bag catch -> grasp -> lift -> Crusher slot insert (viewer=False)
+============================================================
+[mjcf] Left_Wall 반사 관성 armature=10.0kg (링크 질량 0.312kg + 랙/피니언/감속기/로터). 100N -> 9.7 m/s^2, kv 안정 한계 4125
+[mjcf] Left_Wall 형상 교체: 옛 geom 12개(시각 1 + hull 11) -> 본체 hull 5개 + 플랜지 1개 + 시각 1개. 플랜지 = 충돌+시각. 중립 간격 플랜지 12.50mm / 본체 17.50mm
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+[38;5;226m[Genesis] [15:56:31] [WARNING] At least one of the meshes contain many faces (15432). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[38;5;226m[Genesis] [15:56:31] [WARNING] At least one of the meshes contain many faces (15762). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[38;5;226m[Genesis] [15:56:31] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:31] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:31] [WARNING] At least one of the meshes contain many faces (12522). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] At least one of the meshes contain many faces (27466). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[tablet] SKIP_TABLET=1 — 정제 제외, 봉투(FEM.Cloth)+IPC 만 검증
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'M_Bottom_1' has dubious center of mass [x=0.166, y=0.030, z=-0.073] compared to the bounding box from geometry [x=(0.106, 0.155), y=(-0.011, 0.071), z=(-0.078, -0.068)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'M_Back_1' has dubious center of mass [x=0.003, y=0.021, z=0.011] compared to the bounding box from geometry [x=(-0.035, -0.030), y=(-0.033, 0.076), z=(-0.005, 0.028)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'M_Left1_1' has dubious center of mass [x=-0.025, y=-0.002, z=-0.014] compared to the bounding box from geometry [x=(-0.088, -0.032), y=(-0.005, -0.000), z=(-0.038, 0.010)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'M_Right1_1' has dubious center of mass [x=-0.025, y=0.003, z=-0.014] compared to the bounding box from geometry [x=(-0.087, -0.033), y=(0.000, 0.005), z=(-0.038, 0.010)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'M_Top_1' has dubious center of mass [x=-0.024, y=0.028, z=0.005] compared to the bounding box from geometry [x=(-0.088, -0.032), y=(-0.031, 0.088), z=(-0.000, 0.010)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'M_LeftLink_1' has dubious center of mass [x=-0.002, y=0.005, z=0.046] compared to the bounding box from geometry [x=(-0.040, -0.035), y=(-0.005, 0.015), z=(-0.005, 0.095)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'M_RightLink_1' has dubious center of mass [x=-0.002, y=-0.005, z=0.046] compared to the bounding box from geometry [x=(-0.040, -0.035), y=(-0.015, 0.005), z=(-0.005, 0.095)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'M_LeftLink2_copy_1' has dubious center of mass [x=-0.005, y=-0.005, z=0.021] compared to the bounding box from geometry [x=(-0.044, -0.032), y=(-0.015, 0.005), z=(-0.000, 0.045)].[0m
+[38;5;226m[Genesis] [15:56:32] [WARNING] Link 'link_2' has dubious center of mass [x=0.000, y=0.000, z=0.000] compared to the bounding box from geometry [x=(-0.068, 0.479), y=(-0.069, 0.069), z=(0.082, 0.274)].[0m
+[38;5;226m[Genesis] [15:56:33] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.01`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+[38;5;226m[Genesis] [15:56:34] [WARNING] Filtered out geometry pairs causing self-collision for the neutral configuration (qpos0): (91, 114), (104, 106). Consider tuning Morph option 'decompose_robot_error_threshold' or specify dedicated collision meshes. This behavior can be disabled by setting Morph option 'enable_neutral_collision=True'.[0m
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+[verify] L2_Left_Wall1_1 충돌 geom 6개 / 시각 geom 3개  (플랜지 접촉=ON, 기대 충돌 6개)
+[build] 성공 (10.7s)
+[bag] shape 고정: 714/714 정점(바닥+양측면), 입구는 자유
+[slot] 간격축 = world Y (겹침 -12.5mm), 슬롯 길이축 = world X (겹침 +65.0mm)
+[slot] gap_cx=0.2125 gap_cy=-0.0053 gap_width=12.5mm wall_top_z=0.0870
+[slot] pocket(L1_Wall1_1) center=(0.1745,0.0330)
+[ctrl] Left_Wall armature=10.0kg (런타임 API) — 유효 질량 10.31kg, 100N -> 9.7 m/s^2, kv 안정 한계 4125 (현재 500)
+[ctrl] Left_Wall force clip: ±100 N (Motor2 ctrlrange, docs/Crusher.md §5) — 벽은 이 힘에서 균형지는 위치에 멈춘다
+[bag] grip_strip verts near FINGER_MID: 76
+
+[phase] 0 prep (1.0s) — 크랭크 0->-3.142rad(-180deg), Left_Wall 0->+6mm(개방)
+[phase] prep     @done  crank=-3.000rad  wall=+5.43mm
+    [drop k=   0] tablet_z=+nanmm bag_com=[0.00646321 0.2561791  0.39925352]
+    [drop k=  40] tablet_z=+nanmm bag_com=[0.00646321 0.2561791  0.39925352]
+    [drop k=  80] tablet_z=+nanmm bag_com=[0.00646321 0.2561791  0.39925352]
+    [drop k= 120] tablet_z=+nanmm bag_com=[0.00646321 0.2561791  0.39925352]
+[phase] drop     @done  bag_com=[0.00646321 0.2561791  0.39925352]  finger_z=0.4378  tablet_z=+nanmm  tilt=0.8deg  bag_bottom=0.3543
+[phase] settle   @done  bag_com=[0.00646321 0.2561791  0.39925352]  finger_z=0.4378  tablet_z=+nanmm  tilt=0.8deg  bag_bottom=0.3543
+[bag] shape 고정 해제 — 이제부터 순수 마찰 파지
+[phase] close    @done  bag_com=[0.00643291 0.2557954  0.39879462]  finger_z=0.4360  tablet_z=+nanmm  tilt=0.8deg  bag_bottom=0.3538
+[phase] grasp    @done  bag_com=[0.00639426 0.25569347 0.39880142]  finger_z=0.4361  tablet_z=+nanmm  tilt=0.8deg  bag_bottom=0.3538
+[phase] lift     @done  bag_com=[0.00562056 0.2588907  0.5243643 ]  finger_z=0.5620  tablet_z=+nanmm  tilt=1.2deg  bag_bottom=0.4791
+[phase] hold     @done  bag_com=[0.00559177 0.25862956 0.52434033]  finger_z=0.5620  tablet_z=+nanmm  tilt=1.2deg  bag_bottom=0.4791
+[slot] wall_center_z=0.0510  insert_z(finger)=0.1330  hang=82mm
+[slot] 봉투중심 보정 dy=+0.0mm -> finger_y=-0.0053 (봉투중심 y=-0.0053 = gap_cy -0.0053)
+[slot] 봉투중심 보정 dx=-28.0mm -> finger_x=0.2405 (봉투중심 x=0.2125 = gap_cx 0.2125) — 실링이 측벽에 물린다
+[sweep] Y_OFFSET_MM=+0.0mm -> target_xy=[ 0.24049766 -0.00527226]  (gap_cy=-0.0053)
+[cam] side view 고정: pos=(np.float64(0.21249766187667846), np.float64(-0.5552722595214844), np.float64(0.169001227684021)) look=(np.float64(0.21249766187667846), np.float64(-0.005272259521484357), np.float64(0.169001227684021)) (gap_width=12.5mm, z범위 above=0.2870~insert=0.1330)
+
+[ik] above-slot target=[ 0.24049766 -0.00527226  0.28700123]  arm_q=[-5.1308525e-01  4.4076324e-01  8.6770785e-01 -1.0768883e-05
+  1.8327420e+00  4.1990771e+00]
+    [above k=   0] tablet_z=+nanmm bag_com=[0.00559172 0.25862926 0.52433985]
+    [above k=  40] tablet_z=+nanmm bag_com=[0.00948546 0.25775996 0.52297294]
+    [above k=  80] tablet_z=+nanmm bag_com=[0.03079513 0.2470544  0.5148039 ]
+    [above k= 120] tablet_z=+nanmm bag_com=[0.07084604 0.22050151 0.49526474]
+    [above k= 160] tablet_z=+nanmm bag_com=[0.11978654 0.17927685 0.4612582 ]
+    [above k= 200] tablet_z=+nanmm bag_com=[0.16052233 0.12670621 0.41321698]
+    [above k= 240] tablet_z=+nanmm bag_com=[0.18792528 0.07554648 0.35830572]
+    [above k= 280] tablet_z=+nanmm bag_com=[0.20297976 0.03465082 0.30696037]
+    [above k= 320] tablet_z=+nanmm bag_com=[0.20961374 0.00975471 0.27013606]
+    [above k= 360] tablet_z=+nanmm bag_com=[ 0.21234165 -0.00646028  0.25278863]
+[phase] above    @done  bag_com=[ 0.21265833 -0.00723912  0.24969034]  finger_z=0.2868  tablet_z=+nanmm  tilt=6.1deg  bag_bottom=0.2043
+[phase] aboveset @done  bag_com=[ 0.21280384 -0.00703399  0.24951279]  finger_z=0.2868  tablet_z=+nanmm  tilt=5.8deg  bag_bottom=0.2043
+[ik] insert target=[ 0.24049766 -0.00527226  0.13300123]  웨이포인트 41개(카테시안 직선)  arm_q=[-5.1307702e-01  4.2122853e-01  1.3185067e+00  8.7521395e-05
+  1.4014757e+00  4.1990938e+00]
+    [insert k=   0] tablet_z=+nanmm bag_com=[ 0.21275294 -0.00702666  0.24935676]
+    [insert k=  40] tablet_z=+nanmm bag_com=[ 0.2128066  -0.00707133  0.24798797]
+    [insert k=  80] tablet_z=+nanmm bag_com=[ 0.21286012 -0.00705963  0.24031034]
+    [insert k= 120] tablet_z=+nanmm bag_com=[ 0.21286605 -0.00709812  0.22389722]
+    [insert k= 160] tablet_z=+nanmm bag_com=[ 0.21286473 -0.00709883  0.19996977]
+    [insert k= 200] tablet_z=+nanmm bag_com=[ 0.21288186 -0.00704965  0.17178218]
+    [insert k= 240] tablet_z=+nanmm bag_com=[ 0.2128991  -0.00701051  0.14370783]
+    [insert k= 280] tablet_z=+nanmm bag_com=[ 0.21328922 -0.00172459  0.12008359]
+    [insert k= 320] tablet_z=+nanmm bag_com=[ 0.21310341 -0.00352738  0.10401887]
+    [insert k= 360] tablet_z=+nanmm bag_com=[ 0.21292627 -0.00665707  0.09667315]
+[phase] insert   @done  bag_com=[ 0.21293616 -0.00693255  0.09544689]  finger_z=0.1328  tablet_z=+nanmm  tilt=6.0deg  bag_bottom=0.0503
+[phase] settle2  @done  bag_com=[ 0.2129647  -0.00712874  0.09542805]  finger_z=0.1328  tablet_z=+nanmm  tilt=6.1deg  bag_bottom=0.0503
+[trim] TRIM_ROUNDS=0 — 생략(기본값). settle2 시점 bag_bottom 오차 +0.7mm 를 그대로 결과로 쓴다.
+[trim] 최종 finger_z=0.1330  (초기 0.1330, 하한 0.1030)
+
+[phase] 9 clamp (4.3s) — Left_Wall +6.0mm 에서 **속도지령** 8.0mm/s 로 계속 닫음 (docs §11-5), lead 20.0mm = 정지 시 100N, 가드 -17.0mm
+    [clamp t= 0.00s] wall=  +5.96mm v=  +0.08mm/s  본체면 잔여 +23.46mm  bag_com=[ 0.21296485 -0.00713548  0.09542842]
+    [clamp t= 0.17s] wall=  +4.61mm v=  +2.73mm/s  본체면 잔여 +22.11mm  bag_com=[ 0.21296528 -0.00713232  0.09542576]
+    [clamp t= 0.34s] wall=  +3.27mm v=  +5.39mm/s  본체면 잔여 +20.77mm  bag_com=[ 0.21297449 -0.00712197  0.09541497]
+    [clamp t= 0.51s] wall=  +1.92mm v=  +8.04mm/s  본체면 잔여 +19.42mm  bag_com=[ 0.21297844 -0.00680499  0.0953915 ]
+    [clamp t= 0.68s] wall=  +0.57mm v= +10.69mm/s  본체면 잔여 +18.07mm  bag_com=[ 0.21299173 -0.00616357  0.09535623]
+    [clamp t= 0.85s] wall=  -0.77mm v= +13.36mm/s  본체면 잔여 +16.73mm  bag_com=[ 0.21302691 -0.00539762  0.09532237]
+    [clamp t= 1.02s] wall=  -2.12mm v= +16.01mm/s  본체면 잔여 +15.38mm  bag_com=[ 0.21307594 -0.00466934  0.09530362]
+    [clamp t= 1.19s] wall=  -3.47mm v= +18.67mm/s  본체면 잔여 +14.03mm  bag_com=[ 0.21313658 -0.00399521  0.09530035]
+    [clamp t= 1.36s] wall=  -4.81mm v= +21.37mm/s  본체면 잔여 +12.69mm  bag_com=[ 0.21318837 -0.00324088  0.09533211]
+    [clamp t= 1.53s] wall=  -6.16mm v= +24.04mm/s  본체면 잔여 +11.34mm  bag_com=[ 0.2132476  -0.00239043  0.09541218]
+    [clamp t= 1.70s] wall=  -7.51mm v= +26.04mm/s  본체면 잔여  +9.99mm  bag_com=[ 0.21333835 -0.00192318  0.09551114]
+    [clamp t= 1.87s] wall=  -8.81mm v= +37.35mm/s  본체면 잔여  +8.69mm  bag_com=[ 0.2133668  -0.00166045  0.0956078 ]
+    [clamp t= 2.04s] wall= -10.28mm v= +15.89mm/s  본체면 잔여  +7.22mm  bag_com=[ 0.21338354 -0.00148037  0.09575729]
+    [clamp t= 2.21s] wall= -11.78mm v= -11.85mm/s  본체면 잔여  +5.72mm  bag_com=[ 0.2134246  -0.00124647  0.09590136]
+    [clamp t= 2.38s] wall= -12.74mm v= -48.00mm/s  본체면 잔여  +4.76mm  bag_com=[ 0.21345918 -0.00097898  0.0960191 ]
+    [clamp t= 2.55s] wall= -12.78mm v= -56.50mm/s  본체면 잔여  +4.72mm  bag_com=[ 0.21346821 -0.00093589  0.09604677]
+    [clamp t= 2.72s] wall= -12.79mm v= -57.81mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.2134767  -0.00091687  0.09606927]
+    [clamp t= 2.89s] wall= -12.79mm v= -58.11mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.21348506 -0.0008982   0.09608392]
+    [clamp t= 3.06s] wall= -12.79mm v= -58.30mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.21349059 -0.00088501  0.09609197]
+    [clamp t= 3.23s] wall= -12.79mm v= -58.43mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.21349481 -0.00087518  0.09609818]
+    [clamp t= 3.40s] wall= -12.79mm v= -58.51mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.21349826 -0.00086904  0.09610377]
+    [clamp t= 3.57s] wall= -12.79mm v= -58.57mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.21350063 -0.00086552  0.09610873]
+    [clamp t= 3.74s] wall= -12.79mm v= -58.61mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.213502   -0.00086404  0.09611366]
+    [clamp t= 3.91s] wall= -12.79mm v= -58.66mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.21350308 -0.00086358  0.09611812]
+    [clamp t= 4.08s] wall= -12.79mm v= -58.71mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.21350357 -0.00086295  0.09612191]
+    [clamp t= 4.25s] wall= -12.79mm v= -58.76mm/s  본체면 잔여  +4.71mm  bag_com=[ 0.2135038  -0.00086271  0.09612515]
+[phase] clamp    @done  wall=-12.79mm  (잔여: 플랜지면 -0.29mm / 본체면 4.71mm)  bag_com=[ 0.21350397 -0.00086245  0.09612613]
+[clamp] 봉투 반력에 막혀 정지  (가드 -17.00mm, 최종 v=-58.77mm/s)
+    [hold2 k=   0] tablet_z=+nanmm bag_com=[ 0.21350408 -0.00086247  0.09612619]
+    [hold2 k=  40] tablet_z=+nanmm bag_com=[ 0.21350394 -0.00086166  0.09612917]
+    [hold2 k=  80] tablet_z=+nanmm bag_com=[ 0.21350354 -0.00086118  0.09613182]
+[phase] hold2    @done  bag_com=[ 0.2135035  -0.00086113  0.096133  ]  finger_z=0.1328  tablet_z=+nanmm  tilt=2.1deg  bag_bottom=0.0523
+
+[phase] 11 crush (2s, 400 step) — 크랭크 8.0 RPM (0.8378 rad/s) 연속 회전 ≈ 0.3 바퀴
+[ctrl] crank torque clip: ±12.5 N·m (docs/Crusher.md §2-2), kv=5000 — velocity 제어
+[crush] 시작 정제 크기 nan x nan x nan mm
+    [crush t=  0.0s] crank=    +0.0deg ( 0.02 RPM)  wall=-12.79mm  정제   nanx  nanx  nanmm
+    [crush t=  0.1s] crank=    +0.0deg ( 0.02 RPM)  wall=-12.79mm  정제   nanx  nanx  nanmm
+    [crush t=  0.1s] crank=    +0.0deg ( 0.02 RPM)  wall=-12.79mm  정제   nanx  nanx  nanmm
+    [crush t=  0.2s] crank=    +0.0deg ( 0.02 RPM)  wall=-12.79mm  정제   nanx  nanx  nanmm
+    [crush t=  0.3s] crank=    +0.0deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.3s] crank=    +0.0deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.4s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.5s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.5s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.6s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.7s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.7s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.8s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.8s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  0.9s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.0s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.0s] crank=    +0.1deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.1s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.2s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.2s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.3s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.4s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.4s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.5s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.6s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.6s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.7s] crank=    +0.2deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.8s] crank=    +0.3deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.8s] crank=    +0.3deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.9s] crank=    +0.3deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+    [crush t=  1.9s] crank=    +0.3deg ( 0.02 RPM)  wall=-12.80mm  정제   nanx  nanx  nanmm
+[phase] crush    @done  크랭크 +0.3deg (0.00 바퀴)  wall=-12.80mm
+[crush] 정제 nanxnanxnan -> nanxnanxnan mm  (변화 +nan/+nan/+nan)
+[crush] bag_com=[ 0.21350217 -0.00087449  0.09614974]  tilt=1.8deg  bag_bottom=0.0523
+
+[RESULT] GRIP_OFFSET_MM=-28mm  Y_OFFSET_MM=+0.0mm  verdict=PASS  (삽입 성공, 걸림/붕괴 없음)
+[RESULT] final_bottom_z=0.0523  wall_center_z=0.0510  오차=+1.3mm(+면 얕음/-면 깊음)
+[RESULT] width_y=15.7mm(baseline 14.9mm)  height_z=88.7mm(baseline 90.7mm)
+[SUMMARY] flange=ON mode=velocity v=8.0mm/s F=100N kp=5000 hold=1 wall=-12.79mm body_gap=+4.71mm stalled=Y drop=+0.1mm tilt=1.8deg width=15.7mm reach_err=+1.3mm verdict=PASS
+
+[saved] overview -> C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT_t_notab\grip-28mm\full_workflow_grip-28mm_yoff+0.0mm_20260831_155625_overview.mp4
+[saved] bagcam   -> C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT_t_notab\grip-28mm\full_workflow_grip-28mm_yoff+0.0mm_20260831_155625_bagcam.mp4
+[saved] sideview -> C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT_t_notab\grip-28mm\full_workflow_grip-28mm_yoff+0.0mm_20260831_155625_sideview.mp4
+
+[timing] build=10.7s  steps=197.6s (3292 steps, 60.0ms/step)  합계=208.2s
+완료.

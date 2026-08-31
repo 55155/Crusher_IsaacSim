@@ -1,0 +1,71 @@
+총 10개 런, 레인 2개
+
+[run ] F2_A10  힘=2.0N  armature=10.0kg
+[run ] F5_A10  힘=5.0N  armature=10.0kg
+[done] F2_A10 -> rc=1
+[run ] F10_A10  힘=10.0N  armature=10.0kg
+[done] F5_A10 -> OK
+[run ] F20_A10  힘=20.0N  armature=10.0kg
+[done] F20_A10 -> OK
+[run ] F40_A10  힘=40.0N  armature=10.0kg
+[done] F10_A10 -> rc=1
+[run ] F2_A100  힘=2.0N  armature=100.0kg
+[done] F2_A100 -> OK
+[run ] F5_A100  힘=5.0N  armature=100.0kg
+[done] F40_A10 -> rc=1
+[run ] F10_A100  힘=10.0N  armature=100.0kg
+[done] F5_A100 -> OK
+[run ] F20_A100  힘=20.0N  armature=100.0kg
+[done] F10_A100 -> OK
+[run ] F40_A100  힘=40.0N  armature=100.0kg
+[done] F40_A100 -> OK
+[done] F20_A100 -> OK
+
+================================================================================================
+런              힘(N)  armature        벽 정지     본체면  stalled    drop   판정
+------------------------------------------------------------------------------------------------
+F2_A10                          실패 (로그 확인: SWEEP_FORCE/F2_A10.log)
+F5_A10            5        10    -16.92mm +0.58mm        N  +0.0mm   PASS
+F10_A10                         실패 (로그 확인: SWEEP_FORCE/F10_A10.log)
+F20_A10          20        10    -16.41mm +1.09mm        N  -0.0mm   PASS
+F40_A10                         실패 (로그 확인: SWEEP_FORCE/F40_A10.log)
+F2_A100           2       100    -16.65mm +0.85mm        N  +0.1mm   PASS
+F5_A100           5       100    -16.65mm +0.85mm        N  +0.1mm   PASS
+F10_A100         10       100    -16.66mm +0.84mm        N  +0.1mm   PASS
+F20_A100         20       100    -16.71mm +0.79mm        N  +0.1mm   PASS
+F40_A100         40       100    -16.81mm +0.69mm        N  +0.1mm   PASS
+================================================================================================
+성립 기준: stalled=Y (하드스톱 전 자력 정지) + drop ~ 0
+그 정지 위치가 실효 압착 두께, 그때의 힘이 필요 압착력이다.
+
+영상:
+  RESULT_F2_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_180323_bagcam.mp4
+  RESULT_F2_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_180323_overview.mp4
+  RESULT_F2_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_180323_sideview.mp4
+  RESULT_F5_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_180323_bagcam.mp4
+  RESULT_F5_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_180323_overview.mp4
+  RESULT_F5_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_180323_sideview.mp4
+  RESULT_F10_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_181150_bagcam.mp4
+  RESULT_F10_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_181150_overview.mp4
+  RESULT_F10_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_181150_sideview.mp4
+  RESULT_F20_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_181201_bagcam.mp4
+  RESULT_F20_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_181201_overview.mp4
+  RESULT_F20_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_181201_sideview.mp4
+  RESULT_F40_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182050_bagcam.mp4
+  RESULT_F40_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182050_overview.mp4
+  RESULT_F40_A10/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182050_sideview.mp4
+  RESULT_F2_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182053_bagcam.mp4
+  RESULT_F2_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182053_overview.mp4
+  RESULT_F2_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182053_sideview.mp4
+  RESULT_F5_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182746_bagcam.mp4
+  RESULT_F5_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182746_overview.mp4
+  RESULT_F5_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_182746_sideview.mp4
+  RESULT_F10_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183014_bagcam.mp4
+  RESULT_F10_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183014_overview.mp4
+  RESULT_F10_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183014_sideview.mp4
+  RESULT_F20_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183613_bagcam.mp4
+  RESULT_F20_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183613_overview.mp4
+  RESULT_F20_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183613_sideview.mp4
+  RESULT_F40_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183659_bagcam.mp4
+  RESULT_F40_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183659_overview.mp4
+  RESULT_F40_A100/grip-28mm/full_workflow_grip-28mm_yoff+0.0mm_20260831_183659_sideview.mp4
