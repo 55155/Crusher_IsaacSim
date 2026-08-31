@@ -48,10 +48,20 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "SWEEP_RECOVER")
 PY = sys.executable
 
-CLEAR_Z = [20, 40, 60, 90]      # mm, 턱 상단 위 여유
-WAYS = [9, 21]                  # 하강 웨이포인트 수
+# **[수정 2026-09-01] 축을 도달 가능한 범위로 다시 잡았다.**
+# "턱을 완전히 넘겨서 떨군다"는 접근은 이 배치에서 성립하지 않는다 — 봉투가
+# 핑거 아래 82mm 에 매달리는데 턱 상단이 0.3005 라 핑거가 0.3825 이상이어야
+# 하고, 그 (x,y) 에서 팔이 닿는 높이는 0.40 언저리다. 여유가 20mm 뿐이다.
+#     CLEAR_Z=20 -> 진입 z=0.4025, IK 오차  5.3mm
+#     CLEAR_Z=40 -> 진입 z=0.4225, IK 오차 17.2mm  (도달 불가)
+# 그래서 CLEAR_Z 는 끄고(0) **진입 고도 자체**를 도달 범위 안에서 훑는다.
+# 대신 yaw 를 축으로 넣는다 — ad_plan(135deg)은 tilt 2.0deg, ae_final(90deg)은
+# 29.6deg 였다. 실링 정렬은 90deg 가 맞지만 그 자세에서 왜 기우는지가 미해결이라,
+# 두 자세를 같은 조건에서 나란히 본다.
+APPROACH_H = [80, 100, 120]     # mm, 물림 자세 위로 얼마나 띄워 진입할 것인가
+WAYS = [9, 21]                  # 하강 카테시안 웨이포인트 수
 N_DOWN = [900, 1800]            # 하강 스텝
-SHAFT = ["set", "control"]      # 샤프트 구동 방식(사용자 지시로 축에 추가)
+YAW = [90, 135]                 # 실링 정렬(90) vs 저 tilt 로 알려진 자세(135)
 
 BASE = dict(
     RECOVER="1",
@@ -59,21 +69,23 @@ BASE = dict(
     NO_VIDEO="1",               # 수치만 본다. 이긴 설정만 나중에 영상으로 다시.
     N_RC_SETTLE="150",          # 정착은 효과가 없었다 — 원래대로 줄인다
     N_RC_STILL="150",
+    RECOVER_CLEAR_Z_MM="0",     # 턱 상단 역산은 끈다(도달 불가) — APPROACH_H 로 훑는다
+    RECOVER_REACH_TOL_MM="15",  # 넘으면 이송을 건너뛰고 로그에 남는다
 )
 
 
 def run_one(job):
-    cz, wy, nd, sm = job
-    name = f"CZ{cz}_W{wy}_D{nd}_{sm}"
+    cz, wy, nd, yw = job
+    name = f"H{cz}_W{wy}_D{nd}_Y{yw}"
     log = os.path.join(OUT, f"{name}.log")
     if os.path.exists(log) and "[recover] **" in open(log, encoding="utf-8",
                                                       errors="replace").read():
         print(f"[skip] {name}", flush=True)
-        return name, cz, wy, nd, sm, None
+        return name, cz, wy, nd, yw, None
     env = dict(os.environ, **BASE, RUN_TAG=name,
-               RECOVER_CLEAR_Z_MM=str(cz), RECOVER_DOWN_WAYS=str(wy),
-               N_RC_DOWN=str(nd), RC_SHAFT_MODE=sm)
-    print(f"[run ] {name}  여유={cz}mm  ways={wy}  하강={nd}  샤프트={sm}", flush=True)
+               RECOVER_APPROACH_H_MM=str(cz), RECOVER_DOWN_WAYS=str(wy),
+               N_RC_DOWN=str(nd), RC_WRIST_DEG=str(yw), RC_SHAFT_MODE="set")
+    print(f"[run ] {name}  진입={cz}mm  ways={wy}  하강={nd}  yaw={yw}", flush=True)
     with open(log, "w", encoding="utf-8") as f:
         subprocess.run([PY, "-u", os.path.join(HERE, "full_workflow.py")],
                        env=env, stdout=f, stderr=subprocess.STDOUT)
@@ -84,6 +96,10 @@ def run_one(job):
     if m:
         g["err"], g["bot"], g["tilt"] = (float(m.group(1)), float(m.group(2)),
                                         float(m.group(3)))
+    if "도달 불가" in txt:
+        g["skip"] = "도달불가"
+    if "봉투 발산" in txt:
+        g["skip"] = "발산"
     d = re.search(r"해제 후 낙하 ([-+\d.]+)mm", txt)
     if d:
         g["drop"] = float(d.group(1))
@@ -91,7 +107,7 @@ def run_one(job):
     if t:
         g["tgt"] = float(t.group(1))
     print(f"[done] {name} -> {g if g else '실패'}", flush=True)
-    return name, cz, wy, nd, sm, (g or None)
+    return name, cz, wy, nd, yw, (g or None)
 
 
 def main():
@@ -99,24 +115,24 @@ def main():
     ap.add_argument("--lanes", type=int, default=2)
     args = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
-    jobs = [(cz, wy, nd, sm) for cz in CLEAR_Z for wy in WAYS
-            for nd in N_DOWN for sm in SHAFT]
+    jobs = [(cz, wy, nd, yw) for cz in APPROACH_H for wy in WAYS
+            for nd in N_DOWN for yw in YAW]
     print(f"총 {len(jobs)}개 런, 레인 {min(args.lanes, 2)}개\n")
     with ThreadPoolExecutor(max_workers=min(args.lanes, 2)) as ex:
         res = list(ex.map(run_one, jobs))
 
     print("\n" + "=" * 84)
-    print(f"{'런':26s}{'여유':>6}{'ways':>6}{'하강':>7}{'샤프트':>9}   "
+    print(f"{'런':26s}{'진입':>6}{'ways':>6}{'하강':>7}{'yaw':>6}   "
           f"{'tilt':>8}{'수평오차':>10}{'낙하':>8}{'하단오차':>10}")
     print("-" * 84)
     ok = []
-    for name, cz, wy, nd, sm, g in res:
+    for name, cz, wy, nd, yw, g in res:
         if not g:
-            print(f"{name:26s}{cz:>6}{wy:>6}{nd:>7}{sm:>9}   실패 "
+            print(f"{name:26s}{cz:>6}{wy:>6}{nd:>7}{yw:>6}   실패/생략 "
                   f"(SWEEP_RECOVER/{name}.log)")
             continue
         bot_err = (g.get("bot", float("nan")) - g.get("tgt", float("nan"))) * 1000
-        print(f"{name:26s}{cz:>6}{wy:>6}{nd:>7}{sm:>9}   "
+        print(f"{name:26s}{cz:>6}{wy:>6}{nd:>7}{yw:>6}   "
               f"{g.get('tilt', float('nan')):>7.1f}°{g.get('err', float('nan')):>9.1f}mm"
               f"{g.get('drop', float('nan')):>7.1f}mm{bot_err:>9.1f}mm")
         ok.append((g.get("tilt", 1e9), g.get("err", 1e9), name))
@@ -127,9 +143,9 @@ def main():
         print("설계 여유가 실링당 4.5mm 이므로 수평오차는 그 이하가 목표다.")
         print(f"\n이긴 설정으로 영상 런:")
         n = ok[0][2]
-        cz, wy, nd, sm = re.match(r"CZ(\d+)_W(\d+)_D(\d+)_(\w+)", n).groups()
-        print(f"  RUN_TAG=best RECOVER=1 CRUSH_SECONDS=15 RECOVER_CLEAR_Z_MM={cz} "
-              f"RECOVER_DOWN_WAYS={wy} N_RC_DOWN={nd} RC_SHAFT_MODE={sm} "
+        cz, wy, nd, yw = re.match(r"H(\d+)_W(\d+)_D(\d+)_Y(\d+)", n).groups()
+        print(f"  RUN_TAG=best RECOVER=1 CRUSH_SECONDS=15 RECOVER_APPROACH_H_MM={cz} "
+              f"RECOVER_DOWN_WAYS={wy} N_RC_DOWN={nd} RC_WRIST_DEG={yw} "
               f"python full_workflow.py")
 
 

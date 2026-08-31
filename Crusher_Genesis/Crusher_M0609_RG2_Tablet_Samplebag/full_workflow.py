@@ -497,7 +497,8 @@ RECOVER_REACH_TOL = float(os.environ.get("RECOVER_REACH_TOL_MM", "15.0")) * 1e-3
 # 하강 전 정착을 늘리고(150 -> 600) 하강 자체를 느리게 한다(300 -> 900).
 # 팔은 그 구간 정지 상태이므로 늘어난 스텝은 전부 봉투가 가라앉는 데 쓰인다
 # (§14 의 above/aboveset 에서 이미 쓴 처방과 같다).
-N_UNCLAMP, N_EXTRACT, N_TO_RC = 200, 300, 600
+N_UNCLAMP, N_EXTRACT = 200, 300
+N_TO_RC = int(os.environ.get("N_TO_RC", "1800"))
 N_RC_SETTLE = int(os.environ.get("N_RC_SETTLE", "600"))
 N_RC_DOWN = int(os.environ.get("N_RC_DOWN", "900"))
 N_RC_STILL = int(os.environ.get("N_RC_STILL", "400"))
@@ -547,6 +548,12 @@ RECOVER_CLEAR_Z = float(os.environ.get("RECOVER_CLEAR_Z_MM", "40.0")) * 1e-3
 # 턱 사이 하강을 **카테시안 웨이포인트**로 쪼갠다. 관절각 직선보간은 중간에서
 # 수평으로 부풀어 턱을 스친다(슬롯 삽입에서 이미 겪은 것 — §14, dy +9.67mm).
 RECOVER_DOWN_WAYS = int(os.environ.get("RECOVER_DOWN_WAYS", "9"))
+# plan_path 가 돌려줄 웨이포인트 수. N_TO_RC 보다 **충분히 작아야** 보간이 일어난다.
+RC_PLAN_WAYS = int(os.environ.get("RC_PLAN_WAYS", "120"))
+
+# 분쇄 중 벽을 N 스텝마다 set 으로 되돌린다(0=끔). §21-9 의 벽 파고듦과 §21 의
+# "set 을 매 스텝 주면 크랭크가 죽는다" 사이의 절충을 찾기 위한 축이다.
+CRUSH_WALL_SET_EVERY = int(os.environ.get("CRUSH_WALL_SET_EVERY", "0"))
 
 CRUSH_SECONDS = float(os.environ.get("CRUSH_SECONDS", "0"))
 CRUSH_RENDER_EVERY = int(os.environ.get("CRUSH_RENDER_EVERY", "10"))
@@ -2306,6 +2313,15 @@ def main(use_viewer: bool = False):
             # 압착(clamp)은 여전히 set 이 필요하지만(힘제어는 §20-2 관통), 분쇄
             # 구간의 벽은 **이미 도달한 위치를 유지만** 하면 되므로 힘제어로 족하다.
             crusher.control_dofs_position(np.array([wall_hold]), dofs_idx_local=[wall_dof])
+            # 힘제어만으로는 유지가 안 된다 — 분쇄 중 벽이 -12.21 -> -16.97mm 로
+            # 파고든다(§21-9). 그렇다고 매 스텝 set 을 주면 크랭크가 죽는다(§21).
+            # 절충: **N 스텝에 한 번만** set 으로 제자리에 되돌린다. 사용자가
+            # "set 지령은 한 번만"이라고 짚은 방향이다 — 구속 솔버 리셋이 1/N 로
+            # 줄면 크랭크는 그 사이에 웜스타트를 회복할 수 있다.
+            # 0 이면 끈다(기본). 스윕으로 N 을 정한다.
+            if CRUSH_WALL_SET_EVERY and k % CRUSH_WALL_SET_EVERY == 0:
+                crusher.set_dofs_position(np.array([wall_hold]), dofs_idx_local=[wall_dof])
+                crusher.set_dofs_velocity(velocity=None, dofs_idx_local=[wall_dof])
             scene.step()
             _step_n[0] += 1
             if k % CRUSH_RENDER_EVERY == 0:
@@ -2450,20 +2466,36 @@ def main(use_viewer: bool = False):
         else:
             # 1) 벽 개방: 봉투를 놓아주지 않으면 뽑을 수 없다. 여는 방향은 되돌리는
             #    것이라 set 이 아니라 힘제어로 충분하다(§20 의 관통은 닫을 때 문제).
+            # **램프 기점은 _wall_hold 가 아니라 실제 벽 위치여야 한다**
+            # (2026-09-01, §21-9). 분쇄 중 벽이 지령보다 더 파고들면
+            # (-12.21 -> -16.97mm 실측) _wall_hold 기점 램프는 이미 지나온 구간을
+            # 다시 훑는 꼴이라, 박힌 벽에 열림 지령이 사실상 안 나갔다.
+            _w0 = float(_npy(crusher.get_dofs_position())[wall_dof])
             print(f"\n[phase] 12a unclamp ({N_UNCLAMP*DT:.1f}s) — Left_Wall "
-                  f"{_wall_hold*1000:+.2f} -> {WALL_OFFSET*1000:+.1f}mm")
+                  f"{_w0*1000:+.2f} -> {WALL_OFFSET*1000:+.1f}mm "
+                  f"(지령이던 곳 {_wall_hold*1000:+.2f})")
             for k in range(N_UNCLAMP):
                 s = ease((k + 1) / N_UNCLAMP)
                 crusher.control_dofs_position(
-                    np.array([_wall_hold + (WALL_OFFSET - _wall_hold) * s]),
+                    np.array([_w0 + (WALL_OFFSET - _w0) * s]),
                     dofs_idx_local=[wall_dof])
                 crusher.control_dofs_velocity(np.array([0.0]), dofs_idx_local=[crank_dof])
                 robot.set_dofs_position(np.concatenate([qpos_insert, [FING_CLOSE] * 6]))
                 scene.step()
                 _step_n[0] += 1
                 render_cams()
-            print(f"[phase] unclamp  @done  wall={_npy(crusher.get_dofs_position())[wall_dof]*1e3:+.2f}mm "
-                  f"bag_com={_bag_com()}")
+            _w1 = float(_npy(crusher.get_dofs_position())[wall_dof])
+            print(f"[phase] unclamp  @done  wall={_w1*1e3:+.2f}mm "
+                  f"(열린 양 {(_w1-_w0)*1e3:+.2f}mm)  bag_com={_bag_com()}")
+            # 벽이 실제로 열렸는지 확인한다. 안 열린 채 인출하면 봉투가 슬롯에
+            # 물린 채 팔만 올라가고, 이후 전부 허공에서 진행된다(§21-9).
+            # 봉투 두께(실효 5mm)만큼은 벌어져야 빠져나올 수 있다.
+            if _w1 < _w0 + 0.005:
+                raise RuntimeError(
+                    f"[recover] Left_Wall 이 안 열렸다 — {_w0*1e3:+.2f} -> "
+                    f"{_w1*1e3:+.2f}mm (열린 양 {(_w1-_w0)*1e3:+.2f}mm, 목표 "
+                    f"{WALL_OFFSET*1e3:+.1f}mm). 분쇄 중 벽이 더 파고들어 "
+                    f"힘제어로 못 빼내는 상태다. §21-9 참고.")
 
             # 2) 슬롯에서 수직 인출 — 삽입 웨이포인트를 그대로 역주행한다.
             q_up = solve_descent_waypoints(robot, left_link, target_xy,
@@ -2504,10 +2536,14 @@ def main(use_viewer: bool = False):
                 # 팔 6축만 계획한다 — 핑거는 파지 유지라 고정이다.
                 robot.set_dofs_position(np.concatenate([q_up[-1], [FING_CLOSE] * 6]))
                 try:
+                    # **웨이포인트 수 < 스텝 수** 여야 한다. 같으면 run_arm_path 가
+                    # 스텝당 웨이포인트를 하나씩 건너뛰어 보간이 안 일어나고,
+                    # RRT 경로가 길면 한 스텝의 관절 이동이 커져 봉투가 뜯긴다
+                    # (실측: 진입 고도를 올리자 핑거가 z=1.23m 로 튀고 FEM 발산).
                     _path = _npy(robot.plan_path(
                         qpos_goal=np.concatenate([q_rc_above, [FING_CLOSE] * 6]),
                         qpos_start=np.concatenate([q_up[-1], [FING_CLOSE] * 6]),
-                        num_waypoints=N_TO_RC, smooth_path=True,
+                        num_waypoints=RC_PLAN_WAYS, smooth_path=True,
                         ignore_collision=False, planner="RRTConnect"))
                     _way = [w[:6] for w in _path]
                     print(f"[recover] plan_path(RRTConnect) 성공 — 웨이포인트 "
@@ -2532,6 +2568,14 @@ def main(use_viewer: bool = False):
                          wall_q=WALL_OFFSET, trace=True)
             run_arm("rcset", q_rc_above, q_rc_above, FING_CLOSE, FING_CLOSE,
                     N_RC_SETTLE, wall_q=WALL_OFFSET)
+            # 이송 중 FEM 발산을 여기서 잡는다 — 놔두면 이후 수치가 전부 쓰레기가
+            # 되고(실측: 수평오차 64,759mm) 스윕 표에 그대로 들어간다.
+            _bc = np.asarray(_bag_com(), dtype=float)
+            if not np.all(np.isfinite(_bc)) or np.max(np.abs(_bc)) > 3.0:
+                raise RuntimeError(
+                    f"[recover] 이송 중 봉투 발산 — bag_com={_bc}. "
+                    f"plan_path 웨이포인트({RC_PLAN_WAYS})가 이송 스텝({N_TO_RC})에 비해 "
+                    f"많으면 스텝당 관절 이동이 커져 봉투가 뜯긴다.")
 
             # 4) 턱 사이로 수직 하강 — 봉투 하단이 F_Top 에 RC_BITE_DEPTH 만큼 걸친다.
             # 턱 사이 하강 — **카테시안 웨이포인트**로 쪼갠다. z 만 내려가는
