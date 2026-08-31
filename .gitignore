@@ -20,3 +20,8 @@ Thumbs.db
 
 # 스윕 런별 중간 산출물 — RUN_TAG 로 분리된 임시 디렉터리(런당 약 100KB, 재생성 가능)
 Crusher_Genesis/Crusher_M0609_RG2_Tablet_Samplebag/RESULT_*/
+
+# 오늘자 기준선 영상은 로컬 보관만 한다(2026-08-31, 사용자 지시) — 런당 20~35MB
+Crusher_Genesis/Crusher_M0609_RG2_Tablet_Samplebag/RESULT/grip-28mm/*_v_fix.mp4
+Crusher_Genesis/Crusher_M0609_RG2_Tablet_Samplebag/RESULT/grip-28mm/*_ad_plan.mp4
+Crusher_Genesis/Crusher_M0609_RG2_Tablet_Samplebag/RESULT/grip-28mm/*_af_default.mp4

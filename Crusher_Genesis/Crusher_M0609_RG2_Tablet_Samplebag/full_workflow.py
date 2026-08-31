@@ -261,7 +261,19 @@ LEFTWALL_FLANGE_MESH = "L2_Left_Wall_flange"
 # §20-3 이 이미 "기본값을 켬으로 되돌리는 것이 맞다"고 적어뒀는데 LAYOUT_FROM_STEP
 # 이 기본 1로 승격되면서 결과적으로 꺼진 상태가 됐다 — 그것을 바로잡는다.
 # 실측 대조(오늘): ON 이면 벽이 -12.79mm 에 서고, OFF 면 -14.53mm 까지 들어간다.
-LEFTWALL_FLANGE_CONTACT = os.environ.get("LEFTWALL_FLANGE_CONTACT", "1") == "1"
+#
+# **[임시로 0 으로 되돌림 2026-08-31] 압착은 ON 이 옳지만 그 뒤 구간이 깨진다.**
+# ON 으로 전 시퀀스를 돌리면 봉투가 크러셔에서 안 빠져나온다(§21-9):
+#     clamp   wall=-12.21mm   의도대로
+#     crush   wall=-16.97mm   분쇄 중 4.76mm 더 파고듦
+#     unclamp wall=-16.82mm   +6mm 지령인데 0.15mm 밖에 안 열림
+#     extract 봉투가 안 따라 나옴 -> 이송 수평오차 396.7mm
+# 원인 둘이 겹쳤다 — (1) 분쇄 구간이 벽 위치를 유지 못 한다(§21-4 미확정 자리),
+# (2) unclamp 가 실제 위치가 아니라 _wall_hold 에서 램프를 시작해 박힌 벽에
+# 열 지령이 안 나간다. 둘 다 고쳐야 ON 으로 갈 수 있다.
+# **회수장치 투입 공정이 1순위**라(§21-8) 그 작업을 막지 않도록 잠시 0 으로 둔다.
+# 이건 §20-3 의 결론을 뒤집는 것이 아니라 **작업 순서상의 임시 조치**다.
+LEFTWALL_FLANGE_CONTACT = os.environ.get("LEFTWALL_FLANGE_CONTACT", "0") == "1"
 LEFTWALL_BODY_HULL_N = 5
 LEFTWALL_BODY_HULLS = [f"L2_Left_Wall_body_hull_{i:03d}" for i in range(LEFTWALL_BODY_HULL_N)]
 if LEFTWALL_SPLIT and LEFTWALL_CLAMP_FACE:
@@ -479,8 +491,17 @@ WALL_PUSH_N = float(os.environ.get("WALL_PUSH_N", "10.0"))
 RECOVER = os.environ.get("RECOVER", "0") == "1"
 RECOVER_APPROACH_H = float(os.environ.get("RECOVER_APPROACH_H_MM", "80.0")) * 1e-3
 RECOVER_REACH_TOL = float(os.environ.get("RECOVER_REACH_TOL_MM", "15.0")) * 1e-3
-N_UNCLAMP, N_EXTRACT, N_TO_RC, N_RC_SETTLE = 200, 300, 600, 150
-N_RC_DOWN, N_RC_LOCK, N_RC_REL = 300, 400, 150
+# N_RC_SETTLE / N_RC_DOWN 은 **투입 자세를 잡는 손잡이**다(2026-08-31).
+# yaw 를 135도(도달오차 최소)에서 90도(실링 정렬)로 바꾸자 tilt 가 2.0 -> 29.6deg
+# 로 나빠졌다. 실링 정렬은 포기할 수 없으므로 흔들림을 시간으로 죽인다 —
+# 하강 전 정착을 늘리고(150 -> 600) 하강 자체를 느리게 한다(300 -> 900).
+# 팔은 그 구간 정지 상태이므로 늘어난 스텝은 전부 봉투가 가라앉는 데 쓰인다
+# (§14 의 above/aboveset 에서 이미 쓴 처방과 같다).
+N_UNCLAMP, N_EXTRACT, N_TO_RC = 200, 300, 600
+N_RC_SETTLE = int(os.environ.get("N_RC_SETTLE", "600"))
+N_RC_DOWN = int(os.environ.get("N_RC_DOWN", "900"))
+N_RC_STILL = int(os.environ.get("N_RC_STILL", "400"))
+N_RC_LOCK, N_RC_REL = 400, 150
 
 # 회수장치 샤프트(`회전_31`). recovery2_only.py 실측: 슬라이더 0 -> +35mm(q=pi)
 # -> 0 의 왕복이라 **q=0/2pi 가 닫힘, q=pi 가 열림**이다(사용자 확인 2026-08-31).
@@ -489,6 +510,16 @@ N_RC_DOWN, N_RC_LOCK, N_RC_REL = 300, 400, 150
 # 증가라 라쳇과 모순되지 않는다.
 RC_SHAFT_JOINT = "회전_31"
 RC_OPEN_Q, RC_CLOSE_Q = np.pi, 2 * np.pi
+# 샤프트 구동 방식(2026-08-31, 사용자 지시로 스윕 축에 추가).
+#   set     : 매 스텝 위치를 써넣는다. 지금까지 유일하게 성립한 방식.
+#   control : PD 힘제어. 게인 없이 주면 33,153deg(92바퀴) 폭주했으므로 게인과
+#             토크 상한을 같이 걸어야 한다 — 그래도 되는지가 이 축의 질문이다.
+# 크러셔에서 배운 것이 여기에도 걸린다: 같은 엔티티에서 set 과 control 을 섞으면
+# control 쪽이 죽는다(§21). 회수장치는 샤프트 하나만 구동하므로 섞일 일은 없다.
+RC_SHAFT_MODE = os.environ.get("RC_SHAFT_MODE", "set")
+RC_SHAFT_KP = float(os.environ.get("RC_SHAFT_KP", "2000.0"))
+RC_SHAFT_KV = float(os.environ.get("RC_SHAFT_KV", "200.0"))
+RC_SHAFT_TORQUE = float(os.environ.get("RC_SHAFT_TORQUE_NM", "50.0"))
 # 봉투 배치(사용자 지시 2026-08-31): 하단 10mm 를 F_Top 에 걸치고, F_LeftLink /
 # F_RightLink 가 좌우 실링 바로 앞에 오게 한다.
 #   PLATE_TOP_Z = 58mm (F_Top/M_Top 상면) -> 봉투 하단 = 58 - 10 = 48mm
@@ -510,6 +541,12 @@ SUCTION_OPEN_M = float(os.environ.get("SUCTION_OPEN_MM", "-50.0")) * 1e-3
 USE_PLANNER = os.environ.get("USE_PLANNER", "1") == "1"
 # 크러셔 위를 지나 반대편으로 가므로 경유점을 이만큼 더 띄운다(프레임 회피).
 RECOVER_CLEAR_H = float(os.environ.get("RECOVER_CLEAR_H_MM", "120.0")) * 1e-3
+# 진입 고도에서 **봉투 하단이 턱 상단보다 이만큼 위**에 있어야 한다. 고정
+# 오프셋으로는 부족해 이송 중 봉투가 F/M 링크를 쓸었다(사용자 지적 2026-08-31).
+RECOVER_CLEAR_Z = float(os.environ.get("RECOVER_CLEAR_Z_MM", "40.0")) * 1e-3
+# 턱 사이 하강을 **카테시안 웨이포인트**로 쪼갠다. 관절각 직선보간은 중간에서
+# 수평으로 부풀어 턱을 스친다(슬롯 삽입에서 이미 겪은 것 — §14, dy +9.67mm).
+RECOVER_DOWN_WAYS = int(os.environ.get("RECOVER_DOWN_WAYS", "9"))
 
 CRUSH_SECONDS = float(os.environ.get("CRUSH_SECONDS", "0"))
 CRUSH_RENDER_EVERY = int(os.environ.get("CRUSH_RENDER_EVERY", "10"))
@@ -1649,7 +1686,36 @@ def main(use_viewer: bool = False):
         _ri = _rj.dofs_idx_local
         rc_shaft_dof = _ri[0] if isinstance(_ri, (list, tuple, np.ndarray)) else _ri
         print(f"[recover] 샤프트 '{RC_SHAFT_JOINT}' dof={rc_shaft_dof} "
-              f"(q=0 닫힘 / q=pi 열림, 라쳇 때문에 닫을 땐 pi->2pi)")
+              f"(q=0 닫힘 / q=pi 열림, 라쳇 때문에 닫을 땐 pi->2pi)  "
+              f"mode={RC_SHAFT_MODE}")
+        if RC_SHAFT_MODE == "control":
+            # 게인 없이 control 을 주면 폭주한다(실측 33,153deg). 크랭크에 쓴 것과
+            # 같은 처방 — PD 게인 + force_range 로 실기 모터 한계를 모사한다.
+            recovery.set_dofs_kp(np.array([RC_SHAFT_KP]), dofs_idx_local=[rc_shaft_dof])
+            recovery.set_dofs_kv(np.array([RC_SHAFT_KV]), dofs_idx_local=[rc_shaft_dof])
+            _rf = np.full(recovery.n_dofs, np.inf)
+            recovery.set_dofs_force_range(lower=-_rf, upper=_rf)
+            _rfmin = np.full(recovery.n_dofs, -np.inf)
+            _rfmax = np.full(recovery.n_dofs, np.inf)
+            _rfmin[rc_shaft_dof], _rfmax[rc_shaft_dof] = -RC_SHAFT_TORQUE, RC_SHAFT_TORQUE
+            recovery.set_dofs_force_range(lower=_rfmin, upper=_rfmax)
+            print(f"[recover] 샤프트 PD kp={RC_SHAFT_KP:.0f} kv={RC_SHAFT_KV:.0f} "
+                  f"토크 ±{RC_SHAFT_TORQUE:.0f} N·m")
+
+    # 샤프트 유지 목표. prep 이 열고, rclock 이 닫는다. 그 사이 전 구간에서
+    # run_arm 이 매 스텝 이 값을 다시 지령한다 — control 모드는 지령을 끊으면
+    # 유지가 안 되기 때문이다(set 모드는 무해).
+    _rc_hold = [0.0]
+
+    def _rc_drive(q):
+        """샤프트를 mode 에 따라 구동. set 이면 속도도 같이 지운다(§21-5a)."""
+        if rc_shaft_dof is None:
+            return
+        if RC_SHAFT_MODE == "control":
+            recovery.control_dofs_position(np.array([q]), dofs_idx_local=[rc_shaft_dof])
+        else:
+            recovery.set_dofs_position(np.array([q]), dofs_idx_local=[rc_shaft_dof])
+            recovery.set_dofs_velocity(velocity=None, dofs_idx_local=[rc_shaft_dof])
     crusher.set_dofs_kp(np.array([CRANK_KP]), dofs_idx_local=[crank_dof])
     crusher.set_dofs_kv(np.array([CRANK_KV]), dofs_idx_local=[crank_dof])
     crusher.set_dofs_kp(np.array([WALL_KP]), dofs_idx_local=[wall_dof])
@@ -1764,6 +1830,7 @@ def main(use_viewer: bool = False):
             q = q0 + (q1 - q0) * s
             f = f0 + (f1 - f0) * s
             robot.set_dofs_position(np.concatenate([q, [f] * 6]))
+            _rc_drive(_rc_hold[0])
             if crank_q is not None:
                 crusher.control_dofs_position(np.array([crank_q]), dofs_idx_local=[crank_dof])
             if wall_q is not None:
@@ -1793,6 +1860,7 @@ def main(use_viewer: bool = False):
             i = min(int(u), m - 1)
             q = q_way[i] + (q_way[i + 1] - q_way[i]) * (u - i)
             robot.set_dofs_position(np.concatenate([q, [f] * 6]))
+            _rc_drive(_rc_hold[0])
             if crank_q is not None:
                 crusher.control_dofs_position(np.array([crank_q]), dofs_idx_local=[crank_dof])
             if wall_q is not None:
@@ -1817,16 +1885,10 @@ def main(use_viewer: bool = False):
         s = (k + 1) / N_PREP
         crusher.control_dofs_position(np.array([CRANK_START_Q * s]), dofs_idx_local=[crank_dof])
         crusher.control_dofs_position(np.array([WALL_OFFSET * s]), dofs_idx_local=[wall_dof])
-        if rc_shaft_dof is not None:
-            # 회수장치는 **열린 상태로 시작해야 한다**(사용자 지시). MJCF qpos0 은
-            # q=0 = 닫힘이므로 prep 에서 pi(=열림)까지 올려 둔다.
-            # **기구학 구동이어야 한다** — 회수장치도 크러셔처럼 샤프트가 폐루프로
-            # 슬라이더를 미는 구조라, 게인 없이 control_dofs_position 을 주면
-            # 발산한다(실측: 180->360 지령에 33,153deg = 92바퀴 폭주).
-            # recovery2_bag_clamp.py 도 같은 이유로 set_dofs_position 을 쓴다.
-            recovery.set_dofs_position(np.array([RC_OPEN_Q * s]),
-                                       dofs_idx_local=[rc_shaft_dof])
-            recovery.set_dofs_velocity(velocity=None, dofs_idx_local=[rc_shaft_dof])
+        # 회수장치는 **열린 상태로 시작해야 한다**(사용자 지시). MJCF qpos0 이
+        # q=0 = 닫힘이므로 prep 에서 pi(=열림)까지 올려 둔다.
+        _rc_hold[0] = RC_OPEN_Q * s
+        _rc_drive(_rc_hold[0])
         robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN] * 6]))
         scene.step()
         _step_n[0] += 1
@@ -2286,7 +2348,18 @@ def main(use_viewer: bool = False):
         # 봉투 하단이 F_Top 상면보다 RC_BITE_DEPTH 만큼 **아래로** 내려가야 한다.
         rc_seal_z = RECOVERY2_POS[2] + RC_PLATE_TOP_Z - RC_BITE_DEPTH
         rc_finger_z = rc_seal_z + BAG_HANG_BELOW_FINGER
-        rc_above_z = rc_finger_z + RECOVER_APPROACH_H
+        # **진입 고도는 턱 상단에서 역산한다**(2026-08-31, 사용자 지적).
+        # 고정 오프셋(80mm)으로는 부족했다 — 진입 시 봉투 하단이 0.2805 로
+        # 턱 상단(0.3005)보다 20mm 아래라, 이송 중 봉투가 F/M 링크를 쓸고
+        # 지나갔다. tilt 가 extract 6.0deg -> toRC 30.5deg 로 커진 원인이
+        # 이송 속도가 아니라 이 간섭이다.
+        # 턱 z 대역은 로컬 48~148mm(네 링크 공통) -> 상단 world = POS_z + 0.148.
+        rc_jaw_top_z = RECOVERY2_POS[2] + 0.148
+        rc_above_z = max(rc_finger_z + RECOVER_APPROACH_H,
+                         rc_jaw_top_z + BAG_HANG_BELOW_FINGER + RECOVER_CLEAR_Z)
+        print(f"[recover] 턱 상단 z={rc_jaw_top_z:.4f} -> 진입 finger z={rc_above_z:.4f} "
+              f"(봉투 하단 {rc_above_z - BAG_HANG_BELOW_FINGER:.4f}, "
+              f"여유 {(rc_above_z - BAG_HANG_BELOW_FINGER - rc_jaw_top_z)*1e3:+.0f}mm)")
         # **손목을 90도 더 돌린다.** 크러셔에서는 봉투 폭이 world X 인데(슬롯
         # 길이축), 회수장치는 턱이 X 로 벌어지고 봉투 폭이 world Y 다. 같은
         # 자세로 가면 봉투가 턱 사이에 90도 어긋나 들어간다 — 앞선 IK 19mm
@@ -2395,8 +2468,24 @@ def main(use_viewer: bool = False):
             # 2) 슬롯에서 수직 인출 — 삽입 웨이포인트를 그대로 역주행한다.
             q_up = solve_descent_waypoints(robot, left_link, target_xy,
                                            insert_z, above_z)
+            _b_before = _bag_extent()[2]
             run_arm_path("extract", q_up, FING_CLOSE, N_EXTRACT,
                          crank_q=None, wall_q=WALL_OFFSET, trace=True)
+            # **봉투가 실제로 따라 나왔는지 확인한다.** 벽이 안 열리면 봉투가
+            # 슬롯에 물린 채 팔만 올라가고, 그 뒤 이송·잠금·해제가 전부 허공에서
+            # 진행된다 — 실측으로 수평오차 396.7mm 인데 verdict 는 PASS 였다
+            # (§21-9). 조용히 실패하느니 여기서 멈춘다.
+            _b_rise = (_bag_extent()[2] - _b_before) * 1000.0
+            _f_rise = (above_z - insert_z) * 1000.0
+            print(f"[recover] 인출 확인: 봉투 +{_b_rise:.1f}mm / 핑거 +{_f_rise:.1f}mm "
+                  f"({_b_rise / _f_rise * 100:.0f}%)")
+            if _b_rise < _f_rise * 0.5:
+                _wq_now = _npy(crusher.get_dofs_position())[wall_dof] * 1e3
+                raise RuntimeError(
+                    f"[recover] 봉투가 슬롯에서 안 빠졌다 — 핑거는 {_f_rise:.1f}mm "
+                    f"올라갔는데 봉투는 {_b_rise:.1f}mm 뿐이다. 벽이 안 열렸을 "
+                    f"가능성이 크다(현재 wall={_wq_now:+.2f}mm, 개방 목표 "
+                    f"{WALL_OFFSET*1e3:+.1f}mm). §21-9 참고.")
 
             # 3) 회수장치 상공으로 이송. 크러셔 위를 지나 반대편으로 가야 하므로
             #    **중간 경유점**을 하나 둔다 — 두 자세를 관절각으로 직접 보간하면
@@ -2445,8 +2534,22 @@ def main(use_viewer: bool = False):
                     N_RC_SETTLE, wall_q=WALL_OFFSET)
 
             # 4) 턱 사이로 수직 하강 — 봉투 하단이 F_Top 에 RC_BITE_DEPTH 만큼 걸친다.
-            run_arm("rcdown", q_rc_above, q_rc_down, FING_CLOSE, FING_CLOSE,
-                    N_RC_DOWN, wall_q=WALL_OFFSET, trace=True)
+            # 턱 사이 하강 — **카테시안 웨이포인트**로 쪼갠다. z 만 내려가는
+            # 자세를 단계마다 IK 로 풀어서, 중간에 수평으로 부풀어 턱을 스치는
+            # 것을 막는다(슬롯 삽입에서 쓴 solve_descent_waypoints 와 같은 처방).
+            _zs = np.linspace(rc_above_z, rc_finger_z, RECOVER_DOWN_WAYS)
+            _dw = [_ik(np.array([rc_x, rc_y, _z]), q_rc_quat) for _z in _zs]
+            _dw_err = max(_reach_err(_q, np.array([rc_x, rc_y, _z]))
+                          for _q, _z in zip(_dw, _zs))
+            print(f"[recover] 하강 웨이포인트 {RECOVER_DOWN_WAYS}개 "
+                  f"(z {rc_above_z:.4f} -> {rc_finger_z:.4f}), 최대 도달오차 "
+                  f"{_dw_err*1000:.1f}mm")
+            run_arm_path("rcdown", _dw, FING_CLOSE, N_RC_DOWN,
+                         wall_q=WALL_OFFSET, trace=True)
+            # 물리기 직전에 한 번 더 가라앉힌다 — 턱이 닫히는 순간의 자세가
+            # 그대로 고정되므로, 흔들리는 중에 물리면 그 각도로 굳는다.
+            run_arm("rcstill", q_rc_down, q_rc_down, FING_CLOSE, FING_CLOSE,
+                    N_RC_STILL, wall_q=WALL_OFFSET, trace=True)
             _bx, _by, _bz = _bag_com()
             print(f"[recover] 투입 완료  bag_com=({_bx:.4f}, {_by:.4f}, {_bz:.4f})  "
                   f"수평오차={np.hypot(_bx-rc_jaw_x, _by-rc_jaw_y)*1000:.1f}mm  "
@@ -2459,10 +2562,8 @@ def main(use_viewer: bool = False):
                   f"{np.degrees(RC_OPEN_Q):.0f} -> {np.degrees(RC_CLOSE_Q):.0f}deg (잠금)")
             for k in range(N_RC_LOCK):
                 s = ease((k + 1) / N_RC_LOCK)
-                recovery.set_dofs_position(
-                    np.array([RC_OPEN_Q + (RC_CLOSE_Q - RC_OPEN_Q) * s]),
-                    dofs_idx_local=[rc_shaft_dof])
-                recovery.set_dofs_velocity(velocity=None, dofs_idx_local=[rc_shaft_dof])
+                _rc_hold[0] = RC_OPEN_Q + (RC_CLOSE_Q - RC_OPEN_Q) * s
+                _rc_drive(_rc_hold[0])
                 robot.set_dofs_position(np.concatenate([q_rc_down, [FING_CLOSE] * 6]))
                 scene.step()
                 _step_n[0] += 1
