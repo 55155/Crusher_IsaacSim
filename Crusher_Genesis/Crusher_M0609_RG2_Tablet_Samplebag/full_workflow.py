@@ -544,7 +544,15 @@ USE_PLANNER = os.environ.get("USE_PLANNER", "1") == "1"
 RECOVER_CLEAR_H = float(os.environ.get("RECOVER_CLEAR_H_MM", "120.0")) * 1e-3
 # 진입 고도에서 **봉투 하단이 턱 상단보다 이만큼 위**에 있어야 한다. 고정
 # 오프셋으로는 부족해 이송 중 봉투가 F/M 링크를 쓸었다(사용자 지적 2026-08-31).
-RECOVER_CLEAR_Z = float(os.environ.get("RECOVER_CLEAR_Z_MM", "40.0")) * 1e-3
+# **[기본 0 으로 2026-09-01] 턱 상단 역산은 도달 불가라 폐기했다.**
+# 봉투가 핑거 아래 82mm 에 매달리는데 턱 상단이 0.3005 라 완전히 넘기려면 핑거가
+# 0.3825 이상이어야 하는데, 그 (x,y) 에서 팔이 닿는 높이가 0.40 언저리다.
+#     CLEAR_Z=20 -> 진입 z=0.4025, IK 오차  5.3mm
+#     CLEAR_Z=40 -> 진입 z=0.4225, IK 오차 17.2mm (도달 불가)
+# 그리고 애초에 넘길 필요가 없었다 — 봉투가 흔들린 진짜 원인은 진입 고도가 아니라
+# **이송 보간 비율**이었다(plan_path 600 웨이포인트 vs 600 스텝 = 보간 없음).
+# 그걸 고치자 진입 80mm 로도 tilt 7.3deg / 수평오차 4.4mm 가 나온다.
+RECOVER_CLEAR_Z = float(os.environ.get("RECOVER_CLEAR_Z_MM", "0.0")) * 1e-3
 # 턱 사이 하강을 **카테시안 웨이포인트**로 쪼갠다. 관절각 직선보간은 중간에서
 # 수평으로 부풀어 턱을 스친다(슬롯 삽입에서 이미 겪은 것 — §14, dy +9.67mm).
 RECOVER_DOWN_WAYS = int(os.environ.get("RECOVER_DOWN_WAYS", "9"))
