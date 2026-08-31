@@ -1,0 +1,53 @@
+run	status	secs	summary
+a1_base	OK	521	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-16.99mm body_gap=+0.51mm stalled=N drop=-27.5mm tilt=0.4deg width=24.5mm reach_err=-27.7mm verdict=FAIL
+b1_flangeON	STALL	1501	clamp 마지막 관측: [clamp t= 2.04s] wall=  -9.05mm v= -25.95mm/s  본체면 잔여  +8.45mm  bag_com=[ 0.1852365  -0.00222804  0.09541604]
+a2_F200	OK	1054	flange=OFF mode=velocity v=8.0mm/s F=200N kp=5000 hold=0 wall=-16.99mm body_gap=+0.51mm stalled=N drop=-26.7mm tilt=1.5deg width=23.4mm reach_err=-26.9mm verdict=FAIL
+a3_F400	OK	457	flange=OFF mode=velocity v=8.0mm/s F=400N kp=5000 hold=0 wall=-16.99mm body_gap=+0.51mm stalled=N drop=-26.6mm tilt=2.5deg width=27.8mm reach_err=-26.9mm verdict=FAIL
+b2_v2	OK	686	flange=OFF mode=velocity v=2.0mm/s F=100N kp=5000 hold=0 wall=-16.99mm body_gap=+0.51mm stalled=N drop=-27.1mm tilt=3.3deg width=25.8mm reach_err=-27.7mm verdict=FAIL
+a4_base_r2	STALL	1501	clamp 마지막 관측: [clamp t= 2.04s] wall=  -9.76mm v= -16.29mm/s  본체면 잔여  +7.74mm  bag_com=[ 0.1853037  -0.00254711  0.0952699 ]
+b3_v2_F200	STALL	1501	clamp 마지막 관측: [clamp t=15.87s] wall= -16.99mm v=  -0.00mm/s  본체면 잔여  +0.51mm  bag_com=[ 0.186241   -0.01316134  0.0950866 ]
+a5_F200_r2	OK	419	flange=OFF mode=velocity v=8.0mm/s F=200N kp=5000 hold=0 wall=-16.99mm body_gap=+0.51mm stalled=N drop=-26.7mm tilt=1.5deg width=21.7mm reach_err=-26.9mm verdict=FAIL
+b4_v4_F200	OK	528	flange=OFF mode=velocity v=4.0mm/s F=200N kp=5000 hold=0 wall=-16.99mm body_gap=+0.51mm stalled=N drop=-26.6mm tilt=1.6deg width=20.4mm reach_err=-26.9mm verdict=FAIL
+a6_F800	OK	456	flange=OFF mode=velocity v=8.0mm/s F=800N kp=5000 hold=0 wall=-16.99mm body_gap=+0.51mm stalled=N drop=-20.3mm tilt=1.6deg width=22.6mm reach_err=-26.9mm verdict=FAIL
+b5_v2_r2	ERR(1)	297	
+b6_v2_F400	ERR(1)	814	
+d1_arm2	ERR(1)	796	
+c3_arm10_F200	ERR(1)	732	
+d2_kv100	ERR(1)	732	
+c4_arm10_r2	ERR(1)	17	
+d3_arm10_v2	ERR(1)	16	
+c2_arm50	ERR(1)	16	
+d4_arm50_r2	ERR(127)	77	00007FFA8DA4D01100007FFA8DA4CDF0 ntdll.dll!RtlRaiseException [<unknown file> @ <unknown line number>]
+c5_arm200	ERR(127)	78	00007FFA8DA4D01100007FFA8DA4CDF0 ntdll.dll!RtlRaiseException [<unknown file> @ <unknown line number>]
+c3_arm10_F200	ERR(127)	78	00007FFA8DA4D01100007FFA8DA4CDF0 ntdll.dll!RtlRaiseException [<unknown file> @ <unknown line number>]
+d5_arm50_F200	ERR(1)	18	ValueError: need at least one array to concatenate
+c4_arm10_r2	ERR(1)	431	
+c5_arm200	ERR(127)	973	00007FFA8DA4D01100007FFA8DA4CDF0 ntdll.dll!RtlRaiseException [<unknown file> @ <unknown line number>]
+f1_kin_115	OK	788	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-11.34mm body_gap=+6.16mm stalled=Y drop=-0.0mm tilt=9.4deg width=29.2mm reach_err=-2.0mm verdict=PASS
+f2_kin_135	ERR(1)	106	RuntimeError: [quadrants/rhi/cuda/cuda_driver.h:quadrants::lang::CUDADriverFunction<void *>::operator ()@94] CUDA Error CUDA_ERROR_LAUNCH_FAILED: unspecified la
+g1_kin115_r2	OK	636	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-11.34mm body_gap=+6.16mm stalled=Y drop=-0.0mm tilt=9.2deg width=29.0mm reach_err=-1.9mm verdict=PASS
+e4_cs1000_v2	STALL	1503	clamp 마지막 관측: 
+f3_kin_155	STALL	1502	clamp 마지막 관측: 
+e2_cs1000	STALL	1503	clamp 마지막 관측: 
+f3_kin_155	STALL	1502	clamp 마지막 관측: 
+g2_kin115_r3	STALL	1502	clamp 마지막 관측: 
+e5_cs1000_arm50	STALL	1501	clamp 마지막 관측: 
+f4_kin_135_r2	STALL	1502	clamp 마지막 관측: 
+e3_cs10000	STALL	1502	clamp 마지막 관측: 
+f4_kin_135_r2	STALL	1501	clamp 마지막 관측: 
+f5_kin_135_v2	ERR(1)	983	
+f5_kin_135_v2	ERR(1)	1113	
+g4_kin125	ERR(1)	473	
+e4_cs1000_v2	ERR(1)	1113	
+f6_kin_145	STALL	1502	clamp 마지막 관측: 
+f6_kin_145	STALL	1502	clamp 마지막 관측: 
+e5_cs1000_arm50	STALL	1503	clamp 마지막 관측: 
+g5_kin115_r4	STALL	1503	clamp 마지막 관측: 
+g6_kin125_r2	OK	393	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-12.33mm body_gap=+5.17mm stalled=Y drop=-0.0mm tilt=9.7deg width=31.2mm reach_err=-1.9mm verdict=PASS
+g4_kin125	OK	392	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-12.33mm body_gap=+5.17mm stalled=Y drop=-0.0mm tilt=9.6deg width=31.3mm reach_err=-1.9mm verdict=PASS
+g5_kin135	OK	206	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-13.48mm body_gap=+4.02mm stalled=Y drop=-0.0mm tilt=9.0deg width=27.8mm reach_err=-2.4mm verdict=PASS
+g3_kin125_flangeON	OK	205	flange=ON mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-13.04mm body_gap=+4.46mm stalled=Y drop=+0.0mm tilt=7.5deg width=25.7mm reach_err=+0.3mm verdict=PASS
+g7_kin145	OK	211	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-14.94mm body_gap=+2.56mm stalled=Y drop=-0.0mm tilt=7.2deg width=22.9mm reach_err=-2.0mm verdict=PASS
+g8_kin135_r2	OK	209	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-13.48mm body_gap=+4.02mm stalled=Y drop=-0.0mm tilt=9.1deg width=28.2mm reach_err=-2.4mm verdict=PASS
+g9_kin155	OK	201	flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-16.53mm body_gap=+0.97mm stalled=Y drop=-0.0mm tilt=9.3deg width=32.9mm reach_err=-1.9mm verdict=PASS
+g10_kin125_flangeON_r2	OK	210	flange=ON mode=velocity v=8.0mm/s F=100N kp=5000 hold=0 wall=-13.04mm body_gap=+4.46mm stalled=Y drop=+0.0mm tilt=7.3deg width=25.7mm reach_err=+0.3mm verdict=PASS

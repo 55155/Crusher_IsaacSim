@@ -97,6 +97,17 @@ Y_OFFSET = Y_OFFSET_MM * 1e-3
 
 # 정제 제외 스위치 — 봉투(FEM.Cloth)+IPC 커플러만 격리 검증할 때 쓴다(아래 사용처 주석).
 SKIP_TABLET = os.environ.get("SKIP_TABLET", "0") == "1"
+# CLAMP_ONLY=1: 팔 시퀀스(Phase 1~8b, 2,430 스텝 ≈ 4~5분)를 건너뛰고 봉투를
+# 슬롯에 직접 놓은 뒤 Phase 9 만 돌린다. 압착 파라미터를 반복 스윕할 때 매번
+# 붙는 앞단을 없애기 위한 것이다(사용자 지시 2026-08-31).
+# 그리퍼 파지 대신 **봉투 상단을 정점 구속으로 매단다** — 파지 자체는 §17 에서
+# 이미 검증됐고 여기서 재려는 것은 벽의 압착뿐이다. 대신 "그리퍼를 놓으면
+# 떨어지는가"는 이 모드로 판정할 수 없다(그건 풀 시퀀스로 봐야 한다).
+CLAMP_ONLY = os.environ.get("CLAMP_ONLY", "0") == "1"
+CLAMP_ONLY_PIN = os.environ.get("CLAMP_ONLY_PIN", "0") == "1"
+# NO_VIDEO=1: 카메라 렌더/녹화를 통째로 끈다. 파라미터 스윕처럼 **수치만** 필요한
+# 런에서 카메라 3대를 매 스텝 돌리는 비용을 없앤다. 영상이 결과물인 런에서는 끄면 안 된다.
+NO_VIDEO = os.environ.get("NO_VIDEO", "0") == "1"
 
 # ── 파지 위치 스윕(2026-08-14, 사용자 지시) ─────────────────────────────────
 # 봉투 로컬 폭축(BAG_EULER 회전으로 world Y 에 매핑) 상에서 그리퍼가 무는 지점:
@@ -108,7 +119,15 @@ SKIP_TABLET = os.environ.get("SKIP_TABLET", "0") == "1"
 # 의심돼(§14-6 trim 발산) 정중앙~가장자리를 스윕해 비교한다.
 GRIP_OFFSET_MM = float(os.environ.get("GRIP_OFFSET_MM", "-28"))
 
-OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RESULT")
+# OUT_DIR 은 **런마다 분리할 수 있어야 한다.** `_bag_seal_uv.obj`,
+# `_analytic_capsule_v2.stl`, `material_0.png` 는 매 런이 새로 굽는 중간 산출물인데
+# 경로가 고정이라, 병렬로 두 런을 돌리면 한쪽이 쓰는 중에 다른 쪽이 읽어
+# `ValueError: need at least one array to concatenate` 로 죽는다(2026-08-31 실측:
+# 스윕 레인 2개에서 전 런이 초 단위로 실패). 프로세스를 중간에 죽이면 잘린 파일이
+# 남아 이후 런까지 전부 오염된다. 스윕은 RUN_TAG 로 런마다 다른 디렉터리를 준다.
+_RUN_TAG = os.environ.get("RUN_TAG", "")
+OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       f"RESULT{('_' + _RUN_TAG) if _RUN_TAG else ''}")
 os.makedirs(OUT_DIR, exist_ok=True)
 # 케이스별 하위 디렉토리(사용자 지시) — 영상이 케이스마다 분리돼 쌓인다.
 CASE_DIR = os.path.join(OUT_DIR, f"grip{GRIP_OFFSET_MM:+03.0f}mm")
@@ -197,6 +216,40 @@ L7_LINK3_COM = "0.006 0 -0.005"
 LEFTWALL_SPLIT = os.environ.get("LEFTWALL_SPLIT", "1") == "1"
 LEFTWALL_BODY_MESH = "L2_Left_Wall_body"
 LEFTWALL_FLANGE_MESH = "L2_Left_Wall_flange"
+
+# ── 플랜지를 접촉에서 뺀다 (2026-08-31, 사용자 지시) ────────────────────────
+# §18-5 / §19-4 의 결론: 상단 플랜지(z 81.43~86.43)는 **Wall3 상단(80.43)보다
+# 위라 마주보는 면이 없다.** 벽을 닫으면 플랜지는 허공을 누르고, 반력이 안 생기니
+# 봉투는 눌리는 게 아니라 옆으로 밀린다(clamp 중 Y +3.7mm 실측). 게다가 진짜
+# 압착면인 본체면은 5mm 물러나 있어, 본체가 닿기도 전에 플랜지가 먼저 봉투를
+# 뭉갠다. 즉 플랜지는 **압착 경로에서 빠져야 할 부품**이다.
+#
+# §18-5 는 "접촉만 끄는 것은 실재 부품을 없는 셈 치는 것"이라며 Fusion 재export
+# 으로 별도 링크 분리를 처방했지만, 그건 CAD 왕복이 필요하다. 그 전에 접촉만
+# 떼어 가설을 검증한다(사용자 지시). **렌더에는 그대로 남는다** — 부품이 사라지는
+# 게 아니라 충돌에서만 빠진다.
+#
+# **배선: contype=0 conaffinity=0 이면 IPC 에서도 빠진다.** §19-5 는 "시각 전용
+# geom 도 IPC 안에서는 살아 있다"고 적었는데 **그건 틀렸다**(2026-08-31 소스 재확인):
+#
+#   genesis/engine/entities/rigid_entity/rigid_entity.py:_postprocess_geoms_info
+#       is_col = g_info["contype"] or g_info["conaffinity"]
+#       -> is_col 이면 cg_infos(link.geoms), 아니면 vg_infos(link.vgeoms)
+#   genesis/engine/couplers/ipc_coupler/coupler.py:392
+#       for geom in source_link.geoms:      # ← vgeoms 는 여기 안 온다
+#
+# 커플러 루프에 마스크 **검사**가 없는 것은 맞다. 하지만 그 루프가 도는 `link.geoms`
+# 자체가 이미 충돌 geom 만 담고 있어서, contype/conaffinity 를 **둘 다 0** 으로
+# 두면 애초에 커플러에 도달하지 않는다. §9 조합9 후속4 의 "비트마스크로 조 충돌
+# 제외 -> 효과 없음"과 모순되지 않는다 — 그건 contype/conaffinity 를 0 이 아닌
+# 다른 비트로 바꿔 **쌍**만 어긋내려 한 것이라 geom 은 여전히 충돌 geom 이었다.
+# 회수장치2 를 needs_coup=False 로 뺀 근거("모든 geom 이 contype=0 이라 커플러가
+# 가져갈 충돌 메시가 0개")와도 같은 이야기다.
+#
+# 기본값은 LAYOUT_FROM_STEP 를 따라간다 — 실배치에서만 빼고, 예전 검증 배치
+# (§18 까지의 -0.7mm 파이프라인)는 건드리지 않는다.
+LEFTWALL_FLANGE_CONTACT = os.environ.get(
+    "LEFTWALL_FLANGE_CONTACT", "0" if LAYOUT_FROM_STEP else "1") == "1"
 LEFTWALL_BODY_HULL_N = 5
 LEFTWALL_BODY_HULLS = [f"L2_Left_Wall_body_hull_{i:03d}" for i in range(LEFTWALL_BODY_HULL_N)]
 if LEFTWALL_SPLIT and LEFTWALL_CLAMP_FACE:
@@ -258,7 +311,42 @@ WALL_OFFSET = 0.006      # 슬롯 개방(+6mm)
 # 곳에서 물리적으로 멈추므로, 깊은 목표를 줘도 안전하고 **그 정지 위치가 곧
 # 봉투의 실효 압착 두께 실측값**이 된다. 참고로 압착 지점은 실링부라 정제가 없고
 # 필름 두 겹(2 x CLOTH_THICK = 2.00mm)뿐이므로 이론 하한은 잔여 2.00mm 부근이다.
-CLAMP_TARGET = float(os.environ.get("CLAMP_TARGET_MM", "-12.0")) * 1e-3
+#
+# **플랜지를 접촉에서 빼면 기준면이 바뀐다(2026-08-31).** 위 -12.0mm 는 플랜지면
+# (12.50mm)에서 잰 값이라 "잔여 0.50mm = 사실상 완전 폐쇄"였다. 플랜지가 빠지면
+# 압착면은 본체면 하나뿐인데 그쪽은 17.50mm 에서 출발하므로, 같은 -12.0mm 가
+# **잔여 5.50mm** 가 되어 6mm 봉투를 스치지도 못한다. 기준면을 본체로 바꾼다:
+#     CLAMP_TARGET = -(LEFTWALL_GAP_BODY - 2.0mm)  ->  -15.5mm
+# 2.0mm 는 실링부 필름 두 겹(2 x CLOTH_THICK)의 이론 하한이다. 여기서도 실제
+# 정지 위치는 WALL_FORCE_LIM 이 정한다 — 목표는 "끝까지 닫으라"는 지령일 뿐이다.
+_CLAMP_DEFAULT_MM = -12.0 if LEFTWALL_FLANGE_CONTACT else -(LEFTWALL_GAP_BODY * 1e3 - 2.0)
+CLAMP_TARGET = float(os.environ.get("CLAMP_TARGET_MM", f"{_CLAMP_DEFAULT_MM:.1f}")) * 1e-3
+
+# ── 압착을 위치제어 -> **속도제어**로 (2026-08-31, 사용자 지시) ──────────────
+# docs/Crusher.md §11-5 이 실기 거동을 이미 이렇게 적고 있다: "Ratchet 메커니즘
+# 등을 통해서 lock 을 거는 메커니즘이 아니라, **모터를 계속해서 구동시킴을 통해서
+# 강하게 고정**한다." 실기에는 목표 간격이라는 게 없다 — 랙-피니언이 계속 밀고,
+# 봉투 반력이 모터 힘과 균형지는 자리에서 멈출 뿐이다.
+#
+# 위치제어는 이걸 두 번 왜곡한다:
+#   1) 도달 불가능한 목표를 매 스텝 지령하면 그 오차가 그대로 IPC 배리어에
+#      실린다 — §13-11 의 24s/step 폭발, 이번 -15.5mm 21분 무진행이 그것이다.
+#   2) 목표 간격을 우리가 정해야 하는데 **그 값이 곧 답**(실효 압착 두께)이다.
+#      재려는 것을 입력으로 넣는 순환이 된다.
+# 속도제어 + 힘 상한이면 둘 다 사라지고, 정지 위치가 그대로 측정값이 된다.
+# 크랭크(Phase 11)가 이미 같은 처방을 쓰고 있어 배선도 검증돼 있다.
+#
+# 닫힘 속도: §11-5 "Motor2 구동부 스피드 ... **6 RPM**". 피니언 피치원 지름이
+# 도면에 없어(L4_Motor2_Shaft_1 은 3.75 x 4 x 12mm 샤프트 스텁이라 못 잰다)
+# **d=25mm 로 가정**하면 pi * 25mm * 0.1rev/s = 7.85mm/s. 8.0mm/s 로 둔다.
+# 피니언 실치수가 확인되면 이 값만 고치면 된다.
+CLAMP_MODE = os.environ.get("CLAMP_MODE", "velocity" if LAYOUT_FROM_STEP else "position")
+WALL_CLOSE_MMPS = float(os.environ.get("WALL_CLOSE_MMPS", "8.0"))
+# 기계적 하드스톱 = 본체면이 고정벽에 닿는 q = -LEFTWALL_GAP_BODY. 금속끼리
+# 부딪히기 0.5mm 전에서 지령을 끊는다. **목표가 아니라 가드다** — 여기까지
+# 내려왔다는 건 봉투를 못 물었다는 뜻이므로 로그에 그렇게 찍는다.
+WALL_Q_FLOOR = -(LEFTWALL_GAP_BODY - 0.0005)
+
 CRANK_KP, CRANK_KV = 2000.0, 100.0
 # ── 클램프를 **그리퍼 레시피로** 맞춘다 (2026-08-28, 사용자 지시) ────────────
 # 같은 IPC 스택에서 그리퍼는 FEM 봉투를 마찰만으로 안정적으로 파지하는데 벽은
@@ -279,13 +367,70 @@ CRANK_KP, CRANK_KV = 2000.0, 100.0
 #
 # 실기 Motor2 는 랙-피니언이라 강성이 높겠지만, 그 강성을 그대로 쓰면 IPC 가
 # 버티지 못한다. 그리퍼도 같은 타협(kp=30)을 하고 있으므로 동일하게 간다.
-WALL_KP = float(os.environ.get("WALL_KP", "30.0" if LAYOUT_FROM_STEP else "5000.0"))
-WALL_KV = float(os.environ.get("WALL_KV", "1.5" if LAYOUT_FROM_STEP else "500.0"))
+#
+# **[정정 2026-08-31] 그리퍼 레시피의 kp=30 은 벽에 그대로 옮길 수 없다 — 단위가
+# 다르다.** 두 관절의 타입이 다르다:
+#
+#   m0609_rg2_v2.xml:152   f1_finger_tip_joint   type="hinge"  -> kp [N.m/rad]
+#   Crusher_IsaacSim.xml:114 L1_Guide1_1_...      type="slide"  -> kp [N/m]
+#
+# 그리퍼의 kp=30 N.m/rad 은 0.067 rad 만 어긋나도 2.0 N.m(≈40N)로 포화한다 —
+# 손가락 끝에서 약 3mm 다. 즉 **선형 환산 강성은 ≈12,000 N/m 로 오히려 5000 보다
+# 세다.** 그걸 벽에 kp=30 N/m 로 옮기면 11.5mm 를 어긋내도 힘이 0.35N 밖에
+# 안 나온다(봉투 무게 0.025N 의 14배). 힘 상한 40N 은 근처도 못 간다 — 압착이
+# 안 되는 게 아니라 **아예 밀지를 않는다.**
+#
+# 그리고 힘을 WALL_FORCE_LIM 으로 자르는 이상 kp 의 크기는 접근 구간에서만
+# 의미가 있다. 포화 후에는 kp 5000 이든 12000 이든 똑같이 상한값으로 민다.
+# 실제 압착력을 정하는 손잡이는 kp 가 아니라 **WALL_FORCE_LIM** 이다.
+#
+# 따라서 §19-4 의 "kp 167배가 원인" 진단은 성립하지 않는다. -10.0/-10.5mm 가
+# 발산한 진짜 이유는 그 지점부터 플랜지가 봉투를 **마주보는 면 없이** 뭉개기
+# 시작해 균형점이 존재하지 않았기 때문이다(§18-5). 플랜지를 접촉에서 빼면
+# 본체면 ↔ Wall3 라는 실제 반력면이 생기므로 균형점이 생긴다.
+# 그래서 검증된 5000/500 + 100N 으로 되돌린다.
+# ── 랙-피니언 반사 관성 (2026-08-31) ───────────────────────────────────────
+# MJCF 의 Left_Wall 링크 질량은 **0.312 kg** 뿐이다. 벽 판때기 자체의 질량은
+# 맞지만, 실제로 이 축을 움직이려면 랙·피니언·감속기·모터 로터를 전부 같이
+# 가속시켜야 한다. 그 반사 관성이 모델에 없으면 축이 터무니없이 가볍다:
+#
+#     100N / 0.312kg = 321 m/s^2  ->  dt=5ms 한 스텝에 +1,603 mm/s
+#
+# 그래서 봉투에 처음 닿는 순간의 작은 교란 하나가 그대로 관통이 된다(실측:
+# 잔여 8mm 에서 v 가 -8 -> -16 -> -3,237mm/s, wall 이 -373mm 까지 뚫고 나감).
+# 수치 안정성도 같은 뿌리다 — 명시적 감쇠의 한계가 kv <~ 2m/dt = 125 인데
+# WALL_KV=500 은 그 4배다. 접촉 전에는 안 드러나다가 닿는 순간 발산한다.
+#
+# MuJoCo 의 `armature` 가 정확히 이 항이다(slide 조인트에서는 kg). Genesis 도
+# MJCF 의 per-joint armature 를 읽는다(genesis/utils/mjcf.py:153~).
+# 실기 사양(§11-5 "6 RPM" 감속 기어모터)에서 로터 관성 x 감속비^2 는 랙 축에서
+# 수십 kg 급이 되므로, 0 보다는 큰 값이 반드시 맞다. 정확한 값은 모터/감속기
+# 사양이 있어야 정해지므로 **스윕 대상**으로 두고 기본은 10kg 로 잡는다
+# (100N -> 9.7 m/s^2, 스텝당 +48mm/s. kv 한계도 2*10.3/0.005 = 4,120 으로 올라가
+# WALL_KV=500 이 안정 영역에 들어온다).
+WALL_ARMATURE = float(os.environ.get("WALL_ARMATURE", "10.0"))
+# ── 벽을 기구학적으로 구동한다 (2026-08-31) ────────────────────────────────
+# 힘제어(control_dofs_position/velocity)로는 첫 접촉에서 벽이 튕겨나간다. 힘·속도
+# ·관성·구속강성을 다 흔들어도 같은 지점에서 같은 모양으로 터졌다. 힘으로 미는
+# 한 접촉 임펄스가 벽을 움직일 수 있기 때문이다.
+# `set_dofs_position` 으로 매 스텝 위치를 **직접 써넣으면** 벽은 지령대로만
+# 움직이고 접촉이 되밀 수 없다 — 강성이 무한한 기구학 구동이다. 실기의 랙-피니언
+# 감속기가 사실상 이쪽에 가깝기도 하다(6 RPM 저속 대감속이라 봉투 반력으로
+# 역구동되지 않는다).
+# 대신 힘 상한이라는 정지 기준이 사라지므로 **어디까지 닫을지를 정해야 한다** —
+# CLAMP_TARGET 이 다시 의미를 갖는다. 압착력은 그 위치에서 봉투가 얼마나 눌렸는지
+# (본체면 잔여)로 읽는다.
+WALL_KINEMATIC = os.environ.get("WALL_KINEMATIC", "0") == "1"
+
+WALL_KP = float(os.environ.get("WALL_KP", "5000.0"))
+WALL_KV = float(os.environ.get("WALL_KV", "500.0"))
 # Motor2(Left_Wall, Rack&Pinion) 힘 상한 — docs/Crusher.md §5 의 액추에이터
 # `Motor2_left_wall` ctrlrange ±100 N (MJCF actuatorfrcrange 와 동일).
 # 적용 이유는 사용처(_fmin/_fmax) 주석 참고.
-WALL_FORCE_LIM = float(os.environ.get("WALL_FORCE_LIM_N",
-                                      "40.0" if LAYOUT_FROM_STEP else "100.0"))
+# 40N 은 그리퍼 레시피 이식 때 같이 따라온 값인데, 위 [정정]대로 그 이식은
+# 단위가 안 맞았다. 실기 Motor2 의 스펙값인 100N 으로 되돌린다 — 압착력을 정하는
+# 진짜 손잡이가 이것이므로 근거 없는 값을 쓰면 안 된다.
+WALL_FORCE_LIM = float(os.environ.get("WALL_FORCE_LIM_N", "100.0"))
 
 # ── Phase 11: crush — 고정된 봉투를 두고 Crusher 를 실제로 운전(2026-08-26) ──
 # 여기까지가 "봉투를 슬롯에 넣고 벽으로 문다" 였고, 그 상태에서 크랭크를 돌려
@@ -329,6 +474,35 @@ def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999
             if g.get("mesh") in WALL_GEOMS_TO_ENABLE:
                 g.attrib.pop("contype", None)
                 g.attrib.pop("conaffinity", None)
+        if WALL_ARMATURE > 0:
+            for _j in root.iter("joint"):
+                if _j.get("name") == WALL_JOINT:
+                    _j.set("armature", f"{WALL_ARMATURE:.6f}")
+                    print(f"[mjcf] Left_Wall 반사 관성 armature={WALL_ARMATURE:.1f}kg "
+                          f"(링크 질량 0.312kg + 랙/피니언/감속기/로터). "
+                          f"100N -> {100.0/(0.312+WALL_ARMATURE):.1f} m/s^2, "
+                          f"kv 안정 한계 {2*(0.312+WALL_ARMATURE)/5e-3:.0f}")
+        if CLAMP_ONLY:
+            # CLAMP_ONLY 는 봉투를 빌드 시점에 이미 슬롯 안에 스폰한다. 그런데
+            # 크랭크 q=0 이면 impact plate(L9_PLATE_v3_1)가 그 슬롯을 차지한다 —
+            # 실측 world AABB x[0.1865,0.2365] y[-0.0085,0.0015] z[0.025,0.075]
+            # 로 봉투와 24,944mm^3 겹치고, IPC 의 build-time 교차 검사에 걸려
+            # 늘 나오던 `'NoneType' object has no attribute 'body_count'` 로 죽는다.
+            #
+            # 풀 시퀀스는 Phase 0 에서 크랭크를 -180deg 로 돌려 플레이트를 빼지만
+            # CLAMP_ONLY 는 그 구간을 건너뛴다. MJCF 의 `ref` 로 초기각을 주는
+            # 방법은 안 통했다(Genesis 가 qpos0 를 읽기는 하나 실제 자세는 안
+            # 바뀐다 — 실측). 그래서 **플레이트를 접촉에서 뺀다**: 플랜지와 같은
+            # 처방(contype/conaffinity=0 -> link.vgeoms 로 가서 커플러가 못 봄)이고,
+            # 압착만 격리해 재는 모드라 플레이트는 애초에 등장하지 않는다.
+            # (Phase 11 crush 를 켜려면 CLAMP_ONLY 를 끄고 풀 시퀀스로 가야 한다.)
+            _n_plate = 0
+            for _g in wb.iter("geom"):
+                if (_g.get("mesh") or "").startswith("L9_PLATE"):
+                    _g.set("contype", "0"); _g.set("conaffinity", "0")
+                    _n_plate += 1
+            print(f"[mjcf] CLAMP_ONLY — impact plate geom {_n_plate}개를 시각 전용으로 "
+                  f"내림(빌드 시 봉투와 겹침 회피). 압착 격리 모드라 분쇄는 대상이 아니다.")
         if LEFTWALL_SPLIT:
             _split_leftwall_collision(root, wb)
         if LEFTWALL_CLAMP_FACE:
@@ -413,12 +587,21 @@ def _split_leftwall_collision(root, wb):
         for i, h in enumerate(LEFTWALL_BODY_HULLS):
             _geom(f"L2_Left_Wall_body_col_{i:03d}", h, False,
                   contype="1", conaffinity="1", group="3")
-        _geom("L2_Left_Wall_flange", LEFTWALL_FLANGE_MESH, True,
-              contype="1", conaffinity="1", group="0")
+        # 플랜지: 접촉을 끄면 시각 전용(group=2)으로 내려 IPC·강체 양쪽에서 뺀다.
+        # group 을 0 -> 2 로 바꾸는 이유는 없다(둘 다 시각 그룹) — 본체 시각 geom
+        # 과 같은 값으로 맞춰 두면 "시각 전용"이라는 의도가 한눈에 읽힌다.
+        if LEFTWALL_FLANGE_CONTACT:
+            _geom("L2_Left_Wall_flange", LEFTWALL_FLANGE_MESH, True,
+                  contype="1", conaffinity="1", group="0")
+        else:
+            _geom("L2_Left_Wall_flange_vis", LEFTWALL_FLANGE_MESH, True,
+                  contype="0", conaffinity="0", group="2")
 
+        _fl = ("충돌+시각" if LEFTWALL_FLANGE_CONTACT else "**시각 전용(접촉 제외)**")
         print(f"[mjcf] Left_Wall 형상 교체: 옛 geom {n_old}개(시각 1 + hull "
               f"{n_old-1}) -> 본체 hull {len(LEFTWALL_BODY_HULLS)}개 + 플랜지 1개 "
-              f"+ 시각 1개. 중립 간격 플랜지 {LEFTWALL_GAP_FLANGE*1000:.2f}mm / "
+              f"+ 시각 1개. 플랜지 = {_fl}. "
+              f"중립 간격 플랜지 {LEFTWALL_GAP_FLANGE*1000:.2f}mm / "
               f"본체 {LEFTWALL_GAP_BODY*1000:.2f}mm")
         return
     print("[mjcf] 경고: L2_Left_Wall1_1 body 를 찾지 못해 분리를 건너뛴다")
@@ -515,6 +698,39 @@ def crusher_mesh_world_aabb(mesh_name, body_pos=(0., 0., 0.), geom_pos=(0., 0., 
     in_crusher = np.asarray(body_pos) + (_R_GEOM_HALF @ local.T).T
     w = np.array(CRUSHER_POS) + (R_e @ in_crusher.T).T
     return w.min(axis=0), w.max(axis=0)
+
+
+def slot_geometry():
+    """Crusher 슬롯 기하 — STL + CRUSHER_POS/EULER 만으로 정해지므로 씬 없이 계산된다.
+
+    main() 의 Phase 7 과 CLAMP_ONLY 의 봉투 스폰 위치가 **같은 값**을 써야 해서
+    함수로 뺐다. 두 벌로 두면 조용히 어긋난다.
+
+    간격 축은 하드코딩하지 않고 **기하로 판별**한다(2026-08-28). 예전 코드는
+    `wb_hi[0]`/`wl_lo[0]` 처럼 간격이 world X 에 있다고 박아 뒀는데 그건
+    CRUSHER_EULER=(0,0,90) 일 때만 참이다. STEP 실배치(EULER 0)로 바꾸자 간격이
+    world Y 로 옮겨가 gap_width 가 12mm 대신 80mm 로 잡혔다(실측). 두 벽 AABB 가
+    겹치지 않는 축이 곧 간격 축이다.
+    """
+    wb_lo, wb_hi = crusher_mesh_world_aabb(WALL_BACK_MESH)
+    wl_lo, wl_hi = crusher_mesh_world_aabb(WALL_LEFT_MESH, LEFTWALL_BODY_POS, LEFTWALL_GEOM_POS)
+    ov = [min(wb_hi[i], wl_hi[i]) - max(wb_lo[i], wl_lo[i]) for i in range(2)]
+    gap_ax = int(np.argmin(ov))           # 떨어진 축 = 봉투 두께가 들어갈 방향
+    oth_ax = 1 - gap_ax                   # 겹치는 축 = 슬롯 길이 방향(봉투 폭)
+    g_lo = min(wb_hi[gap_ax], wl_hi[gap_ax])
+    g_hi = max(wb_lo[gap_ax], wl_lo[gap_ax])
+    g_c = (g_lo + g_hi) / 2.0
+    o_c = (max(wb_lo[oth_ax], wl_lo[oth_ax]) + min(wb_hi[oth_ax], wl_hi[oth_ax])) / 2.0
+    wall_top_z = max(wb_hi[2], wl_hi[2])
+    return {
+        "wb_lo": wb_lo, "wb_hi": wb_hi, "overlap": ov,
+        "gap_ax": gap_ax, "oth_ax": oth_ax, "gap_width": g_hi - g_lo,
+        "gap_cx": g_c if gap_ax == 0 else o_c,
+        "gap_cy": g_c if gap_ax == 1 else o_c,
+        "wall_top_z": wall_top_z,
+        # insert_z 계산과 판정 기준이 되는 벽 중앙 높이(main 의 Phase 7 과 동일식).
+        "wall_center_z": (wall_top_z + wb_lo[2]) / 2.0,
+    }
 
 
 # ── M0609+RG2(v2) + 정제 + 샘플백 ───────────────────────────────────────────
@@ -669,6 +885,16 @@ DT = 5e-3
 # 근처 최소 정점 간격(0.32mm) 대비 1e-4 의 비율은 0.31 로 이미 문서 기준
 # "1/3 이하" 안전 마진 안이므로, 성능 회귀를 감수할 근거가 부족해 원복한다.
 IPC_D_HAT = 1.0e-4
+# ── 강체 <-> IPC 프록시 소프트 구속 강성 (2026-08-31 스윕 대상) ─────────────
+# Crusher 는 coup_type="two_way_soft_constraint" 로 실린다. 이 커플링은 Genesis
+# 강체 솔버가 지령한 자세와 uipc 안의 프록시 사이를 스프링으로 묶는데, 그 강성이
+# 이 값이다. 봉투 접촉이 프록시를 밀어내면 이 스프링이 되당기고 그 반력이 다시
+# 강체로 들어가는 **양방향 루프**가 된다.
+# 벽이 봉투에 처음 닿는 순간 터지는 임펄스가 액추에이터에서 나오지 않는다는 것은
+# 역산으로 확인됐다(armature=10 런: m*dv/dt = 10.3 x 2.46 / 0.17 = 149N > 100N
+# 상한). 힘(100~800N)·속도(2~8mm/s)·관성(0.312~10.3kg)을 다 바꿔도 같은 지점에서
+# 같은 모양으로 터졌으므로 남은 후보가 이 루프다.
+IPC_CONSTRAINT_STRENGTH = float(os.environ.get("IPC_CONSTRAINT_STRENGTH", "100.0"))
 
 # 봉투 stiffen(2026-07-15): above/insert 구간에서 봉투가 과하게 흔들려 E/굽힘
 # 강성을 올림(1e5->4e5, bend 50->400) — 이동 속도를 늦추는 것(N_ABOVE/N_INSERT)과
@@ -825,6 +1051,10 @@ N_ABOVE_SETTLE = 200
 # clamp: Left_Wall 이 실링부를 누르는 구간(개방 대비 훨씬 짧고 정밀한 이동이라
 # Crusher_Samplebag.py N_CLAMP=2000(@dt=1e-3, 2.0s)와 동일 시간이 되도록 환산).
 N_CLAMP, N_RELEASE = 400, 100
+if CLAMP_MODE == "velocity":
+    # 열림(+6mm)에서 하드스톱까지 전 구간을 닫고도 남을 시간 + 스톨 관찰 여유(x1.5).
+    # 위치제어처럼 램프를 다 쓸 필요가 없고, 봉투에 걸리면 그 앞에서 멈춘다.
+    N_CLAMP = int(round((WALL_OFFSET - WALL_Q_FLOOR) * 1e3 / WALL_CLOSE_MMPS * 1.5 / DT))
 
 CAM_LOOK = tuple(FINGER_MID + np.array([0, 0, 0.03]))
 OVERVIEW_CAM_POS = (0.9, -1.7, 1.3)
@@ -959,8 +1189,8 @@ def main(use_viewer: bool = False):
             two_way_coupling=True,
             enable_rigid_rigid_contact=False,
             enable_rigid_ground_contact=False,
-            constraint_strength_translation=100.0,
-            constraint_strength_rotation=100.0,
+            constraint_strength_translation=IPC_CONSTRAINT_STRENGTH,
+            constraint_strength_rotation=IPC_CONSTRAINT_STRENGTH,
         ),
         fem_options=gs.options.FEMOptions(damping=FEM_DAMPING),
         vis_options=gs.options.VisOptions(
@@ -1046,13 +1276,34 @@ def main(use_viewer: bool = False):
         ),
     )
 
+    # CLAMP_ONLY 는 봉투를 **처음부터 슬롯 안에** 스폰한다. 나중에 옮기는 것은
+    # 불가능하다 — IPC 커플러가 매 스텝 uipc 의 상태를 FEM 엔티티로 되쓰기 때문에
+    # (coupler.py:1041 `entity.set_pos(0, geom_positions)`) Genesis 쪽
+    # `set_position` 은 다음 스텝에 그대로 덮인다(실측: 이동량 303mm 가 통째로
+    # 무시됨). 스폰 좌표는 morph 가 적용하는 변환을 역산해 만든다:
+    #     world = R(euler) @ (verts * scale) + pos
+    _bag_spawn_pos = BAG_POS
+    if CLAMP_ONLY:
+        import genesis.utils.geom as gu
+        _sg = slot_geometry()
+        _bv = tm.load(bag_obj).vertices * BAG_SCALE
+        _bw = (gu.quat_to_R(gu.xyz_to_quat(np.array(BAG_EULER), rpy=True, degrees=True))
+               @ _bv.T).T
+        _lo, _hi = _bw.min(0), _bw.max(0)
+        _bag_spawn_pos = (float(_sg["gap_cx"] - (_lo[0] + _hi[0]) / 2),
+                          float(_sg["gap_cy"] - (_lo[1] + _hi[1]) / 2),
+                          float(_sg["wall_center_z"] - _lo[2]))
+        print(f"[clamp_only] 봉투를 슬롯에 직접 스폰: pos={np.round(_bag_spawn_pos, 4)} "
+              f"(기본 {BAG_POS}) — 슬롯 중심 ({_sg['gap_cx']:.4f},{_sg['gap_cy']:.4f}), "
+              f"bag_bottom 목표 {_sg['wall_center_z']:.4f}")
+
     bag = scene.add_entity(
         material=gs.materials.FEM.Cloth(
             E=CLOTH_E, nu=CLOTH_NU, rho=CLOTH_RHO,
             thickness=CLOTH_THICK, bending_stiffness=CLOTH_BEND,
             friction_mu=CLOTH_FRICTION,
         ),
-        morph=gs.morphs.Mesh(file=bag_obj, scale=BAG_SCALE, pos=BAG_POS, euler=BAG_EULER),
+        morph=gs.morphs.Mesh(file=bag_obj, scale=BAG_SCALE, pos=_bag_spawn_pos, euler=BAG_EULER),
         # color= 대신 실링부 스트라이프가 구워진 UV 텍스처를 사용(§_prepare_seal_colored_bag).
         surface=gs.surfaces.Default(opacity=0.55, roughness=0.9, double_sided=True,
                                      diffuse_texture=gs.textures.ImageTexture(image_array=bag_seal_tex)),
@@ -1099,6 +1350,23 @@ def main(use_viewer: bool = False):
     scene.build(n_envs=0)
     _build_s = _time.time() - _t_build
 
+    # 플랜지가 정말 접촉에서 빠졌는지 **빌드 후 실물로** 확인한다. MJCF 를 고쳤다는
+    # 것만으로는 부족하다 — Genesis 가 contype/conaffinity 를 어떻게 해석했는지가
+    # 답이고, IPC 커플러가 도는 것은 link.geoms(충돌) 뿐이다(coupler.py:392).
+    # 기대: 플랜지 접촉 ON = 본체 hull 5 + 플랜지 1 = 6, OFF = 5. LAYOUT_ONLY=1 로
+    # 시뮬 없이 이 한 줄만 뽑아 볼 수 있게 종료 분기보다 위에 둔다.
+    try:
+        _lw = crusher.get_link("L2_Left_Wall1_1")
+        print(f"[verify] L2_Left_Wall1_1 충돌 geom {len(_lw.geoms)}개 / 시각 geom "
+              f"{len(_lw.vgeoms)}개  (플랜지 접촉="
+              f"{'ON' if LEFTWALL_FLANGE_CONTACT else 'OFF'}, "
+              f"기대 충돌 {6 if LEFTWALL_FLANGE_CONTACT else 5}개)")
+        if not LEFTWALL_FLANGE_CONTACT and len(_lw.geoms) != LEFTWALL_BODY_HULL_N:
+            print("[verify] **경고**: 충돌 geom 수가 기대와 다르다 — "
+                  "플랜지가 여전히 접촉에 남아 있을 수 있다.")
+    except Exception as _e:      # 링크 이름이 바뀌어도 런 자체를 죽이지는 않는다
+        print(f"[verify] Left_Wall 링크 확인 실패(무시하고 진행): {_e}")
+
     if LAYOUT_ONLY:
         # 실설계 배치만 확인하는 모드 — 시뮬 없이 정지 프레임만 뽑고 끝낸다.
         _out = os.path.join(CASE_DIR, f"layout_{_TS}")
@@ -1140,25 +1408,12 @@ def main(use_viewer: bool = False):
     print(f"[bag] shape 고정: {len(bag_fixed_idx)}/{len(bz)} 정점(바닥+양측면), 입구는 자유")
 
     # ── Crusher 슬롯 위치 계산 ───────────────────────────────────────────────
-    wb_lo, wb_hi = crusher_mesh_world_aabb(WALL_BACK_MESH)
-    wl_lo, wl_hi = crusher_mesh_world_aabb(WALL_LEFT_MESH, LEFTWALL_BODY_POS, LEFTWALL_GEOM_POS)
-    # 슬롯 간격 축을 **기하로 판별**한다(2026-08-28). 예전 코드는 `wb_hi[0]`/
-    # `wl_lo[0]` 처럼 간격이 world X 에 있다고 하드코딩돼 있었는데, 그건
-    # CRUSHER_EULER=(0,0,90) 일 때만 참이다. STEP 실배치(EULER 0)로 바꾸자 간격이
-    # world Y 로 옮겨가 gap_width 가 12mm 대신 **80mm** 로 잡혔다(실측).
-    # 두 벽 AABB 가 겹치지 않는 축이 곧 간격 축이므로 그것으로 찾는다.
-    _ov = [min(wb_hi[i], wl_hi[i]) - max(wb_lo[i], wl_lo[i]) for i in range(2)]
-    GAP_AX = int(np.argmin(_ov))          # 떨어진 축 = 봉투 두께가 들어갈 방향
-    OTH_AX = 1 - GAP_AX                   # 겹치는 축 = 슬롯 길이 방향(봉투 폭)
-    _g_lo = min(wb_hi[GAP_AX], wl_hi[GAP_AX])
-    _g_hi = max(wb_lo[GAP_AX], wl_lo[GAP_AX])
-    gap_width = _g_hi - _g_lo
-    _g_c = (_g_lo + _g_hi) / 2.0
-    _o_lo = max(wb_lo[OTH_AX], wl_lo[OTH_AX]); _o_hi = min(wb_hi[OTH_AX], wl_hi[OTH_AX])
-    _o_c = (_o_lo + _o_hi) / 2.0
-    gap_cx = _g_c if GAP_AX == 0 else _o_c
-    gap_cy = _g_c if GAP_AX == 1 else _o_c
-    wall_top_z = max(wb_hi[2], wl_hi[2])
+    _slot = slot_geometry()
+    wb_lo, wb_hi = _slot["wb_lo"], _slot["wb_hi"]
+    GAP_AX, OTH_AX = _slot["gap_ax"], _slot["oth_ax"]
+    gap_width, gap_cx, gap_cy = _slot["gap_width"], _slot["gap_cx"], _slot["gap_cy"]
+    wall_top_z = _slot["wall_top_z"]
+    _ov = _slot["overlap"]
     print(f"[slot] 간격축 = world {'XY'[GAP_AX]} (겹침 {_ov[GAP_AX]*1000:+.1f}mm), "
           f"슬롯 길이축 = world {'XY'[OTH_AX]} (겹침 {_ov[OTH_AX]*1000:+.1f}mm)")
     # L1_Wall1_1 = 포켓 바닥 플레이트(Crusher_Samplebag.py 주석: "L1_Wall1_1 은
@@ -1181,6 +1436,16 @@ def main(use_viewer: bool = False):
     crusher.set_dofs_kv(np.array([CRANK_KV]), dofs_idx_local=[crank_dof])
     crusher.set_dofs_kp(np.array([WALL_KP]), dofs_idx_local=[wall_dof])
     crusher.set_dofs_kv(np.array([WALL_KV]), dofs_idx_local=[wall_dof])
+    # 반사 관성은 **런타임 API 로 건다**(rigid_entity.py:3982). MJCF 의 armature
+    # 속성으로도 걸어 두지만 그게 실제로 솔버까지 갔는지 확인한 적이 없다 —
+    # 2026-08-31 밤 스윕의 "관성을 키워도 관통한다"는 결론이 사실은 값이 무시된
+    # 결과였을 수 있어서, 무시될 여지가 없는 경로로 한 번 더 건다.
+    if WALL_ARMATURE > 0:
+        crusher.set_dofs_armature(np.array([WALL_ARMATURE]), dofs_idx_local=[wall_dof])
+        print(f"[ctrl] Left_Wall armature={WALL_ARMATURE:.1f}kg (런타임 API) — "
+              f"유효 질량 {0.312+WALL_ARMATURE:.2f}kg, {WALL_FORCE_LIM:.0f}N -> "
+              f"{WALL_FORCE_LIM/(0.312+WALL_ARMATURE):.1f} m/s^2, "
+              f"kv 안정 한계 {2*(0.312+WALL_ARMATURE)/DT:.0f} (현재 {WALL_KV:.0f})")
 
     # ── Motor2(Left_Wall) 힘 상한 — 발산 방지의 근본 처방(2026-08-25) ────────
     # 힘 제한이 없으면 WALL_KP=5000 위치제어가 IPC 배리어(간격→0 에서 반력이
@@ -1218,9 +1483,10 @@ def main(use_viewer: bool = False):
     # Genesis 1.3.1 에서 녹화 API 가 바뀌었다(§docs/DigitalTwin.md 조합11):
     # 파일명/fps 가 start_recording 으로 이동했고 stop_recording() 은 인자를 안 받는다.
     # (조합11 에 기록돼 있던 변경인데 이 파일엔 반영이 안 돼 있어 실행 끝에서 죽었다.)
-    cam_over.start_recording(save_to_filename=MP4_OVERVIEW, fps=30)
-    cam_bag.start_recording(save_to_filename=MP4_BAGCAM, fps=30)
-    cam_side.start_recording(save_to_filename=MP4_SIDE, fps=30)
+    if not NO_VIDEO:
+        cam_over.start_recording(save_to_filename=MP4_OVERVIEW, fps=30)
+        cam_bag.start_recording(save_to_filename=MP4_BAGCAM, fps=30)
+        cam_side.start_recording(save_to_filename=MP4_SIDE, fps=30)
 
     def _bag_com():
         p = _npy(bag.get_state().pos).squeeze()
@@ -1258,13 +1524,23 @@ def main(use_viewer: bool = False):
         return float(_npy(left_link.get_pos()).squeeze()[2])
 
     def render_cams():
+        if NO_VIDEO:
+            return
         cam_over.render()
         bc = _bag_com()
         cam_bag.set_pose(pos=tuple(bc + BAGCAM_OFFSET), lookat=tuple(bc), up=(0, 0, 1))
         cam_bag.render()
         cam_side.render()
 
+    # CLAMP_ONLY 는 Phase 1~8b 의 팔 구동만 건너뛴다 — clamp 뒤의 Phase 10
+    # (release/hold2)은 관찰 대상이므로 clamp 직후 이 플래그를 내린다.
+    _skip_arm = [CLAMP_ONLY]
+
     def run_arm(name, q0, q1, f0, f1, n, crank_q=None, wall_q=None, trace=False):
+        if _skip_arm[0]:    # 스텝 없이 최종 자세만 확정 — 시뮬 시간을 안 쓴다
+            robot.set_dofs_position(np.concatenate([q1, [f1] * 6]))
+            print(f"[phase] {name:8s} @skip  (CLAMP_ONLY)")
+            return
         for k in range(n):
             s = ease((k + 1) / n)
             q = q0 + (q1 - q0) * s
@@ -1273,7 +1549,10 @@ def main(use_viewer: bool = False):
             if crank_q is not None:
                 crusher.control_dofs_position(np.array([crank_q]), dofs_idx_local=[crank_dof])
             if wall_q is not None:
-                crusher.control_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
+                if WALL_KINEMATIC and name in ("release", "hold2"):
+                    crusher.set_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
+                else:
+                    crusher.control_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
             scene.step()
             _step_n[0] += 1
             render_cams()
@@ -1287,6 +1566,10 @@ def main(use_viewer: bool = False):
     def run_arm_path(name, q_way, f, n, crank_q=None, wall_q=None, trace=False):
         """웨이포인트 열을 따라 구동 — run_arm 의 카테시안 직선판(§solve_descent_waypoints)."""
         m = len(q_way) - 1
+        if _skip_arm[0]:
+            robot.set_dofs_position(np.concatenate([q_way[-1], [f] * 6]))
+            print(f"[phase] {name:8s} @skip  (CLAMP_ONLY)")
+            return
         for k in range(n):
             u = ease((k + 1) / n) * m
             i = min(int(u), m - 1)
@@ -1295,7 +1578,10 @@ def main(use_viewer: bool = False):
             if crank_q is not None:
                 crusher.control_dofs_position(np.array([crank_q]), dofs_idx_local=[crank_dof])
             if wall_q is not None:
-                crusher.control_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
+                if WALL_KINEMATIC and name in ("release", "hold2"):
+                    crusher.set_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
+                else:
+                    crusher.control_dofs_position(np.array([wall_q]), dofs_idx_local=[wall_dof])
             scene.step()
             _step_n[0] += 1
             render_cams()
@@ -1309,7 +1595,7 @@ def main(use_viewer: bool = False):
     # ── Phase 0: prep — 크랭크 -180도, Left_Wall 개방(슬롯 준비, 사용자 지시) ──
     print(f"\n[phase] 0 prep ({N_PREP*DT:.1f}s) — 크랭크 0->{CRANK_START_Q:+.3f}rad(-180deg), "
           f"Left_Wall 0->{WALL_OFFSET*1000:+.0f}mm(개방)")
-    for k in range(N_PREP):
+    for k in range(0 if CLAMP_ONLY else N_PREP):
         s = (k + 1) / N_PREP
         crusher.control_dofs_position(np.array([CRANK_START_Q * s]), dofs_idx_local=[crank_dof])
         crusher.control_dofs_position(np.array([WALL_OFFSET * s]), dofs_idx_local=[wall_dof])
@@ -1317,6 +1603,9 @@ def main(use_viewer: bool = False):
         scene.step()
         _step_n[0] += 1
         render_cams()
+    if CLAMP_ONLY:      # 램프 없이 슬롯 준비 상태로 바로 놓는다
+        crusher.set_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
+        crusher.set_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
     cq = _npy(crusher.get_dofs_position())[crank_dof]
     wq = _npy(crusher.get_dofs_position())[wall_dof]
     print(f"[phase] prep     @done  crank={cq:+.3f}rad  wall={wq*1000:+.2f}mm")
@@ -1328,8 +1617,9 @@ def main(use_viewer: bool = False):
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
 
     # 정제가 안전하게 들어간 뒤 형상 고정 해제 — 이후 grasp/lift 는 순수 마찰로 진행.
-    bag.remove_vertex_constraints()
-    print("[bag] shape 고정 해제 — 이제부터 순수 마찰 파지")
+    if not CLAMP_ONLY:      # CLAMP_ONLY 는 봉투를 슬롯에 놓을 때까지 고정을 유지한다
+        bag.remove_vertex_constraints()
+        print("[bag] shape 고정 해제 — 이제부터 순수 마찰 파지")
 
     run_arm("close", q_grasp, q_grasp, FING_OPEN, FING_CLOSE, N_CLOSE,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
@@ -1482,36 +1772,120 @@ def main(use_viewer: bool = False):
     print(f"[trim] 최종 finger_z={cur_z:.4f}  (초기 {insert_z:.4f}, 하한 {INSERT_Z_FLOOR:.4f})")
     qpos_insert = q_cur
 
+    if CLAMP_ONLY:
+        # 봉투는 이미 슬롯에 스폰돼 있다(위 _bag_spawn_pos). 여기서는 형상 고정을
+        # 풀고 **상단만** 다시 구속해 그리퍼 대신 매단 뒤 잠깐 안정화한다.
+        bag.remove_vertex_constraints()
+        vp = _npy(bag.get_state().pos).squeeze()
+        if CLAMP_ONLY_PIN:
+            # 그리퍼 대신 상단 정점을 매단다. **IPC 커플러와 궁합이 나쁘다** —
+            # 슬롯 안에서 걸면 settle 100 스텝이 5분 넘게 진행이 없다(실측
+            # 2026-08-31). 커플러가 매 스텝 uipc 상태를 되쓰는 것과 구속이 서로
+            # 싸우는 것으로 보인다. 기본은 꺼두고, 봉투는 포켓 바닥에 얹어 둔다.
+            top_idx = np.where(vp[:, 2] > vp[:, 2].max() - 0.010)[0].astype(int)
+            bag.set_vertex_constraints(verts_idx_local=top_idx.tolist(), is_soft_constraint=False)
+            print(f"[clamp_only] 상단 {len(top_idx)}/{len(vp)} 정점 구속(그리퍼 대체)")
+        else:
+            print("[clamp_only] 정점 구속 없음 — 봉투는 포켓 안에 자유롭게 놓인다")
+        for _ in range(N_SETTLE2):
+            crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
+            crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+            scene.step()
+            _step_n[0] += 1
+            render_cams()
+        _w, _h, _b = _bag_extent()
+        print(f"[clamp_only] settle 후 bag_com={_bag_com()}  tilt={_bag_tilt():.1f}deg  "
+              f"bag_bottom={_b:.4f} (목표 {wall_center_z:.4f}, 오차 "
+              f"{(_b-wall_center_z)*1e3:+.1f}mm)  폭 {_w*1e3:.1f}mm 높이 {_h*1e3:.1f}mm")
+        if _h > 0.150 or _w < 0.003:
+            raise RuntimeError(
+                f"[clamp_only] 봉투 형상이 깨졌다 — 폭 {_w*1e3:.1f}mm 높이 {_h*1e3:.1f}mm. "
+                f"압착을 재도 의미가 없다.")
+
+
     # ── Phase 9: clamp — Left_Wall(Motor2, Rack&Pinion) 닫아 실링부 고정 ─────
     # docs/Crusher.md §11-5: 래칫/락 없이 모터를 계속 구동해 강하게 고정하는
     # 방식 — WALL_OFFSET(+6mm)에서 CLAMP_TARGET(-12mm)까지 완전 폐쇄를 지령하되,
     # 실제 정지 위치는 WALL_FORCE_LIM(±100N)이 결정한다 = 실효 압착 두께 실측.
     # 잔여 간격 = LEFTWALL_GAP_FLANGE + CLAMP_TARGET 이라 -5mm 는 7.5mm 를 남겨
     # 6mm 봉투를 스치기만 했다 — 상단 CLAMP_TARGET 정의부의 실측 근거 참고.
-    print(f"\n[phase] 9 clamp ({N_CLAMP*DT:.1f}s) — Left_Wall {WALL_OFFSET*1000:+.1f}mm -> "
-          f"{CLAMP_TARGET*1000:+.1f}mm (실링부 압착)")
+    _wall_q = lambda: float(_npy(crusher.get_dofs_position())[wall_dof])
+    _wall_v = lambda: float(_npy(crusher.get_dofs_velocity())[wall_dof])
+    if CLAMP_MODE == "velocity":
+        # **속도원(velocity source) + 힘 상한을, 지령 램프로 구현한다.**
+        #
+        # `control_dofs_velocity` + 큰 kv 를 직접 쓰면 터진다(2026-08-31 실측):
+        # 자유 구간에서는 -8.00mm/s 를 정확히 따라갔는데, 잔여 6.92mm 에서 봉투에
+        # 처음 닿는 순간 v 가 -11.5 -> -27.3 -> -10,003mm/s 로 폭주했다. 명시적
+        # 감쇠의 안정 조건이 kv*dt/m <~ 2 인데 kv=5000, dt=5ms, m=0.312kg 이면
+        # 80 이라 접촉 충격 한 번에 발산 영역으로 넘어간다. 크랭크의
+        # CRANK_KV_SPIN=5000 이 멀쩡한 것은 회전 관성이라 단위가 다르기 때문이다.
+        #
+        # 대신 검증된 위치제어 경로(kp=5000/kv=500)를 그대로 두고 **지령만**
+        # 속도로 움직인다. 핵심은 지령이 실제 위치보다 lead_max 이상 앞서지
+        # 못하게 묶는 것이다:
+        #     lead_max = WALL_FORCE_LIM / WALL_KP = 100N / 5000 N/m = 20mm
+        # 이러면 자유 구간에서는 8mm/s 로 따라가고, 봉투에 막히면 지령이 20mm
+        # 앞에서 포화해 **정확히 100N 으로 계속 미는 상태**가 된다 — 실기의
+        # "모터를 계속 구동해 강하게 고정"(§11-5)과 같은 거동이고, 도달 불가능한
+        # 목표를 배리어에 밀어붙이던 위치 램프의 문제도 사라진다.
+        _lead_max = WALL_FORCE_LIM / WALL_KP
+        _v_step = WALL_CLOSE_MMPS * 1e-3 * DT
+        _q_cmd = WALL_OFFSET
+        print(f"\n[phase] 9 clamp ({N_CLAMP*DT:.1f}s) — Left_Wall {WALL_OFFSET*1000:+.1f}mm 에서 "
+              f"**속도지령** {WALL_CLOSE_MMPS:.1f}mm/s 로 계속 닫음 (docs §11-5), "
+              f"lead {_lead_max*1e3:.1f}mm = 정지 시 {WALL_FORCE_LIM:.0f}N, "
+              f"가드 {WALL_Q_FLOOR*1e3:+.1f}mm")
+    else:
+        print(f"\n[phase] 9 clamp ({N_CLAMP*DT:.1f}s) — Left_Wall {WALL_OFFSET*1000:+.1f}mm -> "
+              f"{CLAMP_TARGET*1000:+.1f}mm (실링부 압착)")
+
+    # 무진행 정체와 정상 스톨을 로그에서 구분할 수 있어야 한다 — 예전 런들이
+    # clamp 구간에 출력이 없어 20분을 기다린 뒤에야 이상을 알았다.
+    _clamp_log = max(1, N_CLAMP // 25)
     for k in range(N_CLAMP):
-        s = (k + 1) / N_CLAMP
-        wq = WALL_OFFSET + (CLAMP_TARGET - WALL_OFFSET) * s
-        crusher.control_dofs_position(np.array([wq]), dofs_idx_local=[wall_dof])
+        if WALL_KINEMATIC:
+            # 지령을 v 만큼 전진시키고 그 위치를 그대로 써넣는다. CLAMP_TARGET
+            # 에서 멈춘다 — 접촉이 벽을 되밀 수 없으므로 lead 제한이 필요 없다.
+            _q_cmd = max(_q_cmd - _v_step, CLAMP_TARGET)
+            crusher.set_dofs_position(np.array([_q_cmd]), dofs_idx_local=[wall_dof])
+        elif CLAMP_MODE == "velocity":
+            # 지령을 v 만큼 전진시키되 (a) 실제 위치보다 lead_max 이상 앞서지 않고
+            # (b) 기계적 하드스톱 가드를 넘지 않게 묶는다. max = 덜 음수인 쪽.
+            # **단조 감소**로 묶는다 — 벽이 +방향으로 튕기면 lead 항이 그 폭주를
+            # 따라 올라가 영영 되돌아오지 못한다(실측: c1_arm10 에서 wall +244mm).
+            _q_cmd = min(_q_cmd, max(_q_cmd - _v_step, _wall_q() - _lead_max, WALL_Q_FLOOR))
+            crusher.control_dofs_position(np.array([_q_cmd]), dofs_idx_local=[wall_dof])
+        else:
+            s = (k + 1) / N_CLAMP
+            wq = WALL_OFFSET + (CLAMP_TARGET - WALL_OFFSET) * s
+            crusher.control_dofs_position(np.array([wq]), dofs_idx_local=[wall_dof])
         crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
         robot.set_dofs_position(np.concatenate([qpos_insert, [FING_CLOSE] * 6]))
         scene.step()
         _step_n[0] += 1
         render_cams()
+        if k % _clamp_log == 0:
+            _q = _wall_q()
+            print(f"    [clamp t={k*DT:5.2f}s] wall={_q*1e3:+7.2f}mm "
+                  f"v={_wall_v()*1e3:+7.2f}mm/s  본체면 잔여 "
+                  f"{(LEFTWALL_GAP_BODY + _q)*1e3:+6.2f}mm  bag_com={_bag_com()}")
     wq_final = _npy(crusher.get_dofs_position())[wall_dof]
     # 발산 검증(2026-08-25) — 2차 -10.4mm 런에서 벽 DOF 가 -2.09e9 mm 로 터졌는데
     # 그 값이 그대로 release 의 wall_q 로 흘러들어가 다음 페이즈까지 망가뜨렸다.
     # 물리적으로 가능한 범위는 [CLAMP_TARGET - 1mm, WALL_OFFSET + 1mm] 뿐이다.
     # 여유 5mm — 1mm 로 잡았더니 PD 오버슛(목표 -10.0 에 -11.36 도달)을 발산으로
     # 오탐했다. 실제 발산은 +625mm / -2.09e9mm 규모라 5mm 로도 충분히 걸러진다.
-    _wq_lo, _wq_hi = min(CLAMP_TARGET, 0.0) - 0.005, max(WALL_OFFSET, 0.0) + 0.005
+    _wq_deep = WALL_Q_FLOOR if CLAMP_MODE == "velocity" else CLAMP_TARGET
+    _wq_lo, _wq_hi = min(_wq_deep, 0.0) - 0.005, max(WALL_OFFSET, 0.0) + 0.005
     if not (np.isfinite(wq_final) and _wq_lo <= wq_final <= _wq_hi):
         raise RuntimeError(
             f"[clamp] Left_Wall DOF 발산: wall={wq_final*1000:.2f}mm "
             f"(허용 {_wq_lo*1000:+.1f}~{_wq_hi*1000:+.1f}mm). "
             f"WALL_FORCE_LIM={WALL_FORCE_LIM}N 로도 안정화되지 않았다 — "
-            f"CLAMP_TARGET({CLAMP_TARGET*1000:+.1f}mm)을 줄이거나 힘 상한을 낮출 것."
+            + (f"WALL_CLOSE_MMPS({WALL_CLOSE_MMPS:.1f}mm/s)를 낮추거나 힘 상한을 낮출 것."
+               if CLAMP_MODE == "velocity" else
+               f"CLAMP_TARGET({CLAMP_TARGET*1000:+.1f}mm)을 줄이거나 힘 상한을 낮출 것.")
         )
     # 잔여 간격은 **면마다 다르다**(§18-2): 상단 플랜지와 본체 면이 5mm 어긋나
     # 서로 다른 값에서 출발한다. 하나만 찍으면 다른 쪽을 오해하므로 둘 다 낸다.
@@ -1519,9 +1893,19 @@ def main(use_viewer: bool = False):
     # 인지 LEFTWALL_CLAMP_FACE(본체 면을 플랜지 평면까지 메움)인지에 따라 다르다.
     _g_flange = (LEFTWALL_GAP_FLANGE + wq_final) * 1000
     _g_body = LEFTWALL_GAP_BODY + wq_final
+    # 플랜지 접촉을 끄면 플랜지면 잔여는 **참고값**이다 — 그 면은 이제 아무것도
+    # 안 누른다. 음수로 내려가도 정상이며(형상이 봉투를 통과해 지나간다) 압착을
+    # 판단할 면은 본체면 하나뿐이다.
+    _fl_tag = "" if LEFTWALL_FLANGE_CONTACT else "(비접촉)"
     print(f"[phase] clamp    @done  wall={wq_final*1000:+.2f}mm  "
-          f"(잔여: 플랜지면 {_g_flange:.2f}mm / 본체면 {_g_body*1000:.2f}mm)  "
-          f"bag_com={_bag_com()}")
+          f"(잔여: 플랜지면{_fl_tag} {_g_flange:.2f}mm / "
+          f"본체면 {_g_body*1000:.2f}mm)  bag_com={_bag_com()}")
+    if CLAMP_MODE == "velocity":
+        # 속도제어에서는 "어디서 멈췄나" 가 곧 측정값이다. 가드까지 내려갔다면
+        # 봉투가 힘 상한을 세우지 못한 것 = 못 물었다는 뜻이다.
+        _stalled = wq_final > WALL_Q_FLOOR + 1e-4
+        print(f"[clamp] {'봉투 반력에 막혀 정지' if _stalled else '**하드스톱까지 내려감 — 봉투를 못 물었다**'}"
+              f"  (가드 {WALL_Q_FLOOR*1e3:+.2f}mm, 최종 v={_wall_v()*1e3:+.2f}mm/s)")
 
     # ── Phase 10: release — 그리퍼 개방, 고정은 이제 Left_Wall 이 담당 ───────
     # **wall_q 를 CLAMP_TARGET 이 아니라 실제 도달 위치로 준다(2026-08-25)**.
@@ -1536,16 +1920,25 @@ def main(use_viewer: bool = False):
     # 그리퍼를 열면 봉투가 포켓으로 흘러내린다(실측 -34.9mm) — 클램프가 플랜지
     # 한 줄로만 닿아 사실상 고정력이 없기 때문(플랜지 높이엔 마주보는 고정벽이
     # 없다, §18-2). 놓지 않으면 그 실패모드 자체가 사라진다.
+    _bottom_at_clamp = _bag_extent()[2]      # 릴리스 전후 낙하량 비교 기준
+    _skip_arm[0] = False        # Phase 10 부터는 CLAMP_ONLY 에서도 실제로 돌린다
     _fing_end = FING_CLOSE if HOLD_THROUGH_CLAMP else FING_OPEN
+    # 속도지령 모드면 WALL_PRELOAD 라는 개념이 없다 — clamp 끝의 지령 _q_cmd 가
+    # 이미 실제 위치보다 lead_max 앞서 포화해 있으므로, 그대로 유지하면 계속
+    # 힘 상한으로 눌러 고정한다(§11-5). 새로 계산할 것이 없다.
+    _wall_hold = _q_cmd if CLAMP_MODE == "velocity" else wq_final - WALL_PRELOAD
+    if WALL_KINEMATIC:
+        _wall_hold = _q_cmd
+    _wall_kw = dict(wall_q=_wall_hold)
     run_arm("hold2" if HOLD_THROUGH_CLAMP else "release",
             qpos_insert, qpos_insert, FING_CLOSE, _fing_end, N_RELEASE,
-            crank_q=CRANK_START_Q, wall_q=wq_final - WALL_PRELOAD, trace=True)
+            crank_q=CRANK_START_Q, trace=True, **_wall_kw)
 
     # ── Phase 11: crush — 벽이 문 상태로 Crusher 를 실제 운전 ─────────────────
     # 근거·사양은 CRUSH_SECONDS 정의부 주석. 기본은 꺼져 있고 CRUSH_SECONDS 로 켠다.
     if CRUSH_SECONDS > 0:
         n_crush = int(round(CRUSH_SECONDS / DT))
-        wall_hold = wq_final - WALL_PRELOAD
+        wall_hold = _wall_hold      # 속도지령 모드면 포화된 지령, 아니면 프리로드
 
         def _tablet_extent():
             """정제 AABB (dx, dy, dz) mm — 분쇄 진행도의 대리 지표."""
@@ -1636,9 +2029,32 @@ def main(use_viewer: bool = False):
     print(f"[RESULT] width_y={final_width_y*1000:.1f}mm(baseline {baseline_width_y*1000:.1f}mm)  "
           f"height_z={final_height_z*1000:.1f}mm(baseline {baseline_height_z*1000:.1f}mm)")
 
-    cam_over.stop_recording()
-    cam_bag.stop_recording()
-    cam_side.stop_recording()
+    # ── 스윕용 한 줄 요약 ─────────────────────────────────────────────────────
+    # 파라미터 스윕은 로그 수십 개를 사람이 읽는 게 아니라 이 줄만 긁어서 표로
+    # 만든다. **압착이 성립했는지의 핵심 지표는 drop** 이다 — 그리퍼를 놓은 뒤
+    # 봉투가 얼마나 흘러내렸는가(§18-4 의 실패 실측 -34.9mm).
+    _drop_mm = (final_bottom_z - _bottom_at_clamp) * 1e3
+    print("[SUMMARY] " + " ".join([
+        f"flange={'ON' if LEFTWALL_FLANGE_CONTACT else 'OFF'}",
+        f"mode={CLAMP_MODE}",
+        f"v={WALL_CLOSE_MMPS:.1f}mm/s",
+        f"F={WALL_FORCE_LIM:.0f}N",
+        f"kp={WALL_KP:.0f}",
+        f"hold={'1' if HOLD_THROUGH_CLAMP else '0'}",
+        f"wall={wq_final*1e3:+.2f}mm",
+        f"body_gap={(LEFTWALL_GAP_BODY + wq_final)*1e3:+.2f}mm",
+        f"stalled={'Y' if (CLAMP_MODE == 'velocity' and wq_final > WALL_Q_FLOOR + 1e-4) else 'N'}",
+        f"drop={_drop_mm:+.1f}mm",
+        f"tilt={_bag_tilt():.1f}deg",
+        f"width={final_width_y*1e3:.1f}mm",
+        f"reach_err={(final_bottom_z - wall_center_z)*1e3:+.1f}mm",
+        f"verdict={verdict}",
+    ]))
+
+    if not NO_VIDEO:
+        cam_over.stop_recording()
+        cam_bag.stop_recording()
+        cam_side.stop_recording()
     print(f"\n[saved] overview -> {MP4_OVERVIEW}")
     print(f"[saved] bagcam   -> {MP4_BAGCAM}")
     print(f"[saved] sideview -> {MP4_SIDE}")

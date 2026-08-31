@@ -17,3 +17,6 @@ Thumbs.db
 .codegraph/
 
 # Sim_result outputs are now tracked (2026-07-01) — folder no longer ignored
+
+# 스윕 런별 중간 산출물 — RUN_TAG 로 분리된 임시 디렉터리(런당 약 100KB, 재생성 가능)
+Crusher_Genesis/Crusher_M0609_RG2_Tablet_Samplebag/RESULT_*/
