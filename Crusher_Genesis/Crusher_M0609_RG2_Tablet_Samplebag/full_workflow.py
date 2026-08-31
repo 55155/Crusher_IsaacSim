@@ -252,10 +252,16 @@ LEFTWALL_FLANGE_MESH = "L2_Left_Wall_flange"
 # 회수장치2 를 needs_coup=False 로 뺀 근거("모든 geom 이 contype=0 이라 커플러가
 # 가져갈 충돌 메시가 0개")와도 같은 이야기다.
 #
-# 기본값은 LAYOUT_FROM_STEP 를 따라간다 — 실배치에서만 빼고, 예전 검증 배치
-# (§18 까지의 -0.7mm 파이프라인)는 건드리지 않는다.
-LEFTWALL_FLANGE_CONTACT = os.environ.get(
-    "LEFTWALL_FLANGE_CONTACT", "0" if LAYOUT_FROM_STEP else "1") == "1"
+# **[기본값 1로 되돌림 2026-08-31]** 위 "플랜지는 압착 경로에서 빠져야 할
+# 부품"이라는 가설은 **기각됐다**(§20-3). flange=ON 대조군이 통과했을 뿐 아니라
+# 수치가 더 좋다 — reach_err +0.3mm vs -1.9mm, tilt 7.5deg vs 9.6deg, 2회 재현.
+# 힘제어에서 왜 발산했는지로는 위 분석이 맞지만, 해결책은 기하가 아니라 구동
+# 방식(WALL_KINEMATIC)이었다. 벽이 되밀릴 수 없으면 플랜지 높이에 마주보는 면이
+# 없다는 사실 자체가 무의미해지므로, **실기 형상을 그대로 두는 편이 낫다.**
+# §20-3 이 이미 "기본값을 켬으로 되돌리는 것이 맞다"고 적어뒀는데 LAYOUT_FROM_STEP
+# 이 기본 1로 승격되면서 결과적으로 꺼진 상태가 됐다 — 그것을 바로잡는다.
+# 실측 대조(오늘): ON 이면 벽이 -12.79mm 에 서고, OFF 면 -14.53mm 까지 들어간다.
+LEFTWALL_FLANGE_CONTACT = os.environ.get("LEFTWALL_FLANGE_CONTACT", "1") == "1"
 LEFTWALL_BODY_HULL_N = 5
 LEFTWALL_BODY_HULLS = [f"L2_Left_Wall_body_hull_{i:03d}" for i in range(LEFTWALL_BODY_HULL_N)]
 if LEFTWALL_SPLIT and LEFTWALL_CLAMP_FACE:

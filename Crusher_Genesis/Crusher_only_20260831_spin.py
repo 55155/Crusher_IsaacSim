@@ -55,15 +55,22 @@ EQ_SOLREF = os.environ.get("EQ_SOLREF", "0.0002 50")
 IPC = os.environ.get("IPC", "0") == "1"
 BAG = os.environ.get("BAG", "0") == "1"
 SET = os.environ.get("SET", "0") == "1"
+NOWELD = os.environ.get("NOWELD", "0") == "1"
 CONFIG = os.environ.get("CONFIG", "")
 
+# 4번째 열 NOWELD: crank_slider_loop weld 를 떼서 **폐루프를 없앤다**.
+# 가설 — set_dofs_position 이 크랭크를 세우는 것은 매 스텝 constraint_solver.reset()
+# 이 폐루프의 웜스타트를 지우기 때문이다. 그렇다면 폐루프가 없으면 set 을 줘도
+# 돌아야 한다. noweld_set 이 돌면 **폐루프가 필요조건**임이 확정된다.
 MATRIX = [
-    # name          IPC  BAG  SET
-    ("base",         0,   0,   0),   # = 런 B (6.90 RPM 확인됨)
-    ("ipc",          1,   0,   0),   # = 런 C (6.95 RPM 확인됨)
-    ("ipc_bag",      1,   1,   0),   # 봉투만 추가
-    ("ipc_set",      1,   0,   1),   # set 구동만 추가
-    ("ipc_bag_set",  1,   1,   1),   # 둘 다 = full_workflow 조건
+    # name          IPC  BAG  SET  NOWELD
+    ("base",         0,   0,   0,   0),   # = 런 B (6.90 RPM 확인됨)
+    ("ipc",          1,   0,   0,   0),   # = 런 C (6.95 RPM 확인됨)
+    ("ipc_bag",      1,   1,   0,   0),   # 봉투만 추가
+    ("ipc_set",      1,   0,   1,   0),   # set 구동만 추가 -> 0.024 (확인됨)
+    ("ipc_bag_set",  1,   1,   1,   0),   # 둘 다 = full_workflow 조건
+    ("noweld",       0,   0,   0,   1),   # 폐루프만 제거 — 대조군
+    ("noweld_set",   0,   0,   1,   1),   # 폐루프 제거 + set  <- 가설 검증
 ]
 
 RPM = 8.0
@@ -91,6 +98,22 @@ def main():
             shutil.copy2(s, os.path.join(tmp, f))
     patched = os.path.join(tmp, "Crusher_genesis.xml")
     C.patch_mjcf(C.SRC_XML, patched, eq_solref=EQ_SOLREF)
+    if NOWELD:
+        # **폐루프를 실제로 끊는다.** crank_slider_loop weld 가 크랭크와 슬라이더를
+        # 잇는 유일한 구속이라, 떼면 크랭크는 아무것도 안 달린 축이 된다.
+        # (patch_mjcf 가 떼는 것은 lock_crank **joint** equality 이지 weld 가 아니다 —
+        #  그건 크랭크를 -90도에 붙들어 두는 초기 고정용이다.)
+        # 이 런은 분쇄 검증용이 아니라 **가설 검증용**이다: 폐루프가 없으면
+        # set_dofs_position 을 매 스텝 줘도 크랭크가 도는가?
+        import xml.etree.ElementTree as _ET
+        _t = _ET.parse(patched); _r = _t.getroot()
+        _eq = _r.find("equality")
+        _n = 0
+        if _eq is not None:
+            for _w in list(_eq.findall("weld")):
+                _eq.remove(_w); _n += 1
+        _t.write(patched, encoding="utf-8", xml_declaration=True)
+        print(f"[noweld] weld {_n}개 제거 — 폐루프 없음 (슬라이더는 크랭크를 안 따라온다)")
 
     import genesis as gs
     gs.init(backend=gs.cuda, logging_level="warning")
@@ -206,31 +229,34 @@ def run_matrix():
     import re
 
     results = []
-    for name, ipc, bag, st in MATRIX:
+    for name, ipc, bag, st, nw in MATRIX:
         env = dict(os.environ, CONFIG=name, IPC=str(ipc), BAG=str(bag), SET=str(st),
+                   NOWELD=str(nw),
                    DT=os.environ.get("DT", "5e-3"),
                    SUBSTEPS=os.environ.get("SUBSTEPS", "1"))
-        print(f"[run ] {name:12s} IPC={ipc} BAG={bag} SET={st} ...", flush=True)
+        print(f"[run ] {name:12s} IPC={ipc} BAG={bag} SET={st} NOWELD={nw} ...", flush=True)
         p = subprocess.run([sys.executable, "-u", os.path.abspath(__file__)],
                            env=env, capture_output=True, text=True, errors="replace")
         out = p.stdout + p.stderr
         m = re.search(r"최종 ω=([-\d.]+) rad/s \(([-\d.]+) RPM\).*추종률 ([-\d.]+)%", out)
         deg = re.search(r"총 회전 ([-+\d.]+) deg", out)
         if m:
-            results.append((name, ipc, bag, st, float(m.group(2)), float(m.group(3)),
+            results.append((name, ipc, bag, st, nw, float(m.group(2)), float(m.group(3)),
                             float(deg.group(1)) if deg else float("nan")))
             print(f"       -> {m.group(2)} RPM (추종률 {m.group(3)}%)", flush=True)
         else:
             err = re.search(r"(GenesisException|Error|Exception):?\s*(.*)", out)
-            results.append((name, ipc, bag, st, float("nan"), float("nan"), float("nan")))
+            results.append((name, ipc, bag, st, nw, float("nan"), float("nan"), float("nan")))
             print(f"       -> 실패: {err.group(0)[:90] if err else 'rc=' + str(p.returncode)}",
                   flush=True)
 
     print("\n" + "=" * 74)
-    print(f"{'환경':14s}{'IPC':>4}{'BAG':>5}{'SET':>5}   {'RPM':>8}{'추종률':>9}{'회전(deg)':>11}")
+    print(f"{'환경':14s}{'IPC':>4}{'BAG':>5}{'SET':>5}{'NOWELD':>8}   "
+          f"{'RPM':>8}{'추종률':>9}{'회전(deg)':>11}")
     print("-" * 74)
-    for name, ipc, bag, st, rpm, foll, deg in results:
-        print(f"{name:14s}{ipc:>4}{bag:>5}{st:>5}   {rpm:>8.3f}{foll:>8.1f}%{deg:>11.2f}")
+    for name, ipc, bag, st, nw, rpm, foll, deg in results:
+        print(f"{name:14s}{ipc:>4}{bag:>5}{st:>5}{nw:>8}   "
+              f"{rpm:>8.3f}{foll:>8.1f}%{deg:>11.2f}")
     print("=" * 74)
     print(f"지령 {OMEGA:.4f} rad/s = {RPM} RPM   (dt={os.environ.get('DT','5e-3')}, "
           f"substeps={os.environ.get('SUBSTEPS','1')})")
