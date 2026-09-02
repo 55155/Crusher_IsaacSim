@@ -1,0 +1,10 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"script",
+	"author":	"simuser",
+	"description":	{
+		"":	"Export every component (or every placed occurrence) of the active design as its own STL file, plus a CSV manifest of names, instance counts and sizes"
+	},
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}

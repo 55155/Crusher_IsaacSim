@@ -1,0 +1,10 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"script",
+	"author":	"simuser",
+	"description":	{
+		"":	"Scale the whole active design by a user-supplied factor - component bodies, joint offsets, slide limits and part placement together"
+	},
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
