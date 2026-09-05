@@ -106,6 +106,61 @@ SKIP_TABLET = os.environ.get("SKIP_TABLET", "0") == "1"
 # 떨어지는가"는 이 모드로 판정할 수 없다(그건 풀 시퀀스로 봐야 한다).
 CLAMP_ONLY = os.environ.get("CLAMP_ONLY", "0") == "1"
 CLAMP_ONLY_PIN = os.environ.get("CLAMP_ONLY_PIN", "0") == "1"
+
+# ── 스테이지 분리 (2026-09-04, 사용자 지시) ─────────────────────────────────
+# 풀시퀀스 1회가 14,400스텝 / 19분이다. 파라미터 하나 보려고 매번 앞단을 다시
+# 돌 이유가 없다 — "어떤 기구를 쓰냐로 공정을 갈라서 짧게 돌리고 싶다".
+#
+# **무엇을 건너뛰는가**: 스텝만 건너뛴다. 기구학(IK/웨이포인트)은 그대로 계산한다
+# — `qpos_insert` 처럼 앞 구간이 푼 값이 뒤 구간의 입력이라 계산을 건너뛰면
+# 뒤가 성립하지 않는다. 이건 CLAMP_ONLY 가 `_skip_arm` 으로 이미 쓰고 있는
+# 검증된 패턴이고(최종 자세만 set_dofs_position, scene.step 없음), 그걸
+# 전 구간으로 일반화한 것이다.
+#
+#   STAGE=all              전 구간 (기본값, 종전 동작과 동일)
+#   STAGE=clamp            클램프만
+#   STAGE=recover:suction  회수장치 투입 ~ 흡착까지
+#
+# 봉투는 그 스테이지의 **시작 자세로 직접 스폰**한다(BAG_SPAWN 참고).
+STAGE_ORDER = ("grasp", "clamp", "crush", "recover", "rclock", "suction", "grain")
+# 늦은 스테이지 스폰 높이 미세조정(진단용) — 초기 관통 여부를 가르는 손잡이.
+# 늦은 스테이지는 봉투를 **띄워서** 스폰한다. 회수장치 턱은 빌드 시점에 닫혀
+# 있어서 목표 자세로 바로 놓으면 강체와 겹쳐 uipc 빌드가 죽는다(실측: +1/10/
+# 25/40mm 전부 실패, +100mm 통과). 띄운 뒤 SPC 로 끌어내린다 — SPC 는 solve
+# 안으로 들어가 이웃이 따라오므로 메시가 찢기지 않는다.
+STAGE_SPAWN_DZ = float(os.environ.get("STAGE_SPAWN_DZ_MM", "100")) * 1e-3
+_stage_env = os.environ.get("STAGE", "all").lower().strip()
+if _stage_env in ("all", ""):
+    STAGE_FROM, STAGE_TO = 0, len(STAGE_ORDER) - 1
+else:
+    _a, _, _b = _stage_env.partition(":")
+    _b = _b or _a
+    for _s in (_a, _b):
+        if _s not in STAGE_ORDER:
+            raise SystemExit(f"STAGE 값이 잘못됐다: {_s!r} — 가능: {', '.join(STAGE_ORDER)} (또는 all, a:b)")
+    STAGE_FROM, STAGE_TO = STAGE_ORDER.index(_a), STAGE_ORDER.index(_b)
+    if STAGE_FROM > STAGE_TO:
+        raise SystemExit(f"STAGE 범위가 뒤집혔다: {_stage_env!r}")
+
+
+def stage_on(name):
+    """이 스테이지를 **실제로 스텝**하는가."""
+    return STAGE_FROM <= STAGE_ORDER.index(name) <= STAGE_TO
+
+
+def stage_before(name):
+    """이 스테이지가 선택 구간보다 앞인가(= 기구학만 돌리고 스텝은 생략)."""
+    return STAGE_ORDER.index(name) < STAGE_FROM
+
+
+# clamp 이후에서 시작하면 팔 시퀀스는 스텝을 안 쓰고 봉투는 슬롯에 직접 놓는다 —
+# CLAMP_ONLY 가 이미 하던 일이라 그 경로를 그대로 재사용한다(새 코드 경로를
+# 만들지 않는 게 변인통제에 유리하다).
+if STAGE_FROM >= STAGE_ORDER.index("clamp"):
+    CLAMP_ONLY = True
+if _stage_env not in ("all", ""):
+    print(f"[stage] STAGE={_stage_env} -> {STAGE_ORDER[STAGE_FROM]}..{STAGE_ORDER[STAGE_TO]} "
+          f"(CLAMP_ONLY={int(CLAMP_ONLY)})")
 # NO_VIDEO=1: 카메라 렌더/녹화를 통째로 끈다. 파라미터 스윕처럼 **수치만** 필요한
 # 런에서 카메라 3대를 매 스텝 돌리는 비용을 없앤다. 영상이 결과물인 런에서는 끄면 안 된다.
 NO_VIDEO = os.environ.get("NO_VIDEO", "0") == "1"
@@ -1335,9 +1390,34 @@ RIGID_RIGID = os.environ.get("RIGID_RIGID", "0") == "1"
 # 행정은 50mm 가 아니라 20mm 다(사용자 지시). 조 한계는 -50mm 지만 끝까지
 # 열면 불안정하고, SuctionV1_only 실측에서 20mm 가 follow 0.98 로 더 좋다
 # (50mm 는 0.79). 컵 간격 = 2|q| 이므로 -20mm 는 컵이 40mm 벌어진다.
+# 난수 시드 — 0 이 기본. 스윕에서 "같은 조건 반복"의 분산을 보고 싶을 때만 바꾼다.
+GS_SEED = int(os.environ.get("GS_SEED", "0"))
 SUCK = os.environ.get("SUCK", "1") == "1"
 SUCTION_MOUTH_M = -float(os.environ.get("SUCK_MOUTH_MM", "20.0")) * 1e-3
 SUCK_GRAB_R = float(os.environ.get("SUCK_GRAB_R_MM", "7.5")) * 1e-3
+# ── 흡착컵 접촉 원판 (2026-09-04, 사용자 지시: "흡착컵 직경에 대한 파티클을 잡아당기자")
+# 컵은 `Suction_Cup_M5_0.8mm_15mm_*` — 이름 그대로 **D15mm** 이고 메시 실측
+# extents 도 15 x 30 x 15mm(30mm 가 조 이동축) 이라 SUCK_GRAB_R 7.5mm 가 곧 컵 반경이다.
+#
+# **접촉면 중심을 링크 원점 대신 컵 원판 중심으로 잡는다.** 이게 §21 에서 "컵이
+# 봉투를 51.6mm 놓쳤다"고 읽힌 것의 정체다 — 링크 원점은 컵 면보다 84mm 뒤에 있어,
+# 거기서 재면 실제로 닿아 있는 컵도 안 닿은 것으로 나온다.
+#   L body   pos=(-0.073, +0.00345, 0.257039)  joint axis=(0, 1, 0) slide
+#   R body   pos=(-0.073, -0.00345, 0.221039)  joint axis=(0,-1, 0) slide
+#   컵 geom  pos=(-0.006095, -0.07095, -0.307539) / (-0.006095, -0.06405, -0.271539)
+#   컵 메시  x[-85.4,-70.4] y[37.5,67.5]/[67.5,97.5] z[278.44,293.44]mm
+# 조 이동축(=로컬 Y) 극단면이 접촉면이므로 링크 프레임에서:
+SUCK_CUP_FACE = ((-0.083995, -0.00345, -0.021599),    # L (조가 +Y 로 닫힘)
+                 (-0.083995, +0.00345, +0.014401))    # R (조가 -Y 로 닫힘)
+# 검산: 조 q=0 이면 두 면이 로컬 (-0.0779, 0.0675, 0.28594) 에서 정확히 일치한다
+# — "0 까지 닫으면 두 컵 면이 맞닿는다"(SUCK_JAW_MIN 주석)와 같은 결론.
+#
+# **축은 조인트에서 뽑는다(미결과제 2).** 링크 원점 차분은 두 컵이 Z 로 36mm
+# 어긋나게 매달려 있어 [0.022, 0, -1] 같은 수직축이 나온다 — 개구 방향과 무관하다.
+SUCK_JAW_AXIS = ((0.0, 1.0, 0.0), (0.0, -1.0, 0.0))   # 각 컵이 닫히는 방향(로컬)
+# 컵 면에서 축방향으로 이 거리 안쪽까지를 "빨려드는 범위"로 본다. 봉투 면이 컵
+# 면보다 앞/뒤 어디에 있든(조가 봉투를 이미 눌렀으면 뒤에 있다) 잡히게 양방향.
+SUCK_GRAB_AXIAL = float(os.environ.get("SUCK_GRAB_AXIAL_MM", "8.0")) * 1e-3
 SUCK_KP, SUCK_KV = 2000.0, 50.0
 # **조 닫힘 하한 (변인통제, 2026-09-03).** 조가 0 까지 닫히면 두 컵 면이 맞닿아
 # 서로 파고들고, 접촉 배리어와 PD 가 싸워 진동한다(실측: 명령 -0.42mm 인데 실제
@@ -1459,6 +1539,51 @@ def _prepare_seal_colored_bag():
     return obj_path, tex
 
 
+def _prepare_base_plate():
+    """실판(Base.step 실측)을 **구멍까지 있는 메시**로 굽는다 (2026-09-04, 사용자 지시).
+
+    지금까지 이 판은 `gs.morphs.Box` 프리미티브였다. PLATE_HOLE_* 상수는 맞게
+    적혀 있었지만 형상이 씬에 안 올라가 구멍이 화면에 아예 없었다("알루미늄
+    플레이트에 구멍이 표현이 안 된다" 지적) — 메시 정밀도 문제가 아니라 구멍
+    형상을 만든 적이 없는 것이었다.
+
+    치수 근거는 `Desktop/각종설계/Base.step` 파싱 실측이다:
+        MANIFOLD_SOLID_BREP 1개, occurrence 'Base:1' 1개 (단일 판)
+        정점 bbox            x[0,750] y[0,800] z[0,30]mm
+        CYLINDRICAL_SURFACE  240개 전부 R=3.0000mm (D=6.000)
+        구멍 중심            x 15개 25..725 / y 16개 25..775, 피치 50, 여백 25
+    -> 750 x 800 x 30mm, D6.0 구멍 240개(15x16). PLATE_SIZE/PLATE_HOLE_* 와 일치.
+
+    **충돌은 그대로 볼록껍질(=슬래브)로 둔다.** morph 의 convexify 는 collision
+    메시에만 걸리고 시각 메시는 원본을 쓴다(genesis/options/morphs.py: "decimate
+    ... only used for RigidEntity" + convexify 설명). 즉 구멍은 보이고 충돌비용은
+    Box 와 같다 — 179행 주석이 원래 의도했던 "구멍은 시각/치수 근거로만" 이 이제
+    실제로 성립한다.
+
+    상면이 월드 z=0, 중심이 원점이 되도록 옮겨 Box 배치와 완전히 동일하게 만든다.
+    굽는 데 0.07s 라 캐시 없이 매 런 만든다(런마다 OUT_DIR 분리 원칙도 지켜진다).
+    """
+    from shapely.geometry import Polygon, Point
+    from shapely.ops import unary_union
+
+    W, D, T = (v * 1e3 for v in PLATE_SIZE)          # mm 로 작업 후 마지막에 m 으로
+    r, pitch, margin = PLATE_HOLE_D * 5e2, PLATE_HOLE_PITCH * 1e3, PLATE_HOLE_MARGIN * 1e3
+    xs = np.arange(margin, W - margin + 1e-6, pitch)
+    ys = np.arange(margin, D - margin + 1e-6, pitch)
+    poly = Polygon([(0, 0), (W, 0), (W, D), (0, D)]).difference(
+        unary_union([Point(x, y).buffer(r, quad_segs=8) for x in xs for y in ys]))
+    m = tm.creation.extrude_polygon(poly, T)
+    m.apply_translation((-W / 2, -D / 2, -T))        # 중심 원점, 상면 z=0
+    m.apply_scale(1e-3)
+    path = os.path.join(OUT_DIR, "_base_plate_holes.stl")
+    m.export(path)
+    print(f"[plate] Base.step 실측 판: {W:.0f}x{D:.0f}x{T:.0f}mm, "
+          f"D{PLATE_HOLE_D*1e3:.1f} 구멍 {len(xs)}x{len(ys)}={len(xs)*len(ys)}개 "
+          f"(피치 {pitch:.0f} 여백 {margin:.0f}) -> {len(m.faces)} faces, "
+          f"euler={m.euler_number} (=2-2x{len(xs)*len(ys)})")
+    return path
+
+
 def main(use_viewer: bool = False):
     print("=" * 60)
     print(f" Full workflow: tablet drop -> bag catch -> grasp -> lift -> Crusher slot insert (viewer={use_viewer})")
@@ -1469,7 +1594,17 @@ def main(use_viewer: bool = False):
     bag_obj, bag_seal_tex = _prepare_seal_colored_bag()
 
     import genesis as gs
-    gs.init(backend=gs.gpu, logging_level="warning", precision="32")
+    # **시드를 고정한다 (2026-09-04).** 이송(Phase 12b)이 RRTConnect 인데
+    # 플래너 샘플링이 `qd.random()` 이라, 시드가 없으면 **런마다 다른 경로**가
+    # 나온다. 그 차이가 봉투 흔들림으로 증폭돼 투입 성패를 가른다 — 실측 대조:
+    #     시드 없음, 같은 코드/같은 env 로 두 번
+    #     b: toRC bag_com x=-0.05537 -> rcdown tilt  7.3deg -> 투입 성공(오차 3.7mm)
+    #     c: toRC bag_com x=-0.06304 -> rcdown tilt 56.9deg -> 놓침(낙하 -35.5mm)
+    # extract 종료까지는 0.07mm 차이인데 toRC 에서 7.7mm 로 벌어진다. 즉 A/B 를
+    # 나란히 놓고 비교하려면 이게 먼저 잠겨야 한다(미결과제 4 의 변인통제와 같은 건).
+    # gs.init(seed=) 은 numpy/torch 와 함께 quadrants 의 random_seed 까지 넘긴다.
+    gs.init(backend=gs.gpu, logging_level="warning", precision="32", seed=GS_SEED)
+    print(f"[seed] gs.init(seed={GS_SEED}) — RRTConnect 경로 재현 고정")
     patch_fem_vertex_constraints()
     if BAG_ATTACH:
         patch_ipc_vertex_attach(strength_rate=BAG_ATTACH_K)
@@ -1505,9 +1640,19 @@ def main(use_viewer: bool = False):
     )
 
     if LAYOUT_FROM_STEP:
-        # 실판 1장 — 상면이 월드 z=0 이 되도록 중심을 -두께/2 에 둔다.
+        # 실판 1장 — **충돌은 Box 그대로, 시각만 구멍 뚫린 메시**로 나눈다.
+        # 한 엔티티로 합치면 convexify 가 240구멍 메시에 CoACD 를 돌려 볼록조각이
+        # 여러 개 나올 수 있고, 그러면 이 판이 물리적으로 옛 Box 와 달라진다.
+        # 판은 정적 소품이라 물리를 건드릴 이유가 전혀 없으므로 분리한다
+        # (충돌 경로는 이 변경 전후로 비트 단위 동일).
         scene.add_entity(
-            gs.morphs.Box(size=PLATE_SIZE, pos=(0.0, 0.0, -PLATE_SIZE[2] / 2), fixed=True),
+            gs.morphs.Box(size=PLATE_SIZE, pos=(0.0, 0.0, -PLATE_SIZE[2] / 2), fixed=True,
+                          visualization=False),
+            material=gs.materials.Rigid(coup_type="ipc_only"),
+        )
+        scene.add_entity(   # 메시가 이미 중심 원점/상면 z=0 으로 구워져 나온다
+            gs.morphs.Mesh(file=_prepare_base_plate(), fixed=True, pos=(0.0, 0.0, 0.0),
+                           collision=False, convexify=False, decimate=False),
             material=gs.materials.Rigid(coup_type="ipc_only"),
             surface=gs.surfaces.Default(color=(0.82, 0.82, 0.85), metallic=0.85, roughness=0.3),
         )
@@ -1598,7 +1743,29 @@ def main(use_viewer: bool = False):
     # 무시됨). 스폰 좌표는 morph 가 적용하는 변환을 역산해 만든다:
     #     world = R(euler) @ (verts * scale) + pos
     _bag_spawn_pos = BAG_POS
-    if CLAMP_ONLY:
+    # ── 스테이지별 봉투 시작 자세 (2026-09-04) ────────────────────────────
+    # rclock 이후에서 시작하면 봉투는 이미 **회수장치 턱 안**에 있어야 한다.
+    # 슬롯 스폰(CLAMP_ONLY 경로)을 쓰면 봉투가 Crusher 안에 있어서 흡착/낟알
+    # 스테이지가 성립하지 않는다. 목표 좌표는 Phase 12c 가 쓰는 것과 같은 식
+    # (rc_x/rc_y/rc_seal_z) — 거기서 IK 로 맞추는 값을 여기서는 직접 놓는다.
+    _SPAWN_AT_RC = STAGE_FROM >= STAGE_ORDER.index("rclock")
+    if _SPAWN_AT_RC:
+        import genesis.utils.geom as gu
+        _bv = tm.load(bag_obj).vertices * BAG_SCALE
+        _bw = (gu.quat_to_R(gu.xyz_to_quat(np.array(BAG_EULER), rpy=True, degrees=True))
+               @ _bv.T).T
+        _lo, _hi = _bw.min(0), _bw.max(0)
+        _bag_spawn_pos = (float(RECOVERY2_POS[0] + RC_JAW_X - (_lo[0] + _hi[0]) / 2),
+                          float(RECOVERY2_POS[1] + RC_LINK_MID_Y - (_lo[1] + _hi[1]) / 2),
+                          # **물림 깊이를 빼지 않는다.** 턱 안쪽으로 넣으면 스폰
+                          # 순간부터 강체와 겹쳐 uipc 빌드가 죽는다(실측: ABD
+                          # accessor feature 가 None -> body_count AttributeError).
+                          # 실제 공정에서는 턱이 열린 채 봉투가 내려와 닫히지만,
+                          # 여기선 이미 놓인 상태에서 시작하므로 판 위에 여유를
+                          # 두고 얹고, 자세는 SPC 로 잡는다(아래).
+                          float(RECOVERY2_POS[2] + RC_PLATE_TOP_Z + 0.001 - _lo[2] + STAGE_SPAWN_DZ))
+        print(f"[stage] 봉투를 회수장치 턱에 직접 스폰: pos={np.round(_bag_spawn_pos, 4)}")
+    elif CLAMP_ONLY:
         import genesis.utils.geom as gu
         _sg = slot_geometry()
         _bv = tm.load(bag_obj).vertices * BAG_SCALE
@@ -1654,6 +1821,13 @@ def main(use_viewer: bool = False):
     # 정확한 pos/lookat 은 gap_cx/gap_cy/wall_center_z 계산 후(Phase 7 직전) set_pose 로 확정 — 지금은 placeholder.
     cam_side = scene.add_camera(res=(960, 720), pos=OVERVIEW_CAM_POS, lookat=OVERVIEW_CAM_LOOK,
                                 fov=45, GUI=False)
+    # ── 입구 개구 전용 뷰 (2026-09-04, 논문 그림용) ──────────────────────────
+    # bagcam 은 컵 당김축(world X)을 거의 정면으로 보고 있어 개구가 단축돼 보인다
+    # — 봉투 입구가 2.5 -> 35.1mm 로 벌어져도 그림에서 안 읽힌다. 입구를 **위에서
+    # 내려다보면** 슬릿이 타원으로 벌어지는 게 그대로 보인다. 녹화는 안 걸고
+    # 13c 시작/끝에서 스틸만 두 장 뽑으므로 매 스텝 렌더 비용이 없다.
+    cam_mouth = scene.add_camera(res=(1280, 960), pos=OVERVIEW_CAM_POS,
+                                 lookat=OVERVIEW_CAM_LOOK, fov=30, GUI=False)
 
     # 계측은 full_workflow_rigid.py 와 **같은 경계**로 잰다(빌드 / 스텝+인코딩).
     # 그래야 두 방식의 수치를 같은 자로 잰 값으로 비교할 수 있다 — 예전 "16분
@@ -1744,6 +1918,15 @@ def main(use_viewer: bool = False):
     bag_bottom_mask = bz < bz.min() + 0.012
     bag_side_mask = (bx < bx.min() + 0.008) | (bx > bx.max() - 0.008)
     bag_fixed_idx = np.where(bag_bottom_mask | bag_side_mask)[0]
+    # ── 앞면/뒷면 패널 분할 (2026-09-04, 흡착 개구용) ────────────────────────
+    # 스폰 시 두께축은 world Y 다(바로 위 실측: x 64.0 / **y 6.0** / z 90.0mm).
+    # 이때는 두 패널이 6mm 떨어져 있어 중앙값 한 번으로 깨끗이 갈린다. 이 분할은
+    # 메시의 위상 성질이라 이후 봉투가 어떻게 변형/이송돼도 그대로 유효하다.
+    # **흡착 파지에서 좌/우를 위치로 가를 수 없기 때문에 필요하다** — 입구가 눌려
+    # 닫힌 상태에서는 두 패널이 축 위로 0.1mm 도 안 떨어져 있다(실측: 두 컵의
+    # 최근접 정점이 s=59.5 로 같은 지점, 컵 면은 56.0/62.1). 위치로 가르면 한쪽
+    # 컵이 0개를 잡고 개방이 통째로 생략된다.
+    bag_panel = by > np.median(by)
     if BAG_ATTACH:
         print(f"[bag dbg] 선택 {len(bag_fixed_idx)}개 (바닥 {int(bag_bottom_mask.sum())}"
               f" + 측면 {int(bag_side_mask.sum())}), x폭 {(bx.max()-bx.min())*1e3:.1f}mm"
@@ -2049,8 +2232,26 @@ def main(use_viewer: bool = False):
 
     # 정제가 안전하게 들어간 뒤 형상 고정 해제 — 이후 grasp/lift 는 순수 마찰로 진행.
     if not CLAMP_ONLY:      # CLAMP_ONLY 는 봉투를 슬롯에 놓을 때까지 고정을 유지한다
-        _spc(None) if BAG_ATTACH else bag.remove_vertex_constraints()
-        print("[bag] shape 고정 해제 — 이제부터 순수 마찰 파지")
+        if _SPAWN_AT_RC:
+            # 회수장치 턱이 물어주는 대신 SPC 가 봉투 바닥/측면을 잡아 세운다.
+            # 턱으로 물리려면 열린 상태로 스폰 -> 닫는 스텝이 필요한데, 그건
+            # rclock 스테이지의 일이고 여기(suction/grain)의 관심사가 아니다.
+            print("[bag] shape 고정 유지 — 회수장치 대신 SPC 가 봉투를 세운다(STAGE)")
+            # 띄워 스폰한 만큼 SPC 목표를 내려 봉투를 제자리로 데려온다.
+            if STAGE_SPAWN_DZ > 0:
+                _n_dn = max(1, int(round(STAGE_SPAWN_DZ / 0.05 / DT)))   # 50mm/s
+                print(f"[stage] 봉투 하강 {STAGE_SPAWN_DZ*1e3:.0f}mm ({_n_dn}스텝) — SPC 로 끌어내린다")
+                _p_hi = bag_pos0[bag_fixed_idx].copy()
+                for _k in range(_n_dn):
+                    _e = ease((_k + 1) / _n_dn)
+                    _t = _p_hi.copy(); _t[:, 2] -= STAGE_SPAWN_DZ * _e
+                    _spc(bag_fixed_idx, _t)
+                    _rc_drive(_rc_hold[0])
+                    scene.step(); _step_n[0] += 1; render_cams()
+                print(f"[stage] 하강 완료 bag_com={_bag_com()} bottom={_bag_extent()[2]:.4f}")
+        else:
+            _spc(None) if BAG_ATTACH else bag.remove_vertex_constraints()
+            print("[bag] shape 고정 해제 — 이제부터 순수 마찰 파지")
 
     run_arm("close", q_grasp, q_grasp, FING_OPEN, FING_CLOSE, N_CLOSE,
             crank_q=CRANK_START_Q, wall_q=WALL_OFFSET)
@@ -2286,7 +2487,12 @@ def main(use_viewer: bool = False):
     # 무진행 정체와 정상 스톨을 로그에서 구분할 수 있어야 한다 — 예전 런들이
     # clamp 구간에 출력이 없어 20분을 기다린 뒤에야 이상을 알았다.
     _clamp_log = max(1, N_CLAMP // 25)
-    for k in range(N_CLAMP):
+    # 스테이지 분리: 선택 구간 밖이면 스텝을 안 쓴다. 벽은 지령 위치만 확정해
+    # 두어 뒤 구간이 '닫힌 상태'를 전제할 수 있게 한다.
+    _n_clamp_run = N_CLAMP if stage_on("clamp") else 0
+    if not stage_on("clamp"):
+        print(f"[phase] 9 clamp  @skip (STAGE)")
+    for k in range(_n_clamp_run):
         if CLAMP_MODE == "force":
             # **직접 힘지령**(2026-08-31). §20 이 "힘제어"라 부른 것은 전부
             # control_dofs_position + force_range 클램프였고, control_dofs_force 는
@@ -2399,7 +2605,7 @@ def main(use_viewer: bool = False):
 
     # ── Phase 11: crush — 벽이 문 상태로 Crusher 를 실제 운전 ─────────────────
     # 근거·사양은 CRUSH_SECONDS 정의부 주석. 기본은 꺼져 있고 CRUSH_SECONDS 로 켠다.
-    if CRUSH_SECONDS > 0:
+    if CRUSH_SECONDS > 0 and stage_on("crush"):
         n_crush = int(round(CRUSH_SECONDS / DT))
         wall_hold = _wall_hold      # 속도지령 모드면 포화된 지령, 아니면 프리로드
 
@@ -2498,7 +2704,14 @@ def main(use_viewer: bool = False):
     # 그리퍼는 중앙 파지(GRIP_OFFSET_MM=0)여야 한다 — 턱이 **양쪽 실링을 바깥
     # 4.5mm 씩** 물기 때문에 가장자리 파지면 그리퍼가 그 자리를 차지한다
     # (recovery2_bag_clamp.py 도 이 이관에 상단 중앙 파지를 명시한다).
-    if RECOVER:
+    # 이 블록 안에 rclock/home/흡착이 **중첩**돼 있다. 그래서 게이트는
+    # "recover 가 선택됐나"가 아니라 "recover 이후 구간이 하나라도 선택됐나"
+    # 여야 한다 — 안 그러면 STAGE=suction 이 통째로 건너뛰어진다.
+    # 안쪽 팔 동작은 _skip_arm 으로 개별 차단한다(스텝만 생략, 자세는 확정).
+    if RECOVER and STAGE_TO >= STAGE_ORDER.index("recover"):
+        _skip_arm[0] = not stage_on("recover")
+        if _skip_arm[0]:
+            print("[phase] 12 recover  @skip (STAGE) — 자세만 확정, 스텝 생략")
         rc_x = RECOVERY2_POS[0] + RC_JAW_X
         rc_y = RECOVERY2_POS[1] + RC_LINK_MID_Y
         # 봉투 하단이 F_Top 상면보다 RC_BITE_DEPTH 만큼 **아래로** 내려가야 한다.
@@ -2615,7 +2828,7 @@ def main(use_viewer: bool = False):
             print(f"\n[phase] 12a unclamp ({N_UNCLAMP*DT:.1f}s) — Left_Wall "
                   f"{_w0*1000:+.2f} -> {WALL_OFFSET*1000:+.1f}mm "
                   f"(지령이던 곳 {_wall_hold*1000:+.2f})")
-            for k in range(N_UNCLAMP):
+            for k in range(N_UNCLAMP if stage_on("recover") else 0):
                 s = ease((k + 1) / N_UNCLAMP)
                 crusher.control_dofs_position(
                     np.array([_w0 + (WALL_OFFSET - _w0) * s]),
@@ -2631,7 +2844,9 @@ def main(use_viewer: bool = False):
             # 벽이 실제로 열렸는지 확인한다. 안 열린 채 인출하면 봉투가 슬롯에
             # 물린 채 팔만 올라가고, 이후 전부 허공에서 진행된다(§21-9).
             # 봉투 두께(실효 5mm)만큼은 벌어져야 빠져나올 수 있다.
-            if _w1 < _w0 + 0.005:
+            # 클램프를 안 돌린 스테이지에서는 애초에 닫힌 적이 없으므로
+            # 이 가드는 의미가 없다(열린 양 0mm 로 오탐).
+            if _w1 < _w0 + 0.005 and stage_on("recover") and stage_on("clamp"):
                 raise RuntimeError(
                     f"[recover] Left_Wall 이 안 열렸다 — {_w0*1e3:+.2f} -> "
                     f"{_w1*1e3:+.2f}mm (열린 양 {(_w1-_w0)*1e3:+.2f}mm, 목표 "
@@ -2652,7 +2867,9 @@ def main(use_viewer: bool = False):
             _f_rise = (above_z - insert_z) * 1000.0
             print(f"[recover] 인출 확인: 봉투 +{_b_rise:.1f}mm / 핑거 +{_f_rise:.1f}mm "
                   f"({_b_rise / _f_rise * 100:.0f}%)")
-            if _b_rise < _f_rise * 0.5:
+            # 인출 가드도 recover 를 실제로 돌렸을 때만 의미가 있다 —
+            # 늦은 스테이지는 봉투가 슬롯에 있던 적이 없어 항상 0mm 로 나온다.
+            if _b_rise < _f_rise * 0.5 and stage_on("recover"):
                 _wq_now = _npy(crusher.get_dofs_position())[wall_dof] * 1e3
                 raise RuntimeError(
                     f"[recover] 봉투가 슬롯에서 안 빠졌다 — 핑거는 {_f_rise:.1f}mm "
@@ -2743,10 +2960,11 @@ def main(use_viewer: bool = False):
 
             # 5) 잠금 — 샤프트 pi -> 2pi. 라쳇 때문에 역회전(pi->0)이 아니라
             #    전진으로 닫는다. 슬라이더가 +35mm -> 0mm 로 돌아오며 물린다.
+            _skip_arm[0] = not stage_on("rclock")
             _tmark("12d rclock")
             print(f"\n[phase] 12d rclock ({N_RC_LOCK*DT:.1f}s) — 샤프트 "
                   f"{np.degrees(RC_OPEN_Q):.0f} -> {np.degrees(RC_CLOSE_Q):.0f}deg (잠금)")
-            for k in range(N_RC_LOCK):
+            for k in range(N_RC_LOCK if stage_on("rclock") else 0):
                 s = ease((k + 1) / N_RC_LOCK)
                 _rc_hold[0] = RC_OPEN_Q + (RC_CLOSE_Q - RC_OPEN_Q) * s
                 _rc_drive(_rc_hold[0])
@@ -2774,12 +2992,13 @@ def main(use_viewer: bool = False):
             # 저장해 매 스텝 컵의 실제 자세로 되돌린다(개루프 아님).
             # 회수장치가 봉투를 잡았으니 팔은 초기 자세로 물러난다(사용자 지시).
             # 흡착장치가 들어올 공간을 비우는 것이 목적이다.
+            _skip_arm[0] = not (stage_on("rclock") or stage_on("suction"))
             _tmark("12e home")
             print(f"\n[phase] 12e home ({N_HOME*DT:.1f}s) — 매니퓰레이터 초기 자세 복귀")
             run_arm("home", q_rc_down, Q_GRASP, FING_OPEN, FING_OPEN, N_HOME,
                     wall_q=WALL_OFFSET, trace=True)
 
-            if SUCK and BAG_ATTACH:
+            if SUCK and BAG_ATTACH and stage_on("suction"):
                 _cupL = suction.get_link(SUCTION_CUP_LINKS[0])
                 _cupR = suction.get_link(SUCTION_CUP_LINKS[1])
 
@@ -2828,40 +3047,69 @@ def main(use_viewer: bool = False):
                 print(f"[phase] 13b 흡착 파지 — 조 {SUCTION_OPEN_M*1e3:+.0f} -> 0mm")
                 _sdrive(0.0, min(0.0, SUCK_JAW_MIN), "close")
 
-                # 컵 축과 접촉면은 두 컵 링크 원점에서 뽑는다(엔티티가 회전해
-                # 있으므로 로컬 상수를 쓰면 안 된다).
+                def _R(q):
+                    w, x, y, z = q
+                    return np.array([
+                        [1-2*(y*y+z*z), 2*(x*y-w*z),   2*(x*z+w*y)],
+                        [2*(x*y+w*z),   1-2*(x*x+z*z), 2*(y*z-w*x)],
+                        [2*(x*z-w*y),   2*(y*z+w*x),   1-2*(x*x+y*y)]])
+
+                # ── 컵 접촉면/축을 링크 자세로 월드 변환 ────────────────────
+                _lk = [_cupL, _cupR]
+                _Rw = [_R(_npy(l.get_quat())) for l in _lk]
+                _cf = [_npy(_lk[i].get_pos()) + _Rw[i] @ np.array(SUCK_CUP_FACE[i])
+                       for i in (0, 1)]
+                # 축 = L 조인트가 닫히는 방향(로컬 +Y)을 월드로 — L 면에서 R 면을
+                # 향한다. 링크 원점 차분(옛 방식)도 같이 찍어 어긋남을 남긴다.
+                _ax = _Rw[0] @ np.array(SUCK_JAW_AXIS[0])
+                _ax = _ax / (np.linalg.norm(_ax) + 1e-12)
                 _pL, _pR = _npy(_cupL.get_pos()), _npy(_cupR.get_pos())
-                _mid = 0.5 * (_pL + _pR)
-                _ax = (_pR - _pL) / (np.linalg.norm(_pR - _pL) + 1e-12)
+                _ax_old = (_pR - _pL) / (np.linalg.norm(_pR - _pL) + 1e-12)
+
                 _vp = _npy(bag.get_state().pos).squeeze()
-                _d = np.linalg.norm(_vp - _mid, axis=1)
-                _pr = (_vp - _mid) @ _ax
-                # 봉투 두께 6mm 에 컵 반경 7.5mm 라 반경만 쓰면 반대쪽 면까지
-                # 잡아 두 컵이 같은 정점을 반대로 당겨 상쇄된다(실측).
-                _g = [np.where((_d < SUCK_GRAB_R) & (_pr < 0))[0],
-                      np.where((_d < SUCK_GRAB_R) & (_pr > 0))[0]]
+                _s = _vp @ _ax                       # 축 위 좌표
+                _mid_s = float(np.median(_s))        # 봉투 두께 중앙면(축 위)
+                # 컵 원판 안에 드는 정점: 축에서의 **반경** < 컵 반경, 그리고 컵
+                # 면에서 축방향 거리 < SUCK_GRAB_AXIAL. 좌/우는 봉투 중앙면으로
+                # 가른다(컵 기준으로 가르면 조가 봉투를 지나쳤을 때 뒤집힌다) —
+                # 같은 정점을 두 컵이 반대로 당겨 상쇄되는 것을 막는다.
+                _rad, _axl, _in = [], [], []
+                for i in (0, 1):
+                    _rel = _vp - _cf[i]
+                    _a = _rel @ _ax
+                    _r = np.linalg.norm(_rel - np.outer(_a, _ax), axis=1)
+                    _rad.append(_r), _axl.append(_a)
+                    _in.append((_r < SUCK_GRAB_R) & (np.abs(_a) < SUCK_GRAB_AXIAL))
+                # 원판 안에 든 정점을 **패널 소속**으로 가른다(bag_panel 주석 참고).
+                # 어느 패널이 어느 컵인지는 축 위 평균 위치로 정한다 — L 컵 면이
+                # s 가 작은 쪽이므로 평균 s 가 작은 패널이 L 이다.
+                _disc = np.where(_in[0] | _in[1])[0]
+                _pp = [_disc[bag_panel[_disc]], _disc[~bag_panel[_disc]]]
+                _ps = [_s[p].mean() if len(p) else np.inf for p in _pp]
+                _g = _pp if _ps[0] <= _ps[1] else _pp[::-1]
                 _bb = np.c_[_vp.min(0), _vp.max(0)].T * 1e3
-                _near = _vp[int(np.argmin(_d))]
-                print(f"[suck] 컵 중점 {np.round(_mid*1e3, 1)}mm  축 "
-                      f"{np.round(_ax, 3)}", flush=True)
+                print(f"[suck] 컵 접촉면 L {np.round(_cf[0]*1e3, 1)} "
+                      f"R {np.round(_cf[1]*1e3, 1)}mm  간격 "
+                      f"{np.linalg.norm(_cf[1]-_cf[0])*1e3:.1f}mm", flush=True)
+                print(f"[suck] 축(조인트) {np.round(_ax, 3)} / "
+                      f"축(옛 링크원점차) {np.round(_ax_old, 3)}", flush=True)
                 print(f"[suck] 봉투 bbox x[{_bb[0,0]:.1f},{_bb[1,0]:.1f}] "
                       f"y[{_bb[0,1]:.1f},{_bb[1,1]:.1f}] "
-                      f"z[{_bb[0,2]:.1f},{_bb[1,2]:.1f}]mm", flush=True)
-                print(f"[suck] 최근접 정점까지 벡터 "
-                      f"{np.round((_near - _mid)*1e3, 1)}mm "
-                      f"(거리 {_d.min()*1e3:.1f}mm)", flush=True)
-                print(f"[suck] 파지 정점 좌 {len(_g[0])} / 우 {len(_g[1])}",
-                      flush=True)
+                      f"z[{_bb[0,2]:.1f},{_bb[1,2]:.1f}]mm  "
+                      f"중앙면 s={_mid_s*1e3:.1f}mm", flush=True)
+                print(f"[suck] 원판(D{SUCK_GRAB_R*2e3:.0f}) 안 정점 {len(_disc)}개 "
+                      f"-> 패널 {len(_pp[0])}/{len(_pp[1])} "
+                      f"(축 위 평균 s {_ps[0]*1e3:.1f}/{_ps[1]*1e3:.1f}mm)", flush=True)
+                for i, _t in ((0, "L"), (1, "R")):
+                    _j = int(np.argmin(_rad[i]))
+                    print(f"[suck] {_t} 컵 최근접 정점 반경 {_rad[i][_j]*1e3:.1f}mm "
+                          f"축방향 {_axl[i][_j]*1e3:+.1f}mm  "
+                          f"-> 파지 {len(_g[i])}개", flush=True)
                 if min(len(x) for x in _g) == 0:
-                    print("[suck] **한쪽 컵이 봉투를 못 잡았다 — 개방 생략**")
+                    print("[suck] **한쪽 컵이 봉투를 못 잡았다 — 개방 생략** "
+                          f"(반경한계 {SUCK_GRAB_R*1e3:.1f}mm / "
+                          f"축한계 {SUCK_GRAB_AXIAL*1e3:.1f}mm)")
                 else:
-                    def _R(q):
-                        w, x, y, z = q
-                        return np.array([
-                            [1-2*(y*y+z*z), 2*(x*y-w*z),   2*(x*z+w*y)],
-                            [2*(x*y+w*z),   1-2*(x*x+z*z), 2*(y*z-w*x)],
-                            [2*(x*z-w*y),   2*(y*z+w*x),   1-2*(x*x+y*y)]])
-                    _lk = [_cupL, _cupR]
                     _loc = [(_vp[_g[i]] - _npy(_lk[i].get_pos()))
                             @ _R(_npy(_lk[i].get_quat())) for i in (0, 1)]
                     _all = np.concatenate(_g)
@@ -2873,11 +3121,34 @@ def main(use_viewer: bool = False):
                           f"{SUCTION_MOUTH_M*1e3:+.0f}mm "
                           f"(편도 {abs(SUCTION_MOUTH_M)*1e3:.0f}mm, "
                           f"컵 간격 +{abs(SUCTION_MOUTH_M)*2e3:.0f}mm)")
-                    _n_open = max(1, int(round(abs(SUCTION_MOUTH_M)
+                    # **램프를 조의 현재 위치에서 시작한다 (2026-09-04).**
+                    # 종전엔 `_q = SUCTION_MOUTH_M * e` 라 k=0 에서 지령이 0 이었다.
+                    # 그런데 13b 를 마친 조는 SUCK_JAW_MIN(-3.0mm)에 있다 — 즉 개구
+                    # 첫 스텝에 "3mm 더 닫아라"는 불연속 지령이 kp=2000 에 그대로
+                    # 걸린다. q=0 은 두 컵 면이 정확히 맞닿는 자세라(SUCK_CUP_FACE
+                    # 검산) 컵끼리 파고들고, 지난 커밋에서 규명한 **자가충돌 진동**이
+                    # 그 상태로 재현된다. 사용자 관측 "개구 시점에서 조가 미친듯이
+                    # 진동한다"가 이것이다. 스텝 수도 실제 이동거리에서 다시 뽑는다.
+                    def _mouth_shot(tag):
+                        """입구를 위에서 내려다본 스틸 1장 (논문 그림용)."""
+                        import PIL.Image as _I
+                        _mc = 0.5 * (_cf[0] + _cf[1])
+                        cam_mouth.set_pose(pos=tuple(_mc + np.array([0.02, -0.06, 0.15])),
+                                           lookat=tuple(_mc), up=(0, 0, 1))
+                        _p = os.path.join(CASE_DIR, f"mouth_{_TAG}_{tag}.png")
+                        _I.fromarray(cam_mouth.render(rgb=True)[0]).save(_p)
+                        print(f"[fig ] {_p}", flush=True)
+
+                    _mouth_shot("before")
+                    _qj0 = float(_npy(suction.get_dofs_position())[1])
+                    _n_open = max(1, int(round(abs(SUCTION_MOUTH_M - _qj0)
                                                 / SUCK_SPEED / DT)))
+                    print(f"[jaw ] open  램프 {_qj0*1e3:+.2f} -> "
+                          f"{SUCTION_MOUTH_M*1e3:+.2f}mm ({_n_open}스텝)", flush=True)
+                    _jtr = []
                     for k in range(_n_open):
                         e = ease((k + 1) / _n_open)
-                        _q = SUCTION_MOUTH_M * e
+                        _q = _qj0 + (SUCTION_MOUTH_M - _qj0) * e
                         suction.control_dofs_position(np.array([0.0, _q, _q]),
                                                       dofs_idx_local=[0, 1, 2])
                         _tgt = np.concatenate([
@@ -2891,6 +3162,25 @@ def main(use_viewer: bool = False):
                         scene.step()
                         _step_n[0] += 1
                         render_cams()
+                        # 진동 계측 — 13b 까지는 _sdrive 가 찍는데 개구 구간만
+                        # 계측이 없어 "떨린다"를 수치로 받을 수가 없었다.
+                        _qa = _npy(suction.get_dofs_position())[:3]
+                        _jtr.append((_q, _qa[1], _qa[2]))
+                        if k % 50 == 0 or k == _n_open - 1:
+                            print(f"[jaw ] open  {k+1:4d}/{_n_open}  "
+                                  f"cmd={_q*1e3:+7.2f} | act L={_qa[1]*1e3:+7.2f} "
+                                  f"R={_qa[2]*1e3:+7.2f}mm", flush=True)
+                    _mouth_shot("after")
+                    _jt = np.array(_jtr)
+                    _dev = np.abs(_jt[:, 1:] - _jt[:, :1]).max(axis=1)
+                    # 지령은 단조 램프다. 그러니 **실제 속도의 부호 반전 횟수**가
+                    # 곧 떨림이다(매끄럽게 따라오면 0 에 가깝다).
+                    _dl = np.diff(_jt[:, 1])
+                    _flip = int((np.sign(_dl[1:]) * np.sign(_dl[:-1]) < 0).sum())
+                    print(f"[jaw ] open  추종오차 최대 {_dev.max()*1e3:.2f}mm "
+                          f"평균 {_dev.mean()*1e3:.2f}mm | 속도 부호반전 "
+                          f"{_flip}/{len(_dl)-1}회  스텝간 이동 최대 "
+                          f"{np.abs(_dl).max()*1e3:.3f}mm", flush=True)
                     _vpe = _npy(bag.get_state().pos).squeeze()
                     _y1 = [_vpe[_g[i]] @ _ax for i in (0, 1)]
                     _m1 = abs(_y1[1].mean() - _y1[0].mean()) * 1e3
