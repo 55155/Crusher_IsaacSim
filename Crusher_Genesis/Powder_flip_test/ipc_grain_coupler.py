@@ -59,7 +59,8 @@ sys.path.insert(0, _r)
 import paths  # noqa: E402
 
 sys.path.insert(0, os.path.join(os.path.dirname(_r), "utills"))
-from fem_ipc_workarounds import patch_fem_vertex_constraints  # noqa: E402
+from fem_ipc_workarounds import (patch_fem_vertex_constraints,  # noqa: E402
+                                 patch_ipc_vertex_attach)
 
 from datetime import datetime
 
@@ -82,8 +83,21 @@ DT = 5e-3
 #   full       : 바닥+옆면 고정 + 입구를 target_pos로 벌림(기존 동작, 기본값)
 #   fixed_only : 바닥+옆면+입구 전부 "원래 위치"로만 고정, 입구 벌림(이동) 생략
 #   none       : 어떤 vertex constraint도 걸지 않음 — 순수 중력 낙하만
+#   spc        : **입구를 흡착처럼 벌려 잡는다 (2026-09-04 추가).** 위 세 모드가
+#                전부 `set_vertex_constraints` 를 쓰는데, 그건 IPC 씬에서 동작하지
+#                않는다 — 2026-09-02 에 규명(docs/GenesisPatch.md 패치 2): Genesis
+#                FEM 솔버 버퍼에만 쓰는데 IPC 씬은 uipc 가 천을 스텝하므로 아무도
+#                안 읽는다(소프트=무반응, 하드=자기 정점만 순간이동해 메시가 찢김).
+#                이 파일은 07-31 자라 그 발견보다 앞선다. 즉 `full` 의 입구 벌림은
+#                **한 번도 성립한 적이 없고**, 관측된 "봉투가 15mm 로 주저앉음"이
+#                바로 그 실패 모드다. 여기서는 full_workflow.py 가 검증한 경로 —
+#                patch_ipc_vertex_attach 로 uipc SoftPositionConstraint 를 배선하고
+#                슬롯에 직접 aim_position 을 쓰는 방식 — 을 그대로 쓴다.
 BAG_CONSTRAINT_MODE = os.environ.get("BAG_CONSTRAINT_MODE", "full").lower()
-assert BAG_CONSTRAINT_MODE in ("full", "fixed_only", "none")
+assert BAG_CONSTRAINT_MODE in ("full", "fixed_only", "none", "spc")
+# 입구 반간격 — spc 모드에서 흡착 실측(full_workflow 13c: 2.6 -> 35.2mm)에 맞춘다.
+MOUTH_HALF_GAP_M = float(os.environ.get("MOUTH_HALF_GAP_MM", "17.5")) * 1e-3
+BAG_ATTACH_K = float(os.environ.get("BAG_ATTACH_K", "1e4"))
 
 BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl")
 BAG_POS = (0.0, 0.0, 0.11)
@@ -381,6 +395,11 @@ def main_bag():
     gs.init(backend=gs.gpu, logging_level="warning", precision="32")
     patch_fem_vertex_constraints()  # FEMEntity.set_vertex_constraints의 IPC 커플러 체크 로직이
     # 뒤집혀 있는 Genesis 기존 버그 우회(§powder_containment_test.py main_ipc()와 동일 관행).
+    if BAG_CONSTRAINT_MODE == "spc":
+        # uipc SoftPositionConstraint 배선 — build 전에 걸어야 한다.
+        # GrainIPCCoupler 는 IPCCoupler 를 상속하고 _add_fem_entities_to_ipc 를
+        # 그대로 호출하므로, 이 패치가 그 경로에 같이 적용된다.
+        patch_ipc_vertex_attach(strength_rate=BAG_ATTACH_K)
     GrainIPCCoupler = _build_grain_coupler_class()
 
     scene = gs.Scene(
@@ -468,6 +487,23 @@ def main_bag():
         # 찢어짐/붕괴를 유발하는지 격리하기 위해 이동 없이 원위치 고정만 건다.
         all_fixed_idx = static_idx + mouth_idx.tolist()
         bag.set_vertex_constraints(verts_idx_local=all_fixed_idx, is_soft_constraint=False)
+    elif BAG_CONSTRAINT_MODE == "spc":
+        # full_workflow.py 의 `_spc()` 와 같은 경로 — uipc 슬롯에 직접 쓴다.
+        import uipc as _uipc
+        _slot = scene.sim.coupler.cloth_slots[(bag, 0)].geometry()
+        _ic = _uipc.view(_slot.vertices().find(_uipc.builtin.is_constrained))
+        _ap = _uipc.view(_slot.vertices().find(_uipc.builtin.aim_position))
+        # 입구는 흡착이 벌린 폭으로, 나머지 고정부는 제자리로 잡는다.
+        _spc_target = pos0.copy()
+        _desired = np.where(front_sub, mouth_mean_x + MOUTH_HALF_GAP_M,
+                            mouth_mean_x - MOUTH_HALF_GAP_M)
+        _spc_target[mouth_idx, 0] = bx[mouth_idx] + taper_t * (_desired - bx[mouth_idx])
+        _on = np.concatenate([np.array(static_idx, dtype=int), mouth_idx])
+        _ic[_on] = 1
+        _ap[_on] = _spc_target[_on].astype(np.float64).reshape(-1, 3, 1)
+        print(f"[bag] SPC 구속 {len(_on)}정점 (고정 {len(static_idx)} + 입구 {len(mouth_idx)}), "
+              f"입구 반간격 {MOUTH_HALF_GAP_M*1e3:.1f}mm -> 개구 "
+              f"{MOUTH_HALF_GAP_M*2e3:.0f}mm, k={BAG_ATTACH_K:g}")
     else:  # "none"
         pass  # 어떤 constraint도 안 검 — 순수 중력 낙하만.
     print(f"[bag] BAG_CONSTRAINT_MODE={BAG_CONSTRAINT_MODE}  바닥+양측면 후보: {len(static_idx)}개, "
