@@ -69,10 +69,12 @@ os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 TEST_MODE = os.environ.get("TEST_MODE", "sanity").lower()
-assert TEST_MODE in ("sanity", "bag"), f"TEST_MODE must be sanity/bag, got {TEST_MODE!r}"
+assert TEST_MODE in ("sanity", "bag", "crusher"), f"TEST_MODE={TEST_MODE!r}"
 
-GRAIN_RADIUS_M = float(os.environ.get("GRAIN_RADIUS_MM", "1.5")) * 1e-3
-GRAIN_RHO = 1500.0
+GRAIN_RADIUS_MM_TAG = os.environ.get("GRAIN_RADIUS_MM", "1.5")
+GRAIN_RADIUS_M = float(GRAIN_RADIUS_MM_TAG) * 1e-3
+# 재질 밀도. 소금(NaCl) 결정 2160 kg/m3 — 1mm 구 1알 = 1.131mg, 2g = 1768알.
+GRAIN_RHO = float(os.environ.get("GRAIN_RHO", "1500.0"))
 GRAIN_FRICTION = 0.6
 N_GRAINS = int(os.environ.get("N_GRAINS", "60"))
 DT = 5e-3
@@ -98,6 +100,18 @@ assert BAG_CONSTRAINT_MODE in ("full", "fixed_only", "none", "spc")
 # 입구 반간격 — spc 모드에서 흡착 실측(full_workflow 13c: 2.6 -> 35.2mm)에 맞춘다.
 MOUTH_HALF_GAP_M = float(os.environ.get("MOUTH_HALF_GAP_MM", "17.5")) * 1e-3
 BAG_ATTACH_K = float(os.environ.get("BAG_ATTACH_K", "1e4"))
+# 낟알 초기 배치: poisson(기각표집, 좁은 부피) | column(구식, 1개/층 수직 기둥)
+GRAIN_PLACEMENT = os.environ.get("GRAIN_PLACEMENT", "poisson").lower()
+GRAIN_FILL_H = float(os.environ.get("GRAIN_FILL_H_MM", "60")) * 1e-3
+# 뿌리는 반경(xy). 봉투 입구보다 넓으면 테두리에 맞고 튕겨 나간다.
+GRAIN_FILL_R = float(os.environ.get("GRAIN_FILL_R_MM", "10")) * 1e-3
+# 투입 중심 편심(mm). y 가 봉투 폭축(64mm)이라 여기서 치우치면 지렛대가 길다.
+GRAIN_FILL_CX = float(os.environ.get("GRAIN_FILL_CX_MM", "0")) * 1e-3
+GRAIN_FILL_CY = float(os.environ.get("GRAIN_FILL_CY_MM", "0")) * 1e-3
+# 슬롯 봉투 스폰 미세조정(mm) — 초기 겹침 회피용 진단 손잡이.
+BAG_DX = float(os.environ.get("BAG_DX_MM", "0")) * 1e-3
+BAG_DY = float(os.environ.get("BAG_DY_MM", "0")) * 1e-3
+BAG_DZ = float(os.environ.get("BAG_DZ_MM", "0")) * 1e-3
 
 BAG_STL = os.path.join(paths.ROBOTS_DIR, "Samplebag", "Samplebag_seal_pouch3.stl")
 BAG_POS = (0.0, 0.0, 0.11)
@@ -440,19 +454,38 @@ def main_bag():
 
     rng = np.random.default_rng(0)
     mouth_top_z_est = BAG_POS[2] + 0.045
-    spacing = GRAIN_RADIUS_M * 4.0
-    positions = []
-    for i in range(N_GRAINS):
-        jitter = rng.uniform(-0.004, 0.004, size=2)
-        positions.append((
-            BAG_POS[0] + jitter[0], BAG_POS[1] + jitter[1],
-            mouth_top_z_est + 0.02 + i * spacing,
-        ))
-    positions = np.array(positions)
+    if GRAIN_PLACEMENT == "poisson":
+        # **기각표집** — 무작위로 뽑되 최소간격을 못 지키면 버리고 다시 뽑는다.
+        # 종전 'column' 은 낟알 하나당 한 층씩 수직으로 쌓아서(간격 4R=6mm),
+        # N=1000 이면 기둥 높이가 6m 가 된다 — 낙하속도 11m/s 로 봉투를 때린다.
+        # 겹침이 없어 빌드는 통과하지만 물리적으로 말이 안 된다.
+        dmin = 2 * GRAIN_RADIUS_M + 1.0e-3
+        _cx, _cy = BAG_POS[0] + GRAIN_FILL_CX, BAG_POS[1] + GRAIN_FILL_CY
+        lo = np.array([_cx - GRAIN_FILL_R, _cy - GRAIN_FILL_R, mouth_top_z_est + 0.015])
+        hi = np.array([_cx + GRAIN_FILL_R, _cy + GRAIN_FILL_R, mouth_top_z_est + 0.015 + GRAIN_FILL_H])
+        pts, tries = [], 0
+        while len(pts) < N_GRAINS and tries < N_GRAINS * 4000:
+            q = rng.uniform(lo, hi); tries += 1
+            if all(np.linalg.norm(q - o) >= dmin for o in pts):
+                pts.append(q)
+        positions = np.array(pts)
+        if len(pts) < N_GRAINS:
+            print(f"[bag] 경고: 기각표집이 {len(pts)}/{N_GRAINS} 만 채웠다 — 부피를 늘려라")
+    else:
+        spacing = GRAIN_RADIUS_M * 4.0
+        positions = np.array([(BAG_POS[0] + rng.uniform(-0.004, 0.004),
+                               BAG_POS[1] + rng.uniform(-0.004, 0.004),
+                               mouth_top_z_est + 0.02 + i * spacing) for i in range(N_GRAINS)])
+    from scipy.spatial.distance import pdist
+    _d = pdist(positions)
+    print(f"[bag] 배치={GRAIN_PLACEMENT} {len(positions)}개  최근접 {_d.min()*1e3:.2f}mm "
+          f"(접촉지름 {2*GRAIN_RADIUS_M*1e3:.1f}mm, 겹친쌍 {int((_d < 2*GRAIN_RADIUS_M).sum())})  "
+          f"z범위 {positions[:,2].min()*1e3:.0f}~{positions[:,2].max()*1e3:.0f}mm")
     spec_idx = coupler.add_grains(positions, radius=GRAIN_RADIUS_M, mass_density=GRAIN_RHO,
                                    friction_mu=GRAIN_FRICTION)
 
-    cam = scene.add_camera(res=(1024, 768), pos=(0.30, -0.30, BAG_POS[2] + 0.15),
+    _cam_pos = (float(os.environ.get("CAM_X", "-0.22")), 0.0, BAG_POS[2] + 0.010)
+    cam = scene.add_camera(res=(1024, 768), pos=_cam_pos,
                            lookat=BAG_POS, fov=40, GUI=False, debug=True)
 
     print(f"\n[build] TEST_MODE=bag  N_GRAINS={N_GRAINS}  scene.build() 시작...")
@@ -546,12 +579,27 @@ def main_bag():
 
     N_DROP = 500
     print(f"\n[phase] drop ({N_DROP*DT:.1f}s) — 알갱이 {N_GRAINS}개 낙하 + 누출 관찰")
+    # ── 모멘트 계측용 시계열 (2026-09-07) ──
+    # 파지점 = 봉투 입구 중심(실기에서 그리퍼/흡착이 잡는 곳).
+    # 파우더 무게중심이 거기서 수평으로 벗어난 거리가 곷 모멘트다.
+    _grip = _npy(bag.get_state().pos)[mouth_idx].mean(axis=0)
+    _m_grain = GRAIN_RHO * (4.0/3.0) * np.pi * GRAIN_RADIUS_M**3
+    _hist = []
+    print(f'[mom ] 파지점 {np.round(_grip*1e3,1)}mm  1알 {_m_grain*1e6:.3f}mg  '
+          f'총 {_m_grain*N_GRAINS*1e3:.3f}g')
     for k in range(N_DROP):
         scene.step()
         scene.clear_debug_objects()
         scene.draw_debug_spheres(coupler.get_grain_positions(spec_idx), radius=GRAIN_RADIUS_M,
                                  color=(0.85, 0.75, 0.55, 1.0))
         cam.render()
+        if (k + 1) % 5 == 0:
+            _p = coupler.get_grain_positions(spec_idx)
+            _in = _p[:, 2] >= (bag_bottom_z - 0.01)
+            if _in.any():
+                _com = _p[_in].mean(axis=0)
+                _W = np.array([0.0, 0.0, -9.81 * _m_grain * int(_in.sum())])
+                _hist.append(((k + 1) * DT, *_com, *np.cross(_com - _grip, _W), int(_in.sum())))
         if (k + 1) % 40 == 0:
             pos = coupler.get_grain_positions(spec_idx)
             leaked = pos[:, 2] < (bag_bottom_z - 0.01)
@@ -572,11 +620,142 @@ def main_bag():
     leaked = pos[:, 2] < (bag_bottom_z - 0.01)
     n_leak = int(leaked.sum())
     frac = n_leak / N_GRAINS
+    _npz = os.path.join(OUT_DIR, f'grainmom_N{N_GRAINS}_R{GRAIN_RADIUS_MM_TAG}_{_TS}.npz')
+    np.savez(_npz, hist=np.array(_hist), final=pos, grip=_grip, m_grain=_m_grain,
+             n_grains=N_GRAINS, radius=GRAIN_RADIUS_M, rho=GRAIN_RHO,
+             bag_bottom_z=bag_bottom_z, n_leak=n_leak)
+    print(f'[mom ] 시계열 {len(_hist)}점 저장 -> {_npz}')
     verdict = "LEAK" if frac > 0.05 else "CONTAINED"
     print("\n" + "=" * 60)
     print(f"[RESULT] TEST_MODE=bag  N_GRAINS={N_GRAINS}  leaked={n_leak}({frac*100:.1f}%)  verdict={verdict}")
     print("=" * 60)
 
 
+
+def main_crusher():
+    """TEST_MODE=crusher: 낟알 <-> Crusher 벽 커플링 성립 확인 (2026-09-07).
+
+    묻는 것은 둘이다.
+      (1) 단방향 — 벽이 낟알을 밀어내는가.
+      (2) 양방향 — 낟알이 벽을 되미는가.
+    (2)는 **지령 대비 실제 벽 위치의 지연**으로 본다. 낟알이 없으면 지연은
+    PD 정상 오프셋으로 일정한데, 저항이 걸리면 자란다. WITH_GRAINS=0 이 그
+    대조군이다.
+
+    Crusher 원본 MJCF 는 <equality><joint> 때문에 로드가 죽으므로 full_workflow
+    의 준비 함수를 그대로 쓴다 — 같은 자산/같은 가공을 써야 결과가 이관된다.
+    """
+    import genesis as gs
+    sys.path.insert(0, os.path.join(os.path.dirname(_r), "Crusher_Genesis",
+                                    "Crusher_M0609_RG2_Tablet_Samplebag"))
+    sys.path.insert(0, os.path.join(_r, "Crusher_M0609_RG2_Tablet_Samplebag"))
+    os.environ.setdefault("RUN_TAG", "grain_crusher")
+    if os.environ.get("WITH_BAG", "0") == "1":
+        # 봉투를 슬롯에 스폰하면 크랭크 q=0 의 impact plate(L9_PLATE_v3_1)와
+        # 겹쳐 libuipc 빌드가 죽는다(full_workflow 가 이미 실측·문서화:
+        # 겹침 24,944mm^3 -> body_count 에러). full_workflow 는 CLAMP_ONLY 에서
+        # 그 플레이트를 접촉에서 빼므로, 임포트 **전에** 그 플래그를 켠다.
+        os.environ["CLAMP_ONLY"] = "1"
+    import full_workflow as FW
+
+    WITH_G = os.environ.get("WITH_GRAINS", "1") == "1"
+    WITH_BAG = os.environ.get("WITH_BAG", "0") == "1"
+    gs.init(backend=gs.gpu, logging_level="warning", precision="32", seed=0)
+    GrainIPCCoupler = _build_grain_coupler_class()
+    scene = gs.Scene(
+        sim_options=gs.options.SimOptions(dt=DT, gravity=(0, 0, -9.81)),
+        coupler_options=gs.options.IPCCouplerOptions(
+            contact_d_hat=1.0e-4, contact_friction_enable=True, two_way_coupling=True,
+            enable_rigid_rigid_contact=False, enable_rigid_ground_contact=False,
+            constraint_strength_translation=100.0, constraint_strength_rotation=100.0),
+        show_viewer=False)
+    coupler = GrainIPCCoupler(scene._sim, scene._sim.coupler_options)
+    scene._sim._coupler = coupler
+    scene.add_entity(gs.morphs.Plane(), material=gs.materials.Rigid(coup_type="ipc_only"))
+    crusher = scene.add_entity(
+        gs.morphs.MJCF(file=FW._prepare_crusher_mjcf(), pos=FW.CRUSHER_POS,
+                       euler=FW.CRUSHER_EULER, decimate=True, convexify=True),
+        material=gs.materials.Rigid(coup_type="two_way_soft_constraint", coup_friction=0.8))
+
+    bag = None
+    if WITH_BAG:
+        # 봉투를 **슬롯 안에** 스폰한다 — 좌표는 full_workflow 의 CLAMP_ONLY 와
+        # 같은 식(slot_geometry + 메시 bbox 역산). 씬 없이 계산되는 함수다.
+        import trimesh as tm, genesis.utils.geom as gu
+        _sg = FW.slot_geometry()
+        _bv = tm.load(BAG_STL).vertices
+        _bw = (gu.quat_to_R(gu.xyz_to_quat(np.array(BAG_EULER), rpy=True, degrees=True)) @ _bv.T).T
+        _lo, _hi = _bw.min(0), _bw.max(0)
+        _bp = (float(_sg["gap_cx"] - (_lo[0] + _hi[0]) / 2) + BAG_DX,
+               float(_sg["gap_cy"] - (_lo[1] + _hi[1]) / 2) + BAG_DY,
+               float(_sg["wall_center_z"] - _lo[2]) + BAG_DZ)
+        bag = scene.add_entity(
+            material=gs.materials.FEM.Cloth(E=4.0e5, nu=0.499, rho=200.0, thickness=1.0e-3,
+                                            bending_stiffness=400.0, friction_mu=0.8),
+            morph=gs.morphs.Mesh(file=BAG_STL, scale=1.0, pos=_bp, euler=BAG_EULER),
+            surface=gs.surfaces.Default(color=(0.6, 0.75, 0.95), opacity=0.55, double_sided=True))
+        print(f"[crush] 봉투를 슬롯에 스폰 pos={np.round(_bp,4)}  "
+              f"슬롯중심=({_sg['gap_cx']:.4f},{_sg['gap_cy']:.4f}) wall_z={_sg['wall_center_z']:.4f}")
+
+    spec = None
+    if WITH_G:
+        # **격자 배치** — 겹치면 libuipc 가 world 를 무효화한다(조용히 멈추거나
+        # ABD 접근자에서 죽는다). 슬롯 중심 위 빈 공간에서 떨어뜨린다.
+        sx, sy, sz, d = 0.2125, -0.0053, 0.150, 0.005
+        pos = np.array([(sx + (k % 3 - 1) * d, sy + (k // 3 % 3 - 1) * d, sz + (k // 9) * d)
+                        for k in range(N_GRAINS)])
+        spec = coupler.add_grains(pos, radius=GRAIN_RADIUS_M, mass_density=GRAIN_RHO,
+                                  friction_mu=GRAIN_FRICTION)
+    cam = scene.add_camera(res=(1024, 768), pos=(0.36, -0.20, 0.16),
+                           lookat=(0.2125, -0.0053, 0.07), fov=38, GUI=False, debug=True)
+    scene.build(n_envs=0)
+    print(f"[crush] build OK  coupler={type(scene.sim.coupler).__name__}  "
+          f"낟알={'ON(%d)' % N_GRAINS if WITH_G else 'OFF'}")
+
+    _cj = {j.name: j for j in crusher.joints}
+    _d = _cj[FW.WALL_JOINT].dofs_idx_local
+    wall_dof = _d[0] if isinstance(_d, (list, tuple, np.ndarray)) else _d
+    crusher.set_dofs_kp(np.array([FW.WALL_KP]), dofs_idx_local=[wall_dof])
+    crusher.set_dofs_kv(np.array([FW.WALL_KV]), dofs_idx_local=[wall_dof])
+    crusher.set_dofs_force_range(np.array([-FW.WALL_FORCE_LIM]), np.array([FW.WALL_FORCE_LIM]),
+                                 dofs_idx_local=[wall_dof])
+    mp4 = os.path.join(OUT_DIR, f"grain_crusher_{'on' if WITH_G else 'off'}_{_TS}.mp4")
+    cam.start_recording(save_to_filename=mp4, fps=30)
+
+    def _draw():
+        scene.clear_debug_objects()
+        if WITH_G:
+            scene.draw_debug_spheres(coupler.get_grain_positions(spec),
+                                     radius=GRAIN_RADIUS_M, color=(0.85, 0.75, 0.55, 1.0))
+        cam.render()
+
+    for k in range(600):           # 1) 낙하/정착
+        crusher.control_dofs_position(np.array([FW.WALL_OFFSET]), dofs_idx_local=[wall_dof])
+        scene.step(); _draw()
+    q, n = FW.WALL_OFFSET, 525
+    print(f"[crush] 벽 {FW.WALL_OFFSET*1e3:+.1f} -> -15.0mm, {n}스텝")
+    hist = []
+    for k in range(n):             # 2) 벽 닫기 (full_workflow 와 같은 속도지령)
+        q = max(q - FW.WALL_CLOSE_MMPS * 1e-3 * DT, -0.015)
+        crusher.control_dofs_position(np.array([q]), dofs_idx_local=[wall_dof])
+        scene.step(); _draw()
+        act = float(_npy(crusher.get_dofs_position())[wall_dof])
+        # **반력은 control_force 로 읽는다.** get_dofs_force 는 dofs.force 를
+        # 돌려주는데 그건 control_dofs_force() 가 쓰는 외력 버퍼라, 위치제어를
+        # 쓰는 우리 벽에서는 항상 잔여값(~0)이다. get_dofs_control_force 는
+        # POSITION 모드에서 kp*(cmd-pos)+kv*(vel-cmd_vel) 을 force_range 로
+        # 클램프해 돌려준다 = 실제 액추에이터 출력(스톨 시 곧 반력).
+        frc = float(_npy(crusher.get_dofs_control_force())[wall_dof])
+        frc_raw = float(_npy(crusher.get_dofs_force())[wall_dof])
+        hist.append((k * DT, q, act, frc, frc_raw))
+        if k % 100 == 0 or k == n - 1:
+            print(f"[crush] k={k:4d} cmd={q*1e3:+7.2f} act={act*1e3:+7.2f} "
+                  f"지연={(q-act)*1e3:+6.2f}mm  ctrl_force={frc:+8.2f}N  dofs_force={frc_raw:+6.2f}N")
+    cam.stop_recording()
+    npz = os.path.join(OUT_DIR, f"grain_crusher_{'on' if WITH_G else 'off'}_{_TS}.npz")
+    np.savez(npz, hist=np.array(hist), with_grains=WITH_G, n_grains=(N_GRAINS if WITH_G else 0))
+    print(f"[saved] {mp4}")
+    print(f"[saved] {npz}")
+
 if __name__ == "__main__":
-    main_sanity() if TEST_MODE == "sanity" else main_bag()
+    {"sanity": main_sanity, "bag": main_bag, "crusher": main_crusher}[TEST_MODE]()
