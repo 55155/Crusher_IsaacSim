@@ -74,8 +74,8 @@ assert BAG_BACKEND in ("pbd", "fem"), f"BAG_BACKEND must be pbd/fem, got {BAG_BA
 # 본다. 통과 못 하면 입구/노즐 기하 문제, 통과하면 문제는 MPM 쪽(파티클
 # 방출·커플링)에 있는 것으로 원인을 분리할 수 있다.
 TEST_MODE = os.environ.get("TEST_MODE", "pour").lower()
-assert TEST_MODE in ("pour", "rigid_probe", "legacy_sanity"), \
-    f"TEST_MODE must be pour/rigid_probe/legacy_sanity, got {TEST_MODE!r}"
+assert TEST_MODE in ("pour", "rigid_probe", "legacy_sanity", "compaction"), \
+    f"TEST_MODE must be pour/rigid_probe/legacy_sanity/compaction, got {TEST_MODE!r}"
 PROBE_CUBE_SIZE = 0.004  # 자연 상태 입구 두께(6mm)보다도 작게 — 통과 실패시 순수 기하 문제로 확정.
 N_PROBE = 500
 
@@ -595,9 +595,446 @@ def main():
         print("=" * 60)
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TEST_MODE=compaction — Rigid 피스톤 ↔ MPM 과립 압밀 (사용자 지시, 2026-09-03)
+# ══════════════════════════════════════════════════════════════════════════════
+# 목적: "Crusher(Rigid)로 과립재를 때렸을 때 어떤 힘을 받고 얼마나 압밀되는가"를
+#       디지털 트윈으로 계산할 수 있는지 **가능성만** 판정한다. 판정 항목 4개:
+#         (A) rigid_mpm 커플링으로 준정적 압축이 성립하는가 (관통/발산 없이)
+#         (B) 피스톤 반력을 읽을 수 있는가  ← 없으면 F-δ·W* 캘리브레이션 전체가 불가
+#         (C) 영구 압밀(하중 제거 후에도 베드가 안 돌아옴)이 일어나는가
+#         (D) 재료/파라미터로 압밀 곡선을 조정(=캘리브레이션)할 수 있는가
+#
+# 소스 확인(2026-09-03): MPM.Sand 의 sand_projection 은 tr<0(압축)에서 편차성분만
+# 항복 투영하고 체적성분은 그대로 통과시킨다 → 정수압 압축이 순수 탄성이라 영구
+# 압밀이 원리적으로 없다. ElastoPlastic/Snow 는 yield_lower 로 특이값을 클램프해
+# 영구 압밀이 있다. (C)는 이 차이를 실측으로 확인하는 항목이다.
+#
+# 도메인을 다이(die) 크기로 바짝 좁혀 dx 를 mm 이하로 내린다 — 조합12 의 1/dx^4
+# 비용 벽은 0.24x0.24x0.33m 도메인 기준이었고, 여기 도메인은 그보다 수백 배 작다.
+#
+# env:
+#   MAT              sand | elastoplastic | snow      (기본 sand)
+#   GRID_DENSITY_C   1/dx [1/m]. 1000 -> dx=1mm       (기본 1000)
+#   PISTON_VEL       하강 속도 [m/s]                   (기본 0.01)
+#   PISTON_TRAVEL    총 하강량 [m]                     (기본 0.004)
+#   E_MPM/NU_MPM/RHO_MPM/FRICTION_ANGLE/YIELD_LOWER/YIELD_HIGHER
+#   COUP_FRICTION    rigid-mpm 마찰                    (기본 0.4)
+#   DT_C/SUBSTEPS_C  적분 파라미터                     (기본 5e-4 / 20)
+#   NO_VIDEO=1       녹화 끄기(스윕용)
+#   TAG              결과 파일 접미사
+
+C_MAT        = os.environ.get("MAT", "sand").lower()
+C_GRID       = int(os.environ.get("GRID_DENSITY_C", "2000"))
+C_PIS_VEL    = float(os.environ.get("PISTON_VEL", "0.01"))
+C_PIS_TRAVEL = float(os.environ.get("PISTON_TRAVEL", "0.004"))
+C_E          = float(os.environ.get("E_MPM", "1e6"))
+C_NU         = float(os.environ.get("NU_MPM", "0.2"))
+C_RHO        = float(os.environ.get("RHO_MPM", "1500"))
+C_PHI        = float(os.environ.get("FRICTION_ANGLE", "45"))
+C_YLO        = float(os.environ.get("YIELD_LOWER", "0.0025"))
+C_YHI        = float(os.environ.get("YIELD_HIGHER", "0.0045"))
+C_COUPFRIC   = float(os.environ.get("COUP_FRICTION", "0.4"))
+# coup_softness: 커플링 영향이 물체 표면에서 얼마나 멀리까지 미치는가.
+# legacy_coupler: influence = min(exp(-signed_dist / coup_softness), 1) 이라
+# 0 이면 "표면 안쪽에 이미 들어온 입자"만 밀어낸다 -> 관통 후 뒤늦은 보정.
+# diag2 에서 피스톤 하면 위로 입자 10,927개(10%)가 관통한 원인 후보 1순위.
+C_COUPSOFT   = float(os.environ.get("COUP_SOFTNESS", "0.0"))
+# substep_dt = DT/SUBSTEPS 는 MPMSolver 가 grid_density 에서 계산하는 suggested_dt
+# 이하로 유지해야 한다. grid_density=2000(dx=0.5mm) 에서 suggested_dt=1e-5 이므로
+# 2e-4/20 = 1e-5 로 맞춘다. (스모크5 는 2.5e-5 로 돌아 불안정 경고가 났고, 베드가
+# 압축 중에 오히려 부풀어 오르는 비물리 거동이 나왔다.)
+C_DT         = float(os.environ.get("DT_C", "2e-4"))
+C_SUB        = int(os.environ.get("SUBSTEPS_C", "20"))
+C_NOVIDEO    = os.environ.get("NO_VIDEO", "0") == "1"
+C_TAG        = os.environ.get("TAG", "")
+# LOAD_MODE=gravity: 피스톤을 쓰지 않고 **중력만 키워** 베드를 자중 압축한다.
+# 목적은 커플러와 재료를 분리해서 보는 것 — 피스톤 압축이 안 먹는 게
+# (a) 커플러가 정적 하중을 못 버텨서인지  (b) 재료에 영구압밀이 없어서인지
+# 를 가른다. 중력 경로는 커플러를 전혀 타지 않으므로 (b) 만 남는다.
+C_USE_VM     = os.environ.get("USE_VON_MISES", "1") == "1"
+C_VMYS       = float(os.environ.get("VM_YIELD_STRESS", "10000"))
+C_LOAD_MODE  = os.environ.get("LOAD_MODE", "piston").lower()
+C_GHIGH      = float(os.environ.get("G_HIGH", "2000"))   # m/s^2 (약 204 g)
+
+# 다이 기하 [m] — 내경 20x20mm, 초기 베드 높이 10mm
+DIE_IN    = 0.020
+BED_H     = 0.010
+WALL_T    = 0.004
+PIS_H     = 0.006
+# 피스톤-벽 편측 간극. 0 이 기본이다 — 간극을 두면 MPM 이 그 틈으로 분출한다.
+# 조합10 에서 확인한 대로 rigid-MPM 근접판정 반경은 particle_size 가 아니라 grid dx 라,
+# dx 보다 작은 간극은 "막혀 있다"고 표현되지 않고 오히려 새는 통로가 된다
+# (smoke3: dx=2mm, 간극 0.4mm -> 베드가 9mm 에서 25mm 로 분출). 피스톤은 매 스텝
+# set_pos 로 구동되고 벽은 fixed 라, 간극 0 으로 인한 rigid-rigid 접촉은 무해하다.
+PIS_CLR   = float(os.environ.get("PISTON_CLEARANCE", "0.0"))
+FLOOR_T   = 0.004
+
+
+def _mpm_material():
+    import genesis as gs
+    if C_MAT == "sand":
+        return gs.materials.MPM.Sand(E=C_E, nu=C_NU, rho=C_RHO, friction_angle=C_PHI)
+    if C_MAT == "elastoplastic":
+        # 주의(소스 확인 2026-09-03, materials/MPM/elasto_plastic.py:60-88):
+        # use_von_mises=True(기본)이면 yield_lower/higher 는 **완전히 무시**되고
+        # von_mises_yield_stress 만 작동한다 — 게다가 von Mises 분기는 epsilon_hat
+        # (편차성분)만 다루므로 체적 소성이 없다.
+        # 체적 압밀(특이값 클램프 min(max(S,1-yl),1+yh))을 쓰려면 von Mises 를 꺼야 한다.
+        return gs.materials.MPM.ElastoPlastic(
+            E=C_E, nu=C_NU, rho=C_RHO,
+            yield_lower=C_YLO, yield_higher=C_YHI,
+            use_von_mises=C_USE_VM, von_mises_yield_stress=C_VMYS,
+        )
+    if C_MAT == "snow":
+        return gs.materials.MPM.Snow(E=C_E, nu=C_NU, rho=C_RHO,
+                                     yield_lower=C_YLO, yield_higher=C_YHI)
+    raise SystemExit(f"MAT={C_MAT} 알 수 없음 (sand|elastoplastic|snow)")
+
+
+def main_compaction():
+    import genesis as gs
+    gs.init(backend=gs.gpu, logging_level="warning", precision="32")
+
+    dx = 1.0 / C_GRID
+    half = DIE_IN / 2
+
+    # ── 구속을 rigid 벽이 아니라 MPM 도메인 경계로 준다 ──────────────────
+    # MPMSolver 는 지정 도메인에서 3*dx 안쪽을 유효 경계(하드월)로 쓴다(조합10 실측).
+    # 그래서 lower/upper 를 다이 내경 ±3*dx 로 두면 유효 벽이 정확히 다이 내면에 서고,
+    # 바닥은 z=0 에 선다.
+    #
+    # 왜 rigid 벽을 쓰지 않는가 — 스모크런 3/4 에서 확인:
+    #   · 간극 0.4mm(dx=2mm) : 간극이 dx 보다 작아 표현이 안 되고 오히려 분출 통로가 됨
+    #   · 간극 0  (dx=0.5mm) : 피스톤과 벽의 SDF 가 만나는 이음매에서 여전히 분출
+    # 두 경우 다 베드가 9mm -> 13~25mm 로 튀었다. 도메인 경계에는 이음매가 없다.
+    # rigid 바닥/벽은 needs_coup=False 로 두어 화면 표시 전용으로만 남긴다.
+    lower = (-half - 3 * dx, -half - 3 * dx, -3 * dx)
+    upper = ( half + 3 * dx,  half + 3 * dx,  BED_H + PIS_H + 0.012)
+    n_cells = (int((upper[0]-lower[0])/dx) * int((upper[1]-lower[1])/dx)
+               * int((upper[2]-lower[2])/dx))
+
+    scene = gs.Scene(
+        sim_options=gs.options.SimOptions(dt=C_DT, substeps=C_SUB, gravity=(0, 0, -9.81)),
+        coupler_options=gs.options.LegacyCouplerOptions(
+            rigid_mpm=True,
+            rigid_sph=False, rigid_pbd=False, rigid_fem=False,
+            mpm_sph=False, mpm_pbd=False, fem_mpm=False, fem_sph=False,
+        ),
+        mpm_options=gs.options.MPMOptions(
+            grid_density=C_GRID, lower_bound=lower, upper_bound=upper,
+            # gravity 를 명시해야 solver._gravity 필드가 할당되고 런타임
+            # set_gravity 가 먹는다 (base_solver.py:36-47 — None 이면 skip).
+            gravity=(0.0, 0.0, -9.81),
+        ),
+        vis_options=gs.options.VisOptions(visualize_mpm_boundary=True),
+        show_viewer=False,
+    )
+
+    mat_rigid = gs.materials.Rigid(needs_coup=True, coup_friction=C_COUPFRIC,
+                                   coup_softness=C_COUPSOFT)
+    mat_vis   = gs.materials.Rigid(needs_coup=False)   # 화면 표시 전용(커플링 없음)
+
+    # ── 다이: 바닥판 + 벽 4장 — 전부 시각 보조. 실제 구속은 MPM 도메인 경계 ──
+    scene.add_entity(material=mat_vis, surface=gs.surfaces.Default(color=(0.45, 0.45, 0.5)),
+                     morph=gs.morphs.Box(pos=(0, 0, -FLOOR_T/2),
+                                         size=(DIE_IN + 2*WALL_T, DIE_IN + 2*WALL_T, FLOOR_T),
+                                         fixed=True))
+    wall_z = BED_H / 2 + 0.006
+    wall_h = BED_H + 0.012
+    for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        scene.add_entity(
+            material=mat_vis,
+            surface=gs.surfaces.Default(color=(0.55, 0.55, 0.6), opacity=0.25),
+            morph=gs.morphs.Box(
+                pos=(sx * (half + WALL_T/2), sy * (half + WALL_T/2), wall_z),
+                size=((WALL_T if sx else DIE_IN + 2*WALL_T),
+                      (WALL_T if sy else DIE_IN + 2*WALL_T), wall_h),
+                fixed=True))
+
+    # ── 과립 베드 (MPM) ───────────────────────────────────────────────────
+    bed = scene.add_entity(
+        material=_mpm_material(),
+        morph=gs.morphs.Box(pos=(0, 0, BED_H/2), size=(DIE_IN - 2*dx, DIE_IN - 2*dx, BED_H)),
+        surface=gs.surfaces.Default(color=(0.85, 0.75, 0.55, 1.0)),
+    )
+
+    # ── 피스톤 (자유 rigid — set_pos + set_dofs_velocity 로 구동) ─────────
+    # 피스톤은 도메인 단면 전체를 덮도록 오히려 **더 넓게** 만든다 — 도메인 벽과
+    # 피스톤 사이에 틈이 생기면 그리로 분출한다(스모크4). 넘치는 부분은 도메인 밖이라
+    # MPM 이 평가하지 않으므로 무해하다.
+    pis_w = DIE_IN + 8 * dx - 2 * PIS_CLR
+    pis_size = (pis_w, pis_w, PIS_H)
+    pis_z0 = BED_H + PIS_H/2 + 0.0015
+    piston = scene.add_entity(
+        material=mat_rigid, surface=gs.surfaces.Default(color=(0.85, 0.35, 0.25)),
+        morph=gs.morphs.Box(pos=(0, 0, pis_z0), size=pis_size, fixed=False))
+
+    cam = scene.add_camera(res=(960, 720), pos=(0.075, -0.075, 0.030),
+                           lookat=(0, 0, 0.008), fov=38, GUI=False)
+
+    n_settle = int(0.20 / C_DT)
+    n_load   = int(C_PIS_TRAVEL / C_PIS_VEL / C_DT)
+    n_hold   = int(0.10 / C_DT)
+    n_unload = n_load
+    n_free   = int(0.20 / C_DT)
+    n_total  = n_settle + n_load + n_hold + n_unload + n_free
+
+    print(f"\n[cfg] MAT={C_MAT} grid_density={C_GRID} dx={dx*1e3:.2f}mm cells={n_cells:,}")
+    print(f"[cfg] dt={C_DT} substeps={C_SUB} piston_vel={C_PIS_VEL} travel={C_PIS_TRAVEL*1e3:.1f}mm")
+    print(f"[cfg] steps: settle={n_settle} load={n_load} hold={n_hold} "
+          f"unload={n_unload} free={n_free} total={n_total}")
+    print("[build] scene.build() ...")
+    scene.build(n_envs=0)
+    print("[build] 성공")
+
+    mp4_path = os.path.join(OUT_DIR, f"compaction_{C_MAT}{C_TAG}_{_TS}.mp4")
+    if not C_NOVIDEO:
+        # 0.2.1 은 start_recording() 이 인자를 안 받고 stop_recording 에서 저장한다.
+        try:
+            cam.start_recording(save_to_filename=mp4_path, fps=30)
+            _rec_on_stop = False
+        except TypeError:
+            cam.start_recording()
+            _rec_on_stop = True
+
+    rec = {k: [] for k in ("step", "pis_z", "pis_z_act", "fz", "bed_top",
+                           "n_act", "bed_mean_z", "n_above")}
+
+    def _pis_z_actual():
+        """명령값(z_cmd)이 아니라 **실제** 피스톤 위치. set_pos 가 자유강체에
+        먹히지 않으면 여기서 갈린다 — 관통처럼 보이던 게 사실 피스톤이 안 내려간
+        것일 수 있어 반드시 분리해서 본다."""
+        try:
+            p = piston.get_pos()
+            p = p.cpu().numpy() if hasattr(p, "cpu") else np.asarray(p)
+            p = np.asarray(p).reshape(-1)
+            return float(p[-1]) if p.size >= 3 else np.nan
+        except Exception:
+            return np.nan
+    # 녹화 페이스: 0.2.1 은 step() 이 자동 렌더하지 않으므로 직접 render() 한다.
+    _spf = max(1, n_total // 300)
+
+    def _bed_particles():
+        """Genesis 버전별 입자 위치 API 차이 흡수 (0.2.1 은 get_particles())."""
+        for name in ("get_particles_pos", "get_particles"):
+            fn = getattr(bed, name, None)
+            if fn is None:
+                continue
+            try:
+                p = fn()
+            except Exception:
+                continue
+            if p is not None:
+                return p
+        st = bed.get_state()
+        return getattr(st, "pos", None)
+
+    def _bed_stats():
+        p = _bed_particles()
+        if p is None:
+            return np.nan, 0, np.nan, 0
+        p = p.cpu().numpy() if hasattr(p, "cpu") else np.asarray(p)
+        p = np.asarray(p)
+        while p.ndim > 2:
+            p = p[0]
+        if p.ndim != 2 or p.shape[-1] != 3:
+            return np.nan, 0, np.nan, 0
+        finite = np.isfinite(p).all(axis=1)
+        p = p[finite]
+        if len(p) == 0:
+            return np.nan, 0, np.nan, 0
+        # 피스톤 하면보다 위에 있는 입자 수 = 관통/분출 지표.
+        n_above = int((p[:, 2] > (z_cmd - PIS_H / 2)).sum())
+        return float(np.quantile(p[:, 2], 0.98)), int(len(p)), float(p[:, 2].mean()), n_above
+
+    # 반력 경로 확정(소스 확인, 2026-09-03): legacy_coupler._func_collide_in_rigid_geom 은
+    # MPM->rigid 반작용을 rigid_solver._func_apply_external_force 로 넘기고, 그 함수는
+    # links_state.cfrc_applied_vel[link, env] -= force 로 **외력 누산기**에 쌓는다
+    # (rigid_solver_decomp.py:5046). 즉 get_links_net_contact_force(접촉 채널)로는
+    # 영원히 0 이 나온다 — 1차 스모크런에서 Fz=0 이었던 이유. cfrc_applied_vel 을
+    # 직접 읽고 부호를 뒤집어야 피스톤이 받는 힘이 된다.
+    _rs = scene.sim.rigid_solver
+    _pis_link = int(getattr(piston, "link_start", 0))
+
+    def _piston_fz():
+        """피스톤이 받는 z 반력 [N]. 판정 (B)."""
+        fz_ext = np.nan
+        try:
+            fld = _rs.links_state.cfrc_applied_vel
+            arr = fld.to_numpy() if hasattr(fld, "to_numpy") else np.asarray(fld)
+            arr = np.asarray(arr)
+            v = arr[_pis_link]
+            while v.ndim > 1:
+                v = v[0]
+            fz_ext = -float(v[2])          # cfrc_applied 는 -force 로 쌓임
+        except Exception:
+            pass
+        if np.isfinite(fz_ext) and abs(fz_ext) > 1e-12:
+            return fz_ext
+        # 폴백: 접촉 채널(rigid-rigid 용) — rigid_mpm 에는 안 잡히지만 혹시 몰라 병행
+        fn = getattr(piston, "get_links_net_contact_force", None)
+        if fn is not None:
+            try:
+                f = fn()
+                f = f.cpu().numpy() if hasattr(f, "cpu") else np.asarray(f)
+                fc = float(np.asarray(f).reshape(-1, 3)[:, 2].sum())
+                if abs(fc) > 1e-12:
+                    return fc
+            except Exception:
+                pass
+        return fz_ext
+
+    z_cmd = pis_z0
+    nan_at = None
+    z_touch = None      # 정착 완료 시점의 피스톤 위치(= 베드 상면 바로 위). δ 의 원점.
+    for i in range(n_total):
+        # 정착이 끝나는 순간, 실제로 가라앉은 베드 상면 바로 위로 피스톤을 재배치한다.
+        # (스모크런에서 정착 침하 0.85mm + 초기 간극 1.5mm 를 하강량 2mm 가 못 덮어
+        #  접촉 자체가 없었다 — travel 을 키우는 대신 원점을 베드에 맞추는 게 맞다.)
+        if i == n_settle:
+            _top_now, _, _, _ = _bed_stats()
+            if np.isfinite(_top_now):
+                z_cmd = float(_top_now) + PIS_H / 2 + 0.0002
+            z_touch = z_cmd
+
+        if i < n_settle:
+            v_cmd = 0.0
+        elif i < n_settle + n_load:
+            v_cmd = -C_PIS_VEL
+        elif i < n_settle + n_load + n_hold:
+            v_cmd = 0.0
+        elif i < n_settle + n_load + n_hold + n_unload:
+            v_cmd = +C_PIS_VEL
+        else:
+            v_cmd = 0.0
+        z_cmd += v_cmd * C_DT
+
+        if C_LOAD_MODE == "gravity":
+            # 피스톤은 정착 위치에 그대로 두고(방금 더한 증분을 되돌린다) 중력만 키운다.
+            z_cmd -= v_cmd * C_DT
+            v_cmd = 0.0
+            g_now = C_GHIGH if (n_settle <= i < n_settle + n_load + n_hold) else 9.81
+            try:
+                scene.sim.mpm_solver.set_gravity((0.0, 0.0, -g_now))
+            except Exception:
+                pass
+
+        # 순서 주의: set_pos 가 속도를 리셋할 수 있으므로 속도를 **나중에** 준다.
+        # 커플러(_func_collide_in_rigid_geom)는 vel_rigid = _func_vel_at_point(...) 로
+        # links_state 의 속도를 읽어 입자 속도를 그 값으로 스냅한다. 여기서 속도가 0이면
+        # 입자는 "밀려나는" 게 아니라 "제자리에 붙잡히고", 피스톤은 그대로 통과한다.
+        piston.set_pos(np.array([0.0, 0.0, z_cmd]))
+        _vset_err = None
+        try:
+            piston.set_dofs_velocity(np.array([0.0, 0.0, v_cmd, 0.0, 0.0, 0.0]))
+        except Exception as _e:
+            _vset_err = repr(_e)
+        if i == n_settle + 5:
+            try:
+                _vv = piston.get_dofs_velocity()
+                _vv = _vv.cpu().numpy() if hasattr(_vv, "cpu") else np.asarray(_vv)
+                print(f"[probe] set_dofs_velocity err={_vset_err}  read-back={np.asarray(_vv).reshape(-1)}")
+            except Exception as _e2:
+                print(f"[probe] set_dofs_velocity err={_vset_err}  read-back 실패={_e2!r}")
+
+        scene.step()
+        if (not C_NOVIDEO) and (i % _spf == 0):
+            cam.render()
+
+        top, n_act, meanz, n_above = _bed_stats()
+        if not np.isfinite(top) and nan_at is None and i > n_settle:
+            nan_at = i
+        rec["step"].append(i)
+        rec["pis_z"].append(z_cmd)
+        rec["pis_z_act"].append(_pis_z_actual())
+        rec["fz"].append(_piston_fz())
+        rec["bed_top"].append(top)
+        rec["n_act"].append(n_act)
+        rec["bed_mean_z"].append(meanz)
+        rec["n_above"].append(n_above)
+
+        if (i + 1) % 200 == 0:
+            print(f"[{i+1:5d}/{n_total}] cmd={z_cmd*1e3:7.3f} act={rec['pis_z_act'][-1]*1e3:7.3f}mm "
+                  f"Fz={rec['fz'][-1]:9.3f}N  bed_top={top*1e3:7.3f}mm  "
+                  f"pis_bot={(z_cmd-PIS_H/2)*1e3:7.3f}mm  n_above={n_above}")
+
+    if not C_NOVIDEO:
+        if _rec_on_stop:
+            cam.stop_recording(save_to_filename=mp4_path, fps=30)
+        else:
+            cam.stop_recording()
+        print(f"\n[saved] {mp4_path}")
+
+    # ── 판정 ──────────────────────────────────────────────────────────────
+    A = {k: np.asarray(v, dtype=float) for k, v in rec.items()}
+    i_pre  = n_settle - 1
+    i_peak = n_settle + n_load + n_hold - 1
+    i_end  = n_total - 1
+    top_pre, top_peak, top_end = A["bed_top"][i_pre], A["bed_top"][i_peak], A["bed_top"][i_end]
+    fz_max = np.nanmax(np.abs(A["fz"])) if np.isfinite(A["fz"]).any() else np.nan
+    strain_peak = (top_pre - top_peak) / top_pre if np.isfinite(top_pre) else np.nan
+    strain_perm = (top_pre - top_end) / top_pre if np.isfinite(top_pre) else np.nan
+    recov = (1.0 - strain_perm / strain_peak
+             if np.isfinite(strain_peak) and strain_peak > 1e-6 else np.nan)
+
+    npz = os.path.join(OUT_DIR, f"compaction_{C_MAT}{C_TAG}_{_TS}.npz")
+    np.savez(npz, **A, cfg=np.array([C_GRID, C_PIS_VEL, C_PIS_TRAVEL, C_E, C_NU, C_RHO,
+                                     C_PHI, C_YLO, C_YHI, C_DT, C_SUB], dtype=float))
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        z_ref = z_touch if z_touch is not None else pis_z0
+        delta = (z_ref - A["pis_z"]) * 1e3
+        fig, ax = plt.subplots(1, 3, figsize=(15, 4.2))
+        ax[0].plot(A["step"], A["fz"])
+        ax[0].set_title("(B) piston Fz [N]"); ax[0].set_xlabel("step"); ax[0].grid(alpha=.3)
+        ax[1].plot(delta, A["fz"], lw=1)
+        ax[1].set_title("F-delta (load->unload)"); ax[1].set_xlabel("piston travel [mm]")
+        ax[1].set_ylabel("Fz [N]"); ax[1].grid(alpha=.3)
+        ax[2].plot(A["step"], A["bed_top"]*1e3)
+        for k, c, lb in ((i_pre, "g", "pre"), (i_peak, "r", "peak"), (i_end, "b", "end")):
+            ax[2].axvline(k, color=c, ls="--", lw=1, label=lb)
+        ax[2].set_title("(C) bed top [mm]"); ax[2].set_xlabel("step")
+        ax[2].legend(); ax[2].grid(alpha=.3)
+        fig.suptitle(f"MAT={C_MAT} dx={dx*1e3:.2f}mm vel={C_PIS_VEL}m/s "
+                     f"travel={C_PIS_TRAVEL*1e3:.1f}mm | eps_peak={strain_peak:.4f} "
+                     f"eps_perm={strain_perm:.4f} recovery={recov:.3f}")
+        fig.tight_layout()
+        png = os.path.join(OUT_DIR, f"compaction_{C_MAT}{C_TAG}_{_TS}.png")
+        fig.savefig(png, dpi=110); plt.close(fig)
+        print(f"[saved] {png}")
+    except Exception as e:
+        print(f"[warn] plot 실패: {e}")
+
+    print("\n" + "=" * 68)
+    print(f"[RESULT] MAT={C_MAT} dx={dx*1e3:.2f}mm vel={C_PIS_VEL} travel={C_PIS_TRAVEL*1e3:.1f}mm")
+    print(f"[RESULT] (A) 안정성      : NaN={'없음' if nan_at is None else f'step {nan_at}'}  "
+          f"입자수 {A['n_act'][0]:.0f}->{A['n_act'][-1]:.0f}")
+    n_above_max = int(np.nanmax(A["n_above"])) if "n_above" in A else -1
+    frac_above = n_above_max / max(1.0, A["n_act"][0])
+    print(f"[RESULT] (A2) 관통       : n_above_max={n_above_max} "
+          f"({frac_above*100:.2f}% of {A['n_act'][0]:.0f})  "
+          f"{'관통 심각' if frac_above > 0.02 else '관통 미미'}")
+    print(f"[RESULT] (B) 반력 읽기   : Fz_max={fz_max:.6f} N  "
+          f"{'읽힘' if np.isfinite(fz_max) and fz_max > 1e-9 else '못 읽음(0 또는 NaN)'}")
+    print(f"[RESULT] (C) 압밀        : bed_top pre={top_pre*1e3:.3f} "
+          f"peak={top_peak*1e3:.3f} end={top_end*1e3:.3f} mm")
+    print(f"[RESULT]     eps_peak={strain_peak:.4f}  eps_perm={strain_perm:.4f}  "
+          f"탄성회복률={recov:.3f}  -> "
+          f"{'영구압밀 있음' if np.isfinite(strain_perm) and strain_perm > 0.01 else '영구압밀 없음(탄성 복원)'}")
+    print(f"[saved] {npz}")
+    print("=" * 68)
+
+
 if __name__ == "__main__":
     if COUPLER == "ipc":
         main_ipc()
+    elif TEST_MODE == "compaction":
+        main_compaction()
     elif TEST_MODE == "legacy_sanity":
         main_legacy_sanity()
     else:
