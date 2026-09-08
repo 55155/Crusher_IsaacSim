@@ -84,6 +84,13 @@ libuipc 는 빌드 때 표면 거리 검사(`SimplicialSurfaceDistanceCheck`)를
 | `mass_sweep.sh` | 무게 0.25/0.5/1/2 g (1mm 소금 221/442/884/1768알). 전부 0% 누출 |
 | `ecc_sweep.sh` | 편심 투입 0 vs +20mm. **모멘트 0.0129 → 0.2281 mN·m (17.7배)** |
 | `crusher_test.sh` / `crush_ab.sh` | 낟알↔Crusher, 반력 계측 채널 확인 |
+| `grain_fullwf_sweep.sh` | **full_workflow 환경** 낟알 병목 7조 — 장입량/newton_tol/정착시간/반지름 (2026-09-08) |
+
+> `grain_fullwf_sweep.sh` 만 여기 다른 것들과 성격이 다르다. 나머지는 격리 씬을
+> 돌리지만 이건 `full_workflow.py` 전 구간을 돌린다 — probe 씬에는 Genesis 강체가
+> 아예 없어서 IPC 와 Genesis 두 솔버가 같이 도는 조건을 대변하지 못하기 때문이다
+> (사용자 지시, 2026-09-08). 낟알 관련 판단은 이제 이 드라이버 결과로 한다.
+> 배경은 `docs/DigitalTwin.md` §24.
 
 ### 반력은 `get_dofs_control_force()` 로 읽는다
 

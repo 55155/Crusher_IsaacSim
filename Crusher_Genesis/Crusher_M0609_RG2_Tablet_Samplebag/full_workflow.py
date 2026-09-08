@@ -87,6 +87,10 @@ from primitive_tablet_generator import make_capsule_tets_v2, add_analytic_fem_en
 from fem_ipc_workarounds import (patch_fem_vertex_constraints,
                                  patch_ipc_vertex_attach)
 
+# 낟알 커플러는 Powder_flip_test 에서 만들어 검증한 것을 그대로 쓴다(중복 정의
+# 금지 — 거기가 원본이다). 이 import 자체는 genesis 를 안 끌어온다(지연 임포트).
+sys.path.insert(0, os.path.join(_r, "Powder_flip_test"))
+
 # Y_OFFSET_MM(2026-07-23, 사용자 지시): slot_fit_check.py 의 carrier 기반 스윕이
 # IPC 커플러 구조상 근본적으로 불가능하다고 확인된 뒤(soft constraint 는
 # `fem_solver.py substep_pre_coupling`이 IPC 커플러일 때 FEM 스텝 자체를 건너뛰어
@@ -1386,6 +1390,60 @@ BAGCAM_OFFSET = np.array([0.20, -0.20, 0.12])
 # 정점 평균이 튀어 bagcam 이 봉투를 놓친다. docs/GenesisPatch.md 패치 2.
 BAG_ATTACH = os.environ.get("BAG_ATTACH", "1") == "1"
 RIGID_RIGID = os.environ.get("RIGID_RIGID", "0") == "1"
+# ── Phase 14 낟알 투입 (GrainIPCCoupler 배선, 2026-09-08) ──────────────────
+# 낟알은 uipc 네이티브 Particle 로 IPC 씬에 직접 등록한다
+# (Powder_flip_test/ipc_grain_coupler.py). Legacy mpm_pbd 의 방향 무관
+# 속도-스냅과 달리 봉투(FEM.Cloth)와 같은 CCD 접촉을 탄다.
+#
+# **반지름 기본값 0.5mm 는 d_hat 과의 비율로 정해진 값이다.** Powder_flip_test
+# 의 봉투 실험은 d_hat=0.5mm 에 R=0.5mm 였는데(비율 1.0), 그 결과 낟알이 서로
+# 닿지 못하고 884개 중 826개가 최근접거리 1.499mm = 2R+d_hat 에 정확히 굳은
+# 비계가 됐다(grainmom_N884_R0.5_20260907_191610.npz 실측). 여기 IPC_D_HAT 은
+# 1e-4 라 R=0.5mm 에서 비율 0.2 — 정제에서 쓰던 것과 같은 안전역이다.
+GRAIN = os.environ.get("GRAIN", "0") == "1"
+N_GRAINS = int(os.environ.get("N_GRAINS", "500"))
+GRAIN_RADIUS_M = float(os.environ.get("GRAIN_RADIUS_MM", "0.5")) * 1e-3
+GRAIN_RHO = float(os.environ.get("GRAIN_RHO", "1500"))
+GRAIN_FRICTION = float(os.environ.get("GRAIN_FRICTION", "0.6"))
+# 낟알을 붓기 전까지 붙잡아 두는 SPC 강도. 봉투 BAG_ATTACH_K 와 같은 단위.
+GRAIN_SPC_K = float(os.environ.get("GRAIN_SPC_K", "1e4"))
+# 대기 지점 — 낟알은 scene.build() 전에 등록해야 하는데 봉투는 워크플로 내내
+# 움직인다. 그래서 팔/봉투 경로 밖 높은 곳에 SPC 로 세워 두고, grain 스테이지에서
+# 실측한 입구 위로 내려보낸 뒤 놓는다. 회수장치 **바로 위** 라 수평 이동이 없다.
+GRAIN_PARK_Z = float(os.environ.get("GRAIN_PARK_Z_MM", "900")) * 1e-3
+GRAIN_FILL_R = float(os.environ.get("GRAIN_FILL_R_MM", "8")) * 1e-3
+GRAIN_FILL_H = float(os.environ.get("GRAIN_FILL_H_MM", "40")) * 1e-3
+GRAIN_DROP_H = float(os.environ.get("GRAIN_DROP_H_MM", "30")) * 1e-3
+# 이송 속도 [m/s]. 시간이 아니라 **속도**로 잡는다 — 대기점과 투입점 거리가
+# 스테이지 조합에 따라 크게 달라지는데(회수장치 vs 크러셔 슬롯) 시간을 고정하면
+# 거리가 멀 때 낟알이 초음속으로 쓸려간다.
+GRAIN_APPROACH_V = float(os.environ.get("GRAIN_APPROACH_V", "0.5"))
+GRAIN_SECONDS = float(os.environ.get("GRAIN_SECONDS", "2.0"))
+# GRAIN_TEST=freefall — **이 씬에서 IPC Particle 이 제대로 동작하는지**만 보는
+# 변인통제(사용자 지시, 2026-09-08). 봉투도 이송도 빼고 대기 지점에서 그대로
+# 놓는다. full_workflow 는 enable_rigid_ground_contact=False 라 낟알을 받을 것이
+# 아무것도 없으므로 접촉을 전혀 타지 않는 **순수 적분**만 시험된다.
+GRAIN_TEST = os.environ.get("GRAIN_TEST", "pour").lower()
+assert GRAIN_TEST in ("pour", "freefall"), f"GRAIN_TEST={GRAIN_TEST!r}"
+# 낟알 스테이지는 **봉투가 회수장치에 서서 입구가 벌어진 뒤**를 전제한다.
+# RECOVER 가 꺼져 있으면 recover/rclock/suction 이 통째로 안 돌아 봉투가 크러셔
+# 슬롯에 남고(2026-09-08 실측: hold2 에서 끝남), 낟알을 부어도 의미가 없다.
+# 환경변수를 말없이 덮어쓰지는 않는다 — 사용자가 준 조건을 바꾸면 안 되므로 경고만 한다.
+if GRAIN and not RECOVER:
+    print("=" * 78)
+    print("[grain] **경고: GRAIN=1 인데 RECOVER=0 이다.**")
+    print("[grain] recover/rclock/suction 이 안 돌아 봉투가 회수장치에 서지 않는다.")
+    print("[grain] 낟알 스테이지를 제대로 보려면:  RECOVER=1 CRUSH_SECONDS=15 GRAIN=1")
+    print("=" * 78)
+
+# ── IPC 솔버 노브 (배리어 잠금 변인통제용, 2026-09-08) ──────────────────────
+# 낟알이 2R+d_hat 에서 굳는 문제의 남은 용의자 둘을 밖으로 뺀다. 기본값 None 이면
+# libuipc 기본(velocity_tol=0.05 m/s, eps_velocity=0.01 m/s)을 그대로 쓴다 —
+# 둘 다 낟알 속도(mm/s)보다 훨씬 커서 낟알 운동이 솔버 잡음 아래에 있다.
+_nt = os.environ.get("NEWTON_TOL")
+NEWTON_TOL = float(_nt) if _nt else None
+_ev = os.environ.get("EPS_VEL")
+EPS_VEL = float(_ev) if _ev else None
 # ── Phase 13 흡착 개구 (2026-09-02) ────────────────────────────────────────
 # 행정은 50mm 가 아니라 20mm 다(사용자 지시). 조 한계는 -50mm 지만 끝까지
 # 열면 불안정하고, SuctionV1_only 실측에서 20mm 가 follow 0.98 로 더 좋다
@@ -1623,6 +1681,8 @@ def main(use_viewer: bool = False):
             enable_rigid_ground_contact=False,
             constraint_strength_translation=IPC_CONSTRAINT_STRENGTH,
             constraint_strength_rotation=IPC_CONSTRAINT_STRENGTH,
+            **({"newton_tolerance": NEWTON_TOL} if NEWTON_TOL else {}),
+            **({"contact_eps_velocity": EPS_VEL} if EPS_VEL else {}),
         ),
         fem_options=gs.options.FEMOptions(damping=FEM_DAMPING),
         vis_options=gs.options.VisOptions(
@@ -1638,6 +1698,22 @@ def main(use_viewer: bool = False):
         ),
         show_viewer=use_viewer,
     )
+
+    # ── 낟알 커플러 바꿔치기 (2026-09-08) ──────────────────────────────────
+    # Genesis 는 coupler_options 의 **타입만** 보고 내부에서 기본 IPCCoupler 를
+    # 직접 생성한다(simulator.py). 그래서 낟알을 아는 서브클래스를 쓰려면
+    # build() 전에 이렇게 갈아끼우는 수밖에 없다. patch_ipc_vertex_attach 는
+    # 기반 클래스 메서드를 패치하므로 서브클래스가 그대로 물려받는다.
+    grain_coupler = None
+    grain_spec = None
+    # 낟알을 화면에 그릴지. 대기/이송 중에는 **끈다** — 그 구간은 낟알을 SPC 로
+    # 붙잡아 옮기는 중이라, 그리면 강체 덩어리가 공중에 굳은 채 미끄러지는 그림이
+    # 돼 물리가 멈춘 것처럼 오독된다(사용자 지적, 2026-09-08). 해제하는 순간 켠다.
+    _grain_visible = [False]
+    if GRAIN:
+        from ipc_grain_coupler import _build_grain_coupler_class
+        grain_coupler = _build_grain_coupler_class()(scene._sim, scene._sim.coupler_options)
+        scene._sim._coupler = grain_coupler
 
     if LAYOUT_FROM_STEP:
         # 실판 1장 — **충돌은 Box 그대로, 시각만 구멍 뚫린 메시**로 나눈다.
@@ -1814,25 +1890,60 @@ def main(use_viewer: bool = False):
             surface=gs.surfaces.Default(color=(0.9, 0.9, 0.85), roughness=0.6),
         )
 
+    # debug=True 라야 draw_debug_spheres 로 그린 낟알이 렌더에 들어간다
+    # (rasterizer.py:76 skip_markers = not camera.debug). GRAIN=0 이면 종전 그대로.
     cam_over = scene.add_camera(res=(1280, 960), pos=OVERVIEW_CAM_POS, lookat=OVERVIEW_CAM_LOOK,
-                                fov=48, GUI=False)
+                                fov=48, GUI=False, debug=GRAIN)
     cam_bag = scene.add_camera(res=(960, 720), pos=tuple(np.array(BAG_POS) + BAGCAM_OFFSET),
-                               lookat=BAG_POS, fov=40, GUI=False)
+                               lookat=BAG_POS, fov=40, GUI=False, debug=GRAIN)
     # 정확한 pos/lookat 은 gap_cx/gap_cy/wall_center_z 계산 후(Phase 7 직전) set_pose 로 확정 — 지금은 placeholder.
     cam_side = scene.add_camera(res=(960, 720), pos=OVERVIEW_CAM_POS, lookat=OVERVIEW_CAM_LOOK,
-                                fov=45, GUI=False)
+                                fov=45, GUI=False, debug=GRAIN)
     # ── 입구 개구 전용 뷰 (2026-09-04, 논문 그림용) ──────────────────────────
     # bagcam 은 컵 당김축(world X)을 거의 정면으로 보고 있어 개구가 단축돼 보인다
     # — 봉투 입구가 2.5 -> 35.1mm 로 벌어져도 그림에서 안 읽힌다. 입구를 **위에서
     # 내려다보면** 슬릿이 타원으로 벌어지는 게 그대로 보인다. 녹화는 안 걸고
     # 13c 시작/끝에서 스틸만 두 장 뽑으므로 매 스텝 렌더 비용이 없다.
     cam_mouth = scene.add_camera(res=(1280, 960), pos=OVERVIEW_CAM_POS,
-                                 lookat=OVERVIEW_CAM_LOOK, fov=30, GUI=False)
+                                 lookat=OVERVIEW_CAM_LOOK, fov=30, GUI=False, debug=GRAIN)
 
     # 계측은 full_workflow_rigid.py 와 **같은 경계**로 잰다(빌드 / 스텝+인코딩).
     # 그래야 두 방식의 수치를 같은 자로 잰 값으로 비교할 수 있다 — 예전 "16분
     # 18초"는 스크립트가 아니라 사람이 벽시계로 잰 값이라 build/steps 분리가
     # 없었고 Genesis 버전·캐시 상태도 기록이 없었다.
+    # ── 낟알 등록 (build 전에만 가능) ──────────────────────────────────────
+    # IPC 씬은 world.init() 이후 지오메트리 추가가 안 되므로 여기서 등록하고,
+    # 붓기 전까지는 SPC 로 대기 지점에 세워 둔다.
+    if GRAIN:
+        _rng_g = np.random.default_rng(GS_SEED)
+        # 최소간격은 **배리어 껍질 바깥**으로 잡는다. 2R+d_hat 안쪽에서 시작하면
+        # 낟알이 처음부터 배리어에 갇혀 서로 못 닿는다(§GRAIN 노브 주석의 N884
+        # 실측). 여유 4*d_hat 을 더해 시작부터 접촉이 걸리지 않게 한다.
+        _dmin = 2 * GRAIN_RADIUS_M + 4 * IPC_D_HAT
+        _pc = np.array([RECOVERY2_POS[0], RECOVERY2_POS[1], GRAIN_PARK_Z])
+        _pts = np.empty((0, 3))
+        _tries = 0
+        while len(_pts) < N_GRAINS and _tries < N_GRAINS * 4000:
+            _tries += 1
+            _rr = GRAIN_FILL_R * np.sqrt(_rng_g.random())
+            _th = _rng_g.random() * 2 * np.pi
+            _q = _pc + np.array([_rr * np.cos(_th), _rr * np.sin(_th),
+                                 _rng_g.random() * GRAIN_FILL_H])
+            if len(_pts) == 0 or np.linalg.norm(_pts - _q, axis=1).min() >= _dmin:
+                _pts = np.vstack([_pts, _q])
+        if len(_pts) < N_GRAINS:
+            print(f"[grain] 경고: 기각표집이 {len(_pts)}/{N_GRAINS} 만 채웠다 "
+                  f"— GRAIN_FILL_R/H 를 키워라")
+        grain_park_pos = _pts
+        _m1 = GRAIN_RHO * (4.0 / 3.0) * np.pi * GRAIN_RADIUS_M ** 3
+        grain_spec = grain_coupler.add_grains(
+            grain_park_pos, radius=GRAIN_RADIUS_M, mass_density=GRAIN_RHO,
+            friction_mu=GRAIN_FRICTION, spc_strength=GRAIN_SPC_K)
+        print(f"[grain] {len(grain_park_pos)}알 등록  R={GRAIN_RADIUS_M*1e3:.2f}mm "
+              f"1알={_m1*1e6:.3f}mg 총={_m1*len(grain_park_pos)*1e3:.3f}g  "
+              f"d_hat/R={IPC_D_HAT/GRAIN_RADIUS_M:.2f}  최소간격={_dmin*1e3:.2f}mm  "
+              f"대기 z={GRAIN_PARK_Z*1e3:.0f}mm")
+
     import time as _time
     print("\n[build] scene.build() 시작...")
     _t_build = _time.time()
@@ -1884,6 +1995,12 @@ def main(use_viewer: bool = False):
     # (예: N_ABOVE_SETTLE) 조용히 어긋나고, trim 은 애초에 가변 회차다.
     _step_n = [0]
     print(f"[build] 성공 ({_build_s:.1f}s)")
+
+    if GRAIN:
+        # 대기 지점에 세워 둔다 — 여기서 놓으면 워크플로 내내 떨어져 버린다.
+        _n_hold = grain_coupler.hold_grains(grain_spec, targets=grain_park_pos)
+        print(f"[grain] 대기 구속 {_n_hold}/{len(grain_park_pos)}알 "
+              f"(SPC k={GRAIN_SPC_K:g})")
 
     def _spc(idx=None, tgt=None, reset=False):
         """uipc SoftPositionConstraint 슬롯에 직접 쓴다(docs/GenesisPatch.md 패치 2).
@@ -2133,6 +2250,13 @@ def main(use_viewer: bool = False):
     def render_cams():
         if NO_VIDEO:
             return
+        if grain_coupler is not None and _grain_visible[0]:
+            # 낟알은 uipc pointcloud 로만 존재하고 Genesis 엔티티가 아니라서
+            # 렌더러가 원래 그릴 대상이 없다 — 매 프레임 직접 그려야 보인다
+            # (Powder_flip_test 에서 확인한 것과 같은 제약).
+            scene.clear_debug_objects()
+            scene.draw_debug_spheres(grain_coupler.get_grain_positions(grain_spec),
+                                     radius=GRAIN_RADIUS_M, color=(0.85, 0.75, 0.55, 1.0))
         cam_over.render()
         bc = _bag_com()
         cam_bag.set_pose(pos=tuple(bc + BAGCAM_OFFSET), lookat=tuple(bc), up=(0, 0, 1))
@@ -3188,6 +3312,176 @@ def main(use_viewer: bool = False):
                     print(f"[suck] **입구 개방 {_m1 - _m0:+.1f}mm** "
                           f"({_m0:.1f} -> {_m1:.1f}mm) / 컵 이동 {_move:.0f}mm  "
                           f"follow={(_m1 - _m0) / _move:.3f}")
+
+    # ══ Phase 14 낟알 투입 (GRAIN=1, 2026-09-08) ═══════════════════════════
+    # 흡착이 벌려 놓은 **실제 입구**로 낟알을 붓는다. 대기 지점에서 투입점까지는
+    # SPC 로 끌고 오고(놓으면 도중에 떨어진다), 투입점에 도착한 뒤에야 구속을 푼다.
+    if GRAIN and stage_on("grain") and GRAIN_TEST == "freefall":
+        # ── 변인통제: 이 씬에서 낟알이 중력만으로 제대로 떨어지는가 ──────────
+        # 접촉이 하나도 안 끼는 조건이라, 어긋나면 원인은 커플러/적분 쪽으로
+        # 좁혀지고, 맞으면 문제는 **착지 이후**(압밀/마찰)로 확정된다.
+        _tmark("14 freefall")
+        print()
+        print(f"[grain] 자유낙하 시험 — 대기 지점에서 그대로 해제, "
+              f"{GRAIN_SECONDS:.1f}s 관측 (봉투/이송 없음)")
+        _z0 = float(grain_coupler.get_grain_positions(grain_spec)[:, 2].mean())
+        grain_coupler.release_grains(grain_spec)
+        _grain_visible[0] = True      # 여기서부터 낟알을 그린다
+        _ff = []
+        for k in range(max(1, int(round(GRAIN_SECONDS / DT)))):
+            _rc_drive(_rc_hold[0])
+            scene.step()
+            _step_n[0] += 1
+            render_cams()
+            _pgf = grain_coupler.get_grain_positions(grain_spec)
+            _ff.append(((k + 1) * DT, float(_pgf[:, 2].mean()), float(_pgf[:, 2].std())))
+        _ff = np.array(_ff)
+        _drop = _z0 - _ff[:, 1]
+        _pred = 0.5 * 9.81 * _ff[:, 0] ** 2
+        # **착지 구간을 잘라내고 적합한다.** 대기 지점 아래에는 베이스 플레이트와
+        # 회수장치가 있어서(ground contact 를 꺼도 이것들은 IPC 접촉을 탄다) 창을
+        # 통째로 적합하면 착지가 섞여 가속도가 엉뚱하게 나온다 — 2026-09-08 에
+        # 실제로 -3.93 m/s^2 이라는 헛것을 봤다. 접촉이 없는 동안에는 무리의 z
+        # 표준편차가 상수이므로(강체처럼 같이 떨어진다) 그게 흐트러지는 순간이
+        # 곧 첫 접촉이다. 그 앞까지만 쓴다.
+        _free = np.flatnonzero(_ff[:, 2] <= _ff[0, 2] * 1.01)
+        _cut = int(_free[-1]) + 1 if len(_free) else len(_ff)
+        _cut = max(_cut, 3)
+        _acc = 2.0 * float(np.polyfit(_ff[:_cut, 0], _drop[:_cut], 2)[0])
+        print(f"[grain] 접촉 전 구간 {_cut}/{len(_ff)}스텝 (t<={_ff[_cut-1, 0]:.3f}s) 로 적합 "
+              f"— 그 뒤는 플레이트/회수장치에 닿는다")
+        _npz_ff = os.path.join(CASE_DIR, f"grain_freefall_{_TAG}.npz")
+        np.savez(_npz_ff, t=_ff[:, 0], z_mean=_ff[:, 1], z_std=_ff[:, 2],
+                 drop=_drop, pred=_pred, z0=_z0, acc=_acc, n_grains=len(_pgf),
+                 n_free=_cut, final=_pgf)   # final: 착지 후 위치 — 강체에 얹히는지 확인용
+        _j = _cut - 1
+        print(f"[grain] 접촉 직전 t={_ff[_j, 0]:.3f}s  낙하 실측 {_drop[_j]*1e3:.1f}mm  "
+              f"자유낙하 {_pred[_j]*1e3:.1f}mm  비={_drop[_j]/max(_pred[_j], 1e-9):.4f}")
+        print(f"[grain] 무리 흩어짐(z 표준편차) {_ff[0, 2]*1e3:.3f} -> "
+              f"{_ff[_j, 2]*1e3:.3f}mm (접촉 직전) -> {_ff[-1, 2]*1e3:.3f}mm (끝)  "
+              f"— 접촉 전에는 안 변해야 한다")
+        print(f"[RESULT] 자유낙하 가속도 {_acc:.3f} m/s^2 (기대 9.810)  -> "
+              f"{'정상' if abs(_acc - 9.81) < 0.3 else '이상'}")
+        print(f"[saved] {_npz_ff}")
+
+    elif GRAIN and stage_on("grain"):
+        _tmark("14 grain")
+        _vpg = _npy(bag.get_state().pos).squeeze()
+        _mouth_g = _vpg[_vpg[:, 2] >= np.quantile(_vpg[:, 2], 0.88)]
+        _mc = _mouth_g.mean(axis=0)
+        _pour = np.array([_mc[0], _mc[1], _mc[2] + GRAIN_DROP_H])
+        _park_c = np.array([RECOVERY2_POS[0], RECOVERY2_POS[1], GRAIN_PARK_Z])
+        _bag_bottom_g = float(_vpg[:, 2].min())
+
+        def _grain_inside(pg):
+            """낟알이 봉투 **안**에 있는가 — 바닥 z 만으로는 판정이 안 된다.
+            봉투가 누우면 "바닥보다 위"가 전부 참이 돼 담김 100%라는 허수가
+            나온다(2026-09-08 실측, STAGE=grain 스모크런). 상단(입구) z 와 xy
+            외곽까지 **매번 현재 봉투 자세로** 다시 재서 함께 본다.
+            반환: (안에 있음 마스크, 바닥 z, 상단 z)"""
+            vp = _npy(bag.get_state().pos).squeeze()
+            z0, z1 = float(vp[:, 2].min()), float(vp[:, 2].max())
+            lo = vp[:, :2].min(axis=0) - GRAIN_RADIUS_M
+            hi = vp[:, :2].max(axis=0) + GRAIN_RADIUS_M
+            return ((pg[:, 2] >= z0) & (pg[:, 2] <= z1)
+                    & (pg[:, 0] >= lo[0]) & (pg[:, 0] <= hi[0])
+                    & (pg[:, 1] >= lo[1]) & (pg[:, 1] <= hi[1])), z0, z1
+        print()
+        print(f"[phase] 14 grain — 입구중심 {np.round(_mc*1e3, 1)}mm  "
+              f"투입점 {np.round(_pour*1e3, 1)}mm  봉투바닥 {_bag_bottom_g*1e3:.1f}mm")
+
+        # 1) 이송 — 대기 지점 -> 투입점. 구속을 건 채 목표만 옮긴다.
+        #    **두 구간으로 쪼갠다**: 먼저 대기 고도(씬에 아무것도 없는 높이)에서
+        #    수평으로 가고, 그 다음 수직으로 내린다. 대각선으로 질러가면 낟알
+        #    무리가 로봇/크러셔를 관통하고, two_way_coupling 이라 그 반력이 rigid
+        #    솔버로 들어가 NaN 이 난다(2026-09-08 실측: 0.85m 를 0.5s 에 쓸어
+        #    "Invalid constraint forces causing nan").
+        _legs = [np.array([_pour[0] - _park_c[0], _pour[1] - _park_c[1], 0.0]),
+                 np.array([0.0, 0.0, _pour[2] - _park_c[2]])]
+        _moved = np.zeros(3)
+        for _li, _leg in enumerate(_legs):
+            _dist = float(np.linalg.norm(_leg))
+            _n_leg = max(1, int(round(_dist / GRAIN_APPROACH_V / DT)))
+            print(f"[grain] 이송 {_li+1}/2 ({'수평' if _li == 0 else '수직'}) "
+                  f"{_dist*1e3:.1f}mm  {_n_leg}스텝  {GRAIN_APPROACH_V:.2f}m/s")
+            for k in range(_n_leg):
+                _e = ease((k + 1) / _n_leg)
+                grain_coupler.hold_grains(grain_spec,
+                                          targets=grain_park_pos + _moved + _leg * _e)
+                _rc_drive(_rc_hold[0])
+                scene.step()
+                _step_n[0] += 1
+                render_cams()
+            _moved = _moved + _leg
+        _pg = grain_coupler.get_grain_positions(grain_spec)
+        print(f"[grain] 이송 완료 — 낟알 z=[{_pg[:, 2].min()*1e3:.1f},"
+              f"{_pg[:, 2].max()*1e3:.1f}]mm  목표 {_pour[2]*1e3:.1f}mm")
+
+        # 2) 투하 — 구속 해제. 여기서부터 순수 중력 + IPC 접촉이다.
+        grain_coupler.release_grains(grain_spec)
+        _grain_visible[0] = True      # 여기서부터 낟알을 그린다
+        _n_pour = max(1, int(round(GRAIN_SECONDS / DT)))
+        print(f"[grain] 투하 시작 ({GRAIN_SECONDS:.1f}s, {_n_pour}스텝)")
+        _ghist = []
+        for k in range(_n_pour):
+            _rc_drive(_rc_hold[0])
+            scene.step()
+            _step_n[0] += 1
+            render_cams()
+            if (k + 1) % 5 == 0:
+                _pg = grain_coupler.get_grain_positions(grain_spec)
+                _in, _z0, _z1 = _grain_inside(_pg)
+                _com = _pg[_in].mean(axis=0) if _in.any() else np.full(3, np.nan)
+                _ghist.append(((k + 1) * DT, *_com, int(_in.sum()),
+                               int((_pg[:, 2] < _z0).sum()),
+                               int((_pg[:, 2] > _z1).sum())))
+            if (k + 1) % 100 == 0:
+                _pg = grain_coupler.get_grain_positions(grain_spec)
+                _in, _z0, _z1 = _grain_inside(_pg)
+                print(f"[grain] t={(k+1)*DT:5.2f}s  담김 {int(_in.sum())}/{len(_pg)}  "
+                      f"누출(바닥아래) {int((_pg[:, 2] < _z0).sum())}  "
+                      f"잔류(입구위) {int((_pg[:, 2] > _z1).sum())}  "
+                      f"봉투 z=[{_z0*1e3:.1f},{_z1*1e3:.1f}]mm  "
+                      f"nan={bool(np.isnan(_pg).any())}")
+
+        # 3) 판정 — 바닥 z / 상단 z / xy 외곽을 모두 본다(§_grain_inside).
+        from scipy.spatial import cKDTree
+        _pg = grain_coupler.get_grain_positions(grain_spec)
+        _in, _z0, _z1 = _grain_inside(_pg)
+        _held = int(_in.sum())
+        _leak = int((_pg[:, 2] < _z0).sum())
+        _above = int((_pg[:, 2] > _z1).sum())
+        _beside = len(_pg) - _held - _leak - _above
+        _m1g = GRAIN_RHO * (4.0 / 3.0) * np.pi * GRAIN_RADIUS_M ** 3
+
+        # ── "공중에 떠 있다"를 수치로 가른다 (사용자 지적, 2026-09-08) ──────
+        # 봉투에 얹혀 있으면 낟알-봉투 거리가 R+두께+d_hat 수준(sub-mm)이어야 한다.
+        # 몇 mm 씩 떨어져 있으면 낟알이 서로 비계로 굳어 봉투에 안 닿은 것이다.
+        # 같이 찍는 낟알끼리 최근접이 2R 이면 진짜 접촉, 2R+d_hat 이면 배리어 잠금.
+        _vp_end = _npy(bag.get_state().pos).squeeze()
+        _d_bag = cKDTree(_vp_end).query(_pg)[0]
+        _nn_g = cKDTree(_pg).query(_pg, k=2)[0][:, 1]
+        _q = [0.05, 0.5, 0.95]
+        _npz_g = os.path.join(CASE_DIR, f"grain_{_TAG}.npz")
+        np.savez(_npz_g, hist=np.array(_ghist), final=_pg, mouth_c=_mc, pour=_pour,
+                 bag_verts=_vp_end, bag_z=np.array([_z0, _z1]), d_to_bag=_d_bag, nn=_nn_g,
+                 bag_bottom_z=_bag_bottom_g, n_grains=len(_pg), radius=GRAIN_RADIUS_M,
+                 rho=GRAIN_RHO, d_hat=IPC_D_HAT, n_leak=_leak,
+                 newton_tol=(NEWTON_TOL or 0.0), eps_vel=(EPS_VEL or 0.0))
+        print(f"[RESULT] grain 담김 {_held}/{len(_pg)}알 "
+              f"({_held*_m1g*1e3:.3f}g / {len(_pg)*_m1g*1e3:.3f}g)  "
+              f"누출(바닥아래) {_leak}  잔류(입구위) {_above}  옆(xy밖) {_beside}  "
+              f"봉투 z=[{_z0*1e3:.1f},{_z1*1e3:.1f}]mm")
+        print(f"[RESULT] 낟알-봉투 최근접(mm) 5/50/95%: "
+              f"{np.round(np.quantile(_d_bag, _q)*1e3, 3)}  "
+              f"— 얹혀 있으면 sub-mm, 뜨면 mm 단위")
+        print(f"[RESULT] 낟알끼리 최근접(mm) 5/50/95%: "
+              f"{np.round(np.quantile(_nn_g, _q)*1e3, 3)}  "
+              f"2R={2*GRAIN_RADIUS_M*1e3:.3f} 2R+d_hat={(2*GRAIN_RADIUS_M+IPC_D_HAT)*1e3:.3f}  "
+              f"-> {'배리어 잠금' if abs(float(np.median(_nn_g)) - (2*GRAIN_RADIUS_M+IPC_D_HAT)) < 0.02e-3 else '접촉 성립'}")
+        print(f"[saved] {_npz_g}")
+    elif GRAIN:
+        print(f"[phase] 14 grain  @skip (STAGE)")
 
     # ── Y 스윕 PASS/FAIL 판정(사용자 지시, 2026-07-23) ───────────────────────
     # 실제 그리퍼 마찰 파지 경로라 slot_fit_check.py 의 carrier 판정보다 여유를

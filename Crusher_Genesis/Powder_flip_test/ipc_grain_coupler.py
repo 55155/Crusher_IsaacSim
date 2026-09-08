@@ -69,13 +69,20 @@ os.makedirs(OUT_DIR, exist_ok=True)
 _TS = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 TEST_MODE = os.environ.get("TEST_MODE", "sanity").lower()
-assert TEST_MODE in ("sanity", "bag", "crusher"), f"TEST_MODE={TEST_MODE!r}"
+# 이 파일은 full_workflow.py 가 커플러 클래스만 가져다 쓰는 **라이브러리로도**
+# 임포트된다. 그쪽 프로세스의 TEST_MODE 는 이 파일 것이 아니므로 단독 실행일
+# 때만 검사한다(임포트가 남의 환경변수 때문에 죽으면 안 된다).
+if __name__ == "__main__":
+    assert TEST_MODE in ("sanity", "bag", "crusher"), f"TEST_MODE={TEST_MODE!r}"
 
 GRAIN_RADIUS_MM_TAG = os.environ.get("GRAIN_RADIUS_MM", "1.5")
 GRAIN_RADIUS_M = float(GRAIN_RADIUS_MM_TAG) * 1e-3
 # 재질 밀도. 소금(NaCl) 결정 2160 kg/m3 — 1mm 구 1알 = 1.131mg, 2g = 1768알.
 GRAIN_RHO = float(os.environ.get("GRAIN_RHO", "1500.0"))
-GRAIN_FRICTION = 0.6
+# 낟알끼리의 마찰. **더미가 쌓이느냐 비계로 굳느냐를 가르는 축이다**
+# (2026-09-08 변인통제): eps_velocity 를 낮춰 마찰이 빨리 포화되게 했더니
+# 낟알이 88.5mm 에 늘어붙어 체적률 1.2% 가 됐다 = "공중에 떠 있음".
+GRAIN_FRICTION = float(os.environ.get("GRAIN_FRICTION", "0.6"))
 N_GRAINS = int(os.environ.get("N_GRAINS", "60"))
 DT = 5e-3
 
@@ -102,6 +109,14 @@ MOUTH_HALF_GAP_M = float(os.environ.get("MOUTH_HALF_GAP_MM", "17.5")) * 1e-3
 BAG_ATTACH_K = float(os.environ.get("BAG_ATTACH_K", "1e4"))
 # 낟알 초기 배치: poisson(기각표집, 좁은 부피) | column(구식, 1개/층 수직 기둥)
 GRAIN_PLACEMENT = os.environ.get("GRAIN_PLACEMENT", "poisson").lower()
+# ── IPC 솔버 노브 (배리어 잠금 변인통제, 2026-09-08) ───────────────────────
+# 낟알이 서로 안 닿고 정확히 2R+d_hat 에서 굳는 문제의 용의자를 하나씩 가른다.
+# 기본값은 종전 실험과 **비트 단위로 같게** 두어 재현성을 깨지 않는다.
+IPC_D_HAT_B = float(os.environ.get("IPC_D_HAT", "5e-4"))
+_nt = os.environ.get("NEWTON_TOL")
+NEWTON_TOL = float(_nt) if _nt else None      # libuipc 기본 0.05 m/s
+_ev = os.environ.get("EPS_VEL")
+EPS_VEL = float(_ev) if _ev else None         # libuipc 기본 0.01 m/s
 GRAIN_FILL_H = float(os.environ.get("GRAIN_FILL_H_MM", "60")) * 1e-3
 # 뿌리는 반경(xy). 봉투 입구보다 넓으면 테두리에 맞고 튕겨 나간다.
 GRAIN_FILL_R = float(os.environ.get("GRAIN_FILL_R_MM", "10")) * 1e-3
@@ -153,10 +168,15 @@ def _build_grain_coupler_class():
             self._ipc_grain_contacts: dict[int, "uipc.core.ContactElement"] = {}
             self._ipc_particle: "uipc.constitution.Particle | None" = None
             self._grain_world_positions: dict[int, list[np.ndarray | None]] = {}
+            # 낟알 지오메트리 슬롯 — 봉투(cloth_slots)와 같은 용도다. 런타임에
+            # is_constrained/aim_position 을 직접 쓰려면 씬 안의 슬롯이 필요하다.
+            self.grain_slots: dict[tuple, "SimplicialComplexSlot"] = {}
+            self._ipc_grain_spc = None
 
         # ---- 공개 API -------------------------------------------------
         def add_grains(self, positions, radius=GRAIN_RADIUS_M, mass_density=GRAIN_RHO,
-                        friction_mu=GRAIN_FRICTION, contact_resistance=None):
+                        friction_mu=GRAIN_FRICTION, contact_resistance=None,
+                        spc_strength=None):
             """`scene.build()` 이전에 호출. 알갱이 무리 하나를 등록하고 spec_idx 반환.
 
             positions : (N,3) array, 초기 world 좌표(겹치지 않게 흩어서 줄 것 —
@@ -170,12 +190,35 @@ def _build_grain_coupler_class():
             self._grain_specs.append(dict(
                 positions=positions, radius=float(radius), mass_density=float(mass_density),
                 friction_mu=float(friction_mu), contact_resistance=contact_resistance,
+                spc_strength=(None if spc_strength is None else float(spc_strength)),
             ))
             return spec_idx
 
         def get_grain_positions(self, spec_idx=0, env_idx=0):
             """가장 최근 `couple()`(=scene.step()) 이후 알갱이 world 좌표 (N,3)."""
             return self._grain_world_positions[spec_idx][env_idx]
+
+        def hold_grains(self, spec_idx=0, targets=None, env_idx=0):
+            """낟알을 `targets`(N,3) 에 붙잡는다. targets=None 이면 현 위치에 고정.
+
+            `add_grains(spc_strength=...)` 로 등록한 무리에만 쓸 수 있다. 봉투
+            `_spc()` 와 같은 방식 — uipc 솔브 안으로 들어가므로 이웃(=다른 낟알)도
+            접촉을 통해 정상적으로 반응한다. 반환값은 구속된 낟알 수.
+            """
+            import uipc
+            g = self.grain_slots[(spec_idx, env_idx)].geometry()
+            ic = uipc.view(g.vertices().find(uipc.builtin.is_constrained))
+            ap = uipc.view(g.vertices().find(uipc.builtin.aim_position))
+            ic[:] = 1
+            if targets is not None:
+                ap[:] = np.asarray(targets, dtype=np.float64).reshape(-1, 3, 1)
+            return int(np.asarray(ic).sum())
+
+        def release_grains(self, spec_idx=0, env_idx=0):
+            """구속을 풀어 낟알을 중력에 맡긴다(= 붓기 시작)."""
+            import uipc
+            g = self.grain_slots[(spec_idx, env_idx)].geometry()
+            uipc.view(g.vertices().find(uipc.builtin.is_constrained))[:] = 0
 
         # ---- 빌드 단계 오버라이드 --------------------------------------
         def _add_objects_to_ipc(self) -> None:
@@ -217,12 +260,25 @@ def _build_grain_coupler_class():
                     contact.apply_to(mesh)
                     self._ipc_particle.apply_to(mesh, mass_density=spec["mass_density"], thickness=spec["radius"])
 
+                    # SoftPositionConstraint — 봉투에 쓰는 것과 **같은 메커니즘**이다
+                    # (utills/fem_ipc_workarounds.patch_ipc_vertex_attach). 낟알은
+                    # scene.build() 전에 등록해야 하는데 봉투는 워크플로 내내 움직이니,
+                    # 붓기 전까지 낟알을 제자리에 붙잡아 둘 손잡이가 필요하다.
+                    # 적용만으로는 아무 일도 없다 — is_constrained 기본값이 0 이다.
+                    if spec["spc_strength"] is not None:
+                        if self._ipc_grain_spc is None:
+                            self._ipc_grain_spc = uipc.constitution.SoftPositionConstraint()
+                            self._ipc_constitution_tabular.insert(self._ipc_grain_spc)
+                        self._ipc_grain_spc.apply_to(mesh, spec["spc_strength"])
+
                     meta_attrs = mesh.meta()
                     meta_attrs.create("solver_type", "grain")
                     meta_attrs.create("entity_idx", str(spec_idx))
                     meta_attrs.create("env_idx", str(env_idx))
 
-                    grain_obj.geometries().create(mesh)
+                    # create() 는 (geom_slot, rest_geom_slot) 을 준다(coupler.py:542 와 동일).
+                    grain_slot, _ = grain_obj.geometries().create(mesh)
+                    self.grain_slots[(spec_idx, env_idx)] = grain_slot
 
         def _register_contact_pairs(self) -> None:
             # 1) 부모(coupler.py:659)가 cloth/fem/abd/ground/no_collision 사이의
@@ -423,7 +479,9 @@ def main_bag():
             two_way_coupling=True,
             enable_rigid_rigid_contact=False,
             enable_rigid_ground_contact=True,
-            contact_d_hat=0.0005,
+            contact_d_hat=IPC_D_HAT_B,
+            **({"newton_tolerance": NEWTON_TOL} if NEWTON_TOL else {}),
+            **({"contact_eps_velocity": EPS_VEL} if EPS_VEL else {}),
         ),
         show_viewer=False,
     )
