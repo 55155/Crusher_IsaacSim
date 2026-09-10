@@ -169,6 +169,19 @@ if _stage_env not in ("all", ""):
 # 런에서 카메라 3대를 매 스텝 돌리는 비용을 없앤다. 영상이 결과물인 런에서는 끄면 안 된다.
 NO_VIDEO = os.environ.get("NO_VIDEO", "0") == "1"
 
+# dt 와 **스텝수 배율**을 같이 뺀다(2026-09-09). N_* 는 시간이 아니라 스텝 수
+# 고정이라, dt 만 줄이면 동작 시간이 같이 줄어 팔이 그만큼 빨라진다 — 적분
+# 세밀도만 보려면 dt 를 반으로 줄일 때 N_SCALE 을 2 로 올려 **동작 시간을 유지**
+# 해야 한다. 그래야 같은 시나리오를 다른 해상도로 푼 비교가 된다.
+DT = float(os.environ.get("DT_MS", "5.0")) * 1e-3
+N_SCALE = float(os.environ.get("N_SCALE", "1"))
+
+
+def _ns(n):
+    """스텝 수에 N_SCALE 을 적용한다(최소 1)."""
+    return max(1, int(round(n * N_SCALE)))
+
+
 # ── 파지 위치 스윕(2026-08-14, 사용자 지시) ─────────────────────────────────
 # 봉투 로컬 폭축(BAG_EULER 회전으로 world Y 에 매핑) 상에서 그리퍼가 무는 지점:
 #     0    = 봉투 폭 정중앙(입구 한가운데를 뭄) — 봉투가 핑거 바로 아래 매달린다
@@ -557,12 +570,12 @@ RECOVER_REACH_TOL = float(os.environ.get("RECOVER_REACH_TOL_MM", "15.0")) * 1e-3
 # 하강 전 정착을 늘리고(150 -> 600) 하강 자체를 느리게 한다(300 -> 900).
 # 팔은 그 구간 정지 상태이므로 늘어난 스텝은 전부 봉투가 가라앉는 데 쓰인다
 # (§14 의 above/aboveset 에서 이미 쓴 처방과 같다).
-N_UNCLAMP, N_EXTRACT = 200, 300
-N_TO_RC = int(os.environ.get("N_TO_RC", "1800"))
-N_RC_SETTLE = int(os.environ.get("N_RC_SETTLE", "600"))
-N_RC_DOWN = int(os.environ.get("N_RC_DOWN", "900"))
-N_RC_STILL = int(os.environ.get("N_RC_STILL", "400"))
-N_RC_REL = 150
+N_UNCLAMP, N_EXTRACT = _ns(200), _ns(300)
+N_TO_RC = _ns(int(os.environ.get("N_TO_RC", "1800")))
+N_RC_SETTLE = _ns(int(os.environ.get("N_RC_SETTLE", "600")))
+N_RC_DOWN = _ns(int(os.environ.get("N_RC_DOWN", "900")))
+N_RC_STILL = _ns(int(os.environ.get("N_RC_STILL", "400")))
+N_RC_REL = _ns(150)
 # 회수장치 샤프트는 **서보모터**라 아주 느리게 돌아야 한다(사용자 2026-09-01: 20 RPM).
 # 스텝 수를 직접 박지 말고 RPM 에서 역산한다 — 20 RPM = 120 deg/s 이므로 180도
 # 회전에 1.5초 = 300 스텝(dt=5e-3). 이전 값 400 스텝은 결과적으로 15 RPM 이었다.
@@ -1152,7 +1165,6 @@ CAP_RADIUS_MM, CAP_CYL_H_MM = 2.0, 1.0
 TABLET_E, TABLET_NU, TABLET_RHO = 5.0e4, 0.45, 1300.0
 TABLET_FRICTION = 0.5
 
-DT = 5e-3
 
 # 회수장치 잠금 스텝 수 — 서보 RPM 에서 역산한다(위 RC_SHAFT_RPM 주석 참고).
 # 20 RPM = 120 deg/s -> 180도에 1.5초 = 300 스텝. 이전 고정값 400 은 15 RPM 이었다.
@@ -1227,9 +1239,12 @@ CRUSHER_COUP_FILTER = os.environ.get("CRUSHER_COUP_FILTER", "0") == "1"
 CLOTH_THICK = float(os.environ.get("CLOTH_THICK_MM", "1.0")) * 1e-3
 CLOTH_E = float(os.environ.get("CLOTH_E", "4.0e5"))
 CLOTH_NU, CLOTH_RHO = 0.499, 200.0
-CLOTH_BEND = 400.0
+CLOTH_BEND = float(os.environ.get("CLOTH_BEND", "400.0"))
 CLOTH_FRICTION = 0.8
-FEM_DAMPING = 0.2
+# 봉투 울림의 손잡이. dt 로는 못 잡는다 — dt 를 절반으로 줄여도 z 가속도
+# 부호반전이 42.6% -> 40.0% 로 거의 안 변했다(2026-09-09 실측). 즉 수치
+# 진동이 아니라 천이 실제로 울리는 것이라 감쇠로 접근해야 한다.
+FEM_DAMPING = float(os.environ.get("FEM_DAMPING", "0.2"))
 
 # 2026-07-16 9차: BAG_EULER 를 (90,0,0)->(90,0,90) 로 바꿈에 따라(아래 참고)
 # 그리퍼 닫힘축도 world Y->X 로 되돌아가야 해서 손목(joint 6) 트위스트(+90°)
@@ -1364,17 +1379,32 @@ BAG_MOUTH_Z = BAG_POS[2] + BAG_HALF_H
 TABLET_DROP_H = 0.015
 TABLET_POS = (BAG_POS[0], BAG_POS[1], BAG_MOUTH_Z + TABLET_DROP_H)
 
-N_PREP = 200
-N_DROP, N_SETTLE, N_CLOSE, N_GRASP, N_LIFT, N_HOLD = 150, 60, 80, 40, 200, 100
+N_PREP = _ns(200)
+N_DROP, N_SETTLE, N_CLOSE, N_GRASP, N_LIFT, N_HOLD = (
+    _ns(150), _ns(60), _ns(80), _ns(40), _ns(200), _ns(100))
 # above/insert 를 2배로 늘려 슬롯 접근을 더 천천히(사용자 지시) — 봉투 스윙도 완화.
-N_ABOVE, N_INSERT, N_SETTLE2 = 400, 400, 100
+#
+# **영상 매끄러움을 정하는 게 이 값이다**(2026-09-09 계측). 1스텝 = 영상 1프레임
+# 이므로 프레임당 이동량 = 이동거리 / N 이다. dt 를 줄여도 프레임을 같이 늘리지
+# 않으면 영상은 똑같이 보이고, N 을 안 늘린 채 dt 만 줄이면 오히려 팔이 2배 빨라진다
+# (N 이 시간이 아니라 스텝 수 고정이라서).
+#
+# BAG_TRACE=1 실측(파우더 524알, STAGE=grasp):
+#   above  (830~1230스텝) 평균 1.58 / 최대 4.51 mm/프레임  <- 여기만 튄다
+#   insert (1430~1830)    평균 0.41 / 최대 1.33 mm/프레임
+#   나머지                 최대 1.5 mm/프레임 이하
+# above 는 0.34m 를 400스텝에 가고 ease() S커브가 속도를 가운데로 몰아
+# 피크가 평균의 2.9배가 된다. 프레임당 1.5mm 이하로 낮추려면 3배가 필요하다.
+N_ABOVE = _ns(int(os.environ.get("N_ABOVE", "400")))
+N_INSERT = _ns(int(os.environ.get("N_INSERT", "400")))
+N_SETTLE2 = _ns(int(os.environ.get("N_SETTLE2", "100")))
 # above 도착 후 하강 전 정지 대기(2026-08-14). 봉투는 핑거에 매달린 펜듈럼이라
 # 팔이 멈춰도 바로 멈추지 않는다 — 흔들리는 채로 12mm 슬릿에 넣으면 벽에 긁힌다.
 # 여기서 감쇠시킨 뒤 내려간다(ease 프로파일과 함께 쓰는 스윙 억제 처방).
-N_ABOVE_SETTLE = 200
+N_ABOVE_SETTLE = _ns(200)
 # clamp: Left_Wall 이 실링부를 누르는 구간(개방 대비 훨씬 짧고 정밀한 이동이라
 # Crusher_Samplebag.py N_CLAMP=2000(@dt=1e-3, 2.0s)와 동일 시간이 되도록 환산).
-N_CLAMP, N_RELEASE = 400, 100
+N_CLAMP, N_RELEASE = _ns(400), _ns(100)
 if CLAMP_MODE in ("velocity", "force"):
     # 열림(+6mm)에서 하드스톱까지 전 구간을 닫고도 남을 시간 + 스톨 관찰 여유(x1.5).
     # 위치제어처럼 램프를 다 쓸 필요가 없고, 봉투에 걸리면 그 앞에서 멈춘다.
@@ -1425,6 +1455,30 @@ GRAIN_SECONDS = float(os.environ.get("GRAIN_SECONDS", "2.0"))
 # 아무것도 없으므로 접촉을 전혀 타지 않는 **순수 적분**만 시험된다.
 GRAIN_TEST = os.environ.get("GRAIN_TEST", "pour").lower()
 assert GRAIN_TEST in ("pour", "freefall"), f"GRAIN_TEST={GRAIN_TEST!r}"
+# GRAIN_WHEN — 파우더를 **언제** 넣는가.
+#   end   (기본) 흡착으로 입구를 벌린 뒤 마지막 grain 스테이지에서 붓는다
+#   start        시퀀스 시작 전부터 **봉투 안에 들어 있는 상태**로 출발한다
+# 실공정은 start 다(사용자 지시, 2026-09-09). 봉투 스폰 단면이 64 x 6mm 라 입구가
+# 6mm 슬릿이고, probe 실측상 입구/입자 비가 1.9 면 22% 밖에 안 담긴다 — 그래서
+# start 는 입구로 붓지 않고 **처음부터 봉투 내부에 생성**한다. 내부에 직접 놓으면
+# SPC 로 붙잡을 필요도 없어서 스텝 0 부터 자유낙하로 바닥에 깔린다.
+# 기본값을 end 로 두는 이유: 예약된 스윕(probe/drivers/grain_fullwf_sweep.sh)이
+# end 기준으로 측정 중이라 기본값을 바꾸면 그 결과의 의미가 달라진다.
+# BAG_TRACE=1 — 봉투 움직임을 **매 스텝** 기록한다(사용자 지적, 2026-09-09:
+# "봉투 움직임이 뚝뚝 끊긴다"). 40스텝 간격 로그로는 (a)거친 스텝인지
+# (b)떨림인지 구분이 안 된다. 스텝당 이동량과 속도 부호반전 횟수를 같이 재면
+# 갈린다 — 반전이 잦으면 떨림, 반전 없이 이동량만 크면 거친 스텝이다.
+# scene.step 을 감싸므로 호출 지점 15곳을 전부 잡는다.
+BAG_TRACE = os.environ.get("BAG_TRACE", "0") == "1"
+# ARM_VEL=1 — 팔을 set_dofs_position 으로 순간이동시킬 때 **속도도 같이 써준다**.
+# 종전에는 위치만 덮어썼다. 그러면 핑거가 매 스텝 수 mm 씩 텔레포트하는데 속도는
+# 갱신되지 않아, 봉투 입장에서는 "움직이는 표면에 끌려가는" 게 아니라 "매 스텝
+# 새 자리에서 밀리는" 것이 된다. 접촉 솔버에는 스텝마다 임펄스로 들어간다.
+# 순간이동 자체는 유지하고 속도 정보만 일관되게 만드는 최소 변경이라, 팔 경로는
+# 그대로 두고 가설만 검증할 수 있다. (§21 크랭크 정체도 set/control 혼용이었다.)
+ARM_VEL = os.environ.get("ARM_VEL", "0") == "1"
+GRAIN_WHEN = os.environ.get("GRAIN_WHEN", "end").lower()
+assert GRAIN_WHEN in ("end", "start"), f"GRAIN_WHEN={GRAIN_WHEN!r}"
 # 낟알 스테이지는 **봉투가 회수장치에 서서 입구가 벌어진 뒤**를 전제한다.
 # RECOVER 가 꺼져 있으면 recover/rclock/suction 이 통째로 안 돌아 봉투가 크러셔
 # 슬롯에 남고(2026-09-08 실측: hold2 에서 끝남), 낟알을 부어도 의미가 없다.
@@ -1486,7 +1540,7 @@ SUCK_JAW_MIN = float(os.environ.get("SUCK_JAW_MIN_MM", "-3.0")) * 1e-3
 # 흡착 구동은 **속도**로 정의한다(사용자 지시 2026-09-02): 초당 1cm.
 # 스텝 수는 이동거리에서 역산한다 — n = 거리 / 속도 / DT.
 SUCK_SPEED = float(os.environ.get("SUCK_SPEED_MMS", "10.0")) * 1e-3   # m/s
-N_HOME = int(os.environ.get("N_HOME", "600"))   # 매니퓰레이터 초기자세 복귀
+N_HOME = _ns(int(os.environ.get("N_HOME", "600")))   # 매니퓰레이터 초기자세 복귀
 SUCTION_CUP_LINKS = ("L_E-SMLG9H-100-ES10_2_1", "R_E-SMLG9H-100-ES10_2_1")
 BAG_ATTACH_K = float(os.environ.get("BAG_ATTACH_K", "1e4"))
 # 슬롯 삽입 사이드뷰(사용자 요청, 2026-07-27): gap(X, "슬롯 두께" 방향)과 삽입
@@ -1920,15 +1974,52 @@ def main(use_viewer: bool = False):
         # 낟알이 처음부터 배리어에 갇혀 서로 못 닿는다(§GRAIN 노브 주석의 N884
         # 실측). 여유 4*d_hat 을 더해 시작부터 접촉이 걸리지 않게 한다.
         _dmin = 2 * GRAIN_RADIUS_M + 4 * IPC_D_HAT
-        _pc = np.array([RECOVERY2_POS[0], RECOVERY2_POS[1], GRAIN_PARK_Z])
+        if GRAIN_WHEN == "start":
+            # 봉투 **내부**에 직접 생성한다. 상자로는 못 잡는다 — 파우치는 상자가
+            # 아니라 아래로 좁아지고 실링부가 있어서, bbox 로 잡으면 벽에 겹쳐
+            # libuipc 가 world 를 무효화한다(실측: "World is not valid" 뒤
+            # body_count AttributeError). **실제 메시까지의 거리**로 고른다.
+            #
+            # 메시(Samplebag_seal_pouch3.stl)는 watertight 가 아니라(부피 ~0)
+            # signed_distance 의 부호는 못 믿는다. 절대값(=표면까지 거리)만 쓴다 —
+            # bbox 안에서 셸으로부터 2mm 넘게 떨어진 곳은 캐비티밖에 없다.
+            # 실측 최대 여유는 2.92mm 라 R 이 커질수록 놓을 자리가 급격히 준다.
+            import genesis.utils.geom as _gu
+            _bm = tm.load(bag_obj).copy()
+            _bm.vertices = ((_gu.quat_to_R(_gu.xyz_to_quat(np.array(BAG_EULER),
+                                                           rpy=True, degrees=True))
+                             @ (_bm.vertices * BAG_SCALE).T).T
+                            + np.array(_bag_spawn_pos))
+            _pq = tm.proximity.ProximityQuery(_bm)
+            # 여유 = 천 두께 + 낟알 반지름 + d_hat + 0.2mm. 정점은 셸의 중립면이라
+            # 천 두께만큼 안쪽이 더 좁다.
+            _mg = CLOTH_THICK + GRAIN_RADIUS_M + IPC_D_HAT + 0.0002
+            _blo, _bhi = _bm.bounds
+            _cand = _rng_g.uniform(_blo, _bhi, size=(max(60000, N_GRAINS * 60), 3))
+            _cand = _cand[np.abs(_pq.signed_distance(_cand)) >= _mg]
+            print(f"[grain] 봉투 내부 후보 {len(_cand)}점 (여유 {_mg*1e3:.2f}mm 이상)")
+            if len(_cand) == 0:
+                raise SystemExit(
+                    f"낟알이 봉투 안에 안 들어간다 — R={GRAIN_RADIUS_M*1e3:.2f}mm 는 "
+                    f"여유 {_mg*1e3:.2f}mm 를 요구하는데 봉투 최대 여유가 부족하다. "
+                    f"GRAIN_RADIUS_MM 을 줄여라")
+            _lo, _hi = _cand.min(0), _cand.max(0)
+            _pc = (_lo + _hi) / 2
+        else:
+            _pc = np.array([RECOVERY2_POS[0], RECOVERY2_POS[1], GRAIN_PARK_Z])
         _pts = np.empty((0, 3))
         _tries = 0
         while len(_pts) < N_GRAINS and _tries < N_GRAINS * 4000:
             _tries += 1
-            _rr = GRAIN_FILL_R * np.sqrt(_rng_g.random())
-            _th = _rng_g.random() * 2 * np.pi
-            _q = _pc + np.array([_rr * np.cos(_th), _rr * np.sin(_th),
-                                 _rng_g.random() * GRAIN_FILL_H])
+            if GRAIN_WHEN == "start":
+                if _tries > len(_cand):
+                    break
+                _q = _cand[_tries - 1]
+            else:
+                _rr = GRAIN_FILL_R * np.sqrt(_rng_g.random())
+                _th = _rng_g.random() * 2 * np.pi
+                _q = _pc + np.array([_rr * np.cos(_th), _rr * np.sin(_th),
+                                     _rng_g.random() * GRAIN_FILL_H])
             if len(_pts) == 0 or np.linalg.norm(_pts - _q, axis=1).min() >= _dmin:
                 _pts = np.vstack([_pts, _q])
         if len(_pts) < N_GRAINS:
@@ -1936,13 +2027,21 @@ def main(use_viewer: bool = False):
                   f"— GRAIN_FILL_R/H 를 키워라")
         grain_park_pos = _pts
         _m1 = GRAIN_RHO * (4.0 / 3.0) * np.pi * GRAIN_RADIUS_M ** 3
+        # start 는 봉투 안에서 바로 자유롭게 두므로 SPC 가 필요 없다.
         grain_spec = grain_coupler.add_grains(
             grain_park_pos, radius=GRAIN_RADIUS_M, mass_density=GRAIN_RHO,
-            friction_mu=GRAIN_FRICTION, spc_strength=GRAIN_SPC_K)
+            friction_mu=GRAIN_FRICTION,
+            spc_strength=(None if GRAIN_WHEN == "start" else GRAIN_SPC_K))
         print(f"[grain] {len(grain_park_pos)}알 등록  R={GRAIN_RADIUS_M*1e3:.2f}mm "
               f"1알={_m1*1e6:.3f}mg 총={_m1*len(grain_park_pos)*1e3:.3f}g  "
               f"d_hat/R={IPC_D_HAT/GRAIN_RADIUS_M:.2f}  최소간격={_dmin*1e3:.2f}mm  "
-              f"대기 z={GRAIN_PARK_Z*1e3:.0f}mm")
+              f"WHEN={GRAIN_WHEN}")
+        if GRAIN_WHEN == "start":
+            print(f"[grain] 봉투 내부 생성  x[{_lo[0]*1e3:.1f},{_hi[0]*1e3:.1f}] "
+                  f"y[{_lo[1]*1e3:.1f},{_hi[1]*1e3:.1f}] "
+                  f"z[{_lo[2]*1e3:.1f},{_hi[2]*1e3:.1f}]mm  벽 여유 {_mg*1e3:.2f}mm 이상")
+        else:
+            print(f"[grain] 대기 z={GRAIN_PARK_Z*1e3:.0f}mm")
 
     import time as _time
     print("\n[build] scene.build() 시작...")
@@ -1996,11 +2095,38 @@ def main(use_viewer: bool = False):
     _step_n = [0]
     print(f"[build] 성공 ({_build_s:.1f}s)")
 
-    if GRAIN:
+    if GRAIN and GRAIN_WHEN == "start":
+        # 이미 봉투 안이다 — 붙잡지 않는다. 스텝 0 부터 중력으로 바닥에 깔린다.
+        _grain_visible[0] = True
+        # **초기 겹침 검증.** 겹치면 libuipc 가 조용히 죽으므로 여기서 잡는다.
+        from scipy.spatial import cKDTree as _KD
+        _vp0 = _npy(bag.get_state().pos).squeeze()
+        _d0 = _KD(_vp0).query(grain_park_pos)[0]
+        _need = CLOTH_THICK + GRAIN_RADIUS_M + IPC_D_HAT
+        _bad = int((_d0 < _need).sum())
+        print(f"[grain] 봉투 안에서 출발 — 구속 없음, 첫 스텝부터 자유")
+        print(f"[grain] 초기 간격 검증: 낟알-봉투 최소 {_d0.min()*1e3:.2f}mm "
+              f"(요구 {_need*1e3:.2f}mm)  위반 {_bad}/{len(grain_park_pos)}"
+              + ("  ** 초기 겹침 위험 **" if _bad else "  OK"))
+    elif GRAIN:
         # 대기 지점에 세워 둔다 — 여기서 놓으면 워크플로 내내 떨어져 버린다.
         _n_hold = grain_coupler.hold_grains(grain_spec, targets=grain_park_pos)
         print(f"[grain] 대기 구속 {_n_hold}/{len(grain_park_pos)}알 "
               f"(SPC k={GRAIN_SPC_K:g})")
+
+    def _grain_inside(pg):
+        """낟알이 봉투 **안**에 있는가 — 바닥 z 만으로는 판정이 안 된다.
+        봉투가 누우면 "바닥보다 위"가 전부 참이 돼 담김 100%라는 허수가
+        나온다(2026-09-08 실측, STAGE=grain 스모크런). 상단(입구) z 와 xy
+        외곽까지 **매번 현재 봉투 자세로** 다시 재서 함께 본다.
+        반환: (안에 있음 마스크, 바닥 z, 상단 z)"""
+        vp = _npy(bag.get_state().pos).squeeze()
+        z0, z1 = float(vp[:, 2].min()), float(vp[:, 2].max())
+        lo = vp[:, :2].min(axis=0) - GRAIN_RADIUS_M
+        hi = vp[:, :2].max(axis=0) + GRAIN_RADIUS_M
+        return ((pg[:, 2] >= z0) & (pg[:, 2] <= z1)
+                & (pg[:, 0] >= lo[0]) & (pg[:, 0] <= hi[0])
+                & (pg[:, 1] >= lo[1]) & (pg[:, 1] <= hi[1])), z0, z1
 
     def _spc(idx=None, tgt=None, reset=False):
         """uipc SoftPositionConstraint 슬롯에 직접 쓴다(docs/GenesisPatch.md 패치 2).
@@ -2100,7 +2226,17 @@ def main(use_viewer: bool = False):
         _i = _i[0] if isinstance(_i, (list, tuple, np.ndarray)) else _i
         suction.set_dofs_position(np.array([_v]), dofs_idx_local=[_i])
         suction.set_dofs_velocity(velocity=None, dofs_idx_local=[_i])
-        print(f"[suction] {_tag} {_v*1000:+.0f}mm  ({_n})")
+        # **위치만 놓고 끝내면 안 된다.** 종전에는 여기서 한 번 놓기만 하고
+        # kp/kv 는 Phase 13 에 들어가서야 걸었다 — 그 사이 조인트가 자유 상태로
+        # 표류한다. 표류량이 시간이 아니라 **스텝 수**에 비례해서, dt 를 절반으로
+        # 줄이자(N_SCALE=2) 스테이지가 -100mm 에서 **-824mm** 까지 밀려났다
+        # (2026-09-10 실측). 그러면 _sdrive 가 복귀 거리를 824mm 로 역산해
+        # 흡착 전진 한 구간이 2,000스텝에서 32,962스텝으로 부풀었다.
+        # 제자리를 목표로 PD 를 걸어두면 표류가 아예 안 생긴다.
+        suction.set_dofs_kp(np.array([SUCK_KP]), dofs_idx_local=[_i])
+        suction.set_dofs_kv(np.array([SUCK_KV]), dofs_idx_local=[_i])
+        suction.control_dofs_position(np.array([_v]), dofs_idx_local=[_i])
+        print(f"[suction] {_tag} {_v*1000:+.0f}mm  ({_n})  PD 로 유지")
 
     rc_shaft_dof = None
     if RECOVER:
@@ -2139,7 +2275,20 @@ def main(use_viewer: bool = False):
         _tlog.append((_tcur[0], _now - _tclk[0], _step_n[0]))
         _tclk[0] = _now
         _tcur[0] = name
+        # 파우더가 **어느 단계에서** 새는지 남긴다. 단계 경계에서만 재므로
+        # 스텝 비용에 영향이 없다. GRAIN_WHEN=start 에서 특히 중요하다 —
+        # 파지/삽입/압착/이송을 거치는 내내 담겨 있어야 공정이 성립한다.
+        if grain_coupler is not None and _grain_visible[0]:
+            try:
+                _pg = grain_coupler.get_grain_positions(grain_spec)
+                _in, _z0, _z1 = _grain_inside(_pg)
+                _gtrace.append((name, _step_n[0], int(_in.sum()), len(_pg)))
+                print(f"[grain] @{name:16s} 담김 {int(_in.sum()):4d}/{len(_pg)}  "
+                      f"봉투 z=[{_z0*1e3:.1f},{_z1*1e3:.1f}]mm", flush=True)
+            except Exception as _e:
+                print(f"[grain] @{name} 계측 실패: {_e!r}")
 
+    _gtrace = []      # (단계명, 스텝, 담김수, 전체) — 파우더가 어디서 새는지
     _rc_hold = [0.0]
 
     def _rc_drive(q):
@@ -2216,6 +2365,26 @@ def main(use_viewer: bool = False):
         p = _npy(bag.get_state().pos).squeeze()
         return np.median(p, axis=0)
 
+    # ── 봉투 움직임 매 스텝 계측 (BAG_TRACE=1) ────────────────────────────
+    _bt = []
+    _bt_prev = [None]
+    if BAG_TRACE:
+        _orig_step = scene.step
+
+        def _traced_step(*a, **kw):
+            r = _orig_step(*a, **kw)
+            vp = _npy(bag.get_state().pos).squeeze()
+            com = vp.mean(axis=0)
+            # 정점 최대 이동은 COM 이 평균으로 지워버리는 **국소 떨림**을 잡는다.
+            dmax = (0.0 if _bt_prev[0] is None
+                    else float(np.linalg.norm(vp - _bt_prev[0], axis=1).max()))
+            _bt_prev[0] = vp.copy()
+            _bt.append((com[0], com[1], com[2], dmax))
+            return r
+
+        scene.step = _traced_step
+        print("[trace] BAG_TRACE=1 — 매 스텝 봉투 COM/정점최대이동 기록")
+
     def _bag_extent():
         """(width_y, height_z, bottom_z) — Y 스윕 판정용(사용자 지시, 2026-07-23)."""
         p = _npy(bag.get_state().pos).squeeze()
@@ -2272,11 +2441,17 @@ def main(use_viewer: bool = False):
             robot.set_dofs_position(np.concatenate([q1, [f1] * 6]))
             print(f"[phase] {name:8s} @skip  (CLAMP_ONLY)")
             return
+        _qprev = [np.concatenate([q0, [f0] * 6])]
         for k in range(n):
             s = ease((k + 1) / n)
             q = q0 + (q1 - q0) * s
             f = f0 + (f1 - f0) * s
-            robot.set_dofs_position(np.concatenate([q, [f] * 6]))
+            _qnow = np.concatenate([q, [f] * 6])
+            robot.set_dofs_position(_qnow)
+            if ARM_VEL:
+                # 이번 스텝에 실제로 이동한 양을 dt 로 나눈 값 = 지금 팔의 속도.
+                robot.set_dofs_velocity((_qnow - _qprev[0]) / DT)
+            _qprev[0] = _qnow
             _rc_drive(_rc_hold[0])
             if crank_q is not None:
                 crusher.control_dofs_position(np.array([crank_q]), dofs_idx_local=[crank_dof])
@@ -3167,6 +3342,21 @@ def main(use_viewer: bool = False):
                 _tmark("13a 흡착")
                 print(f"\n[phase] 13a 흡착 전진 — 스테이지 "
                       f"{SUCTION_BACK_M*1e3:+.0f} -> 0mm")
+                # 표류 방어선 — 위에서 PD 로 잡아두지만, 접촉으로 밀렸을 수도
+                # 있으므로 여기서 한 번 더 확인한다. 복귀 거리를 실제 위치에서
+                # 역산하는 구조라, 표류를 놓치면 스텝 수가 통째로 부푼다.
+                _st_now = float(_npy(suction.get_dofs_position())[0])
+                _drift = _st_now - SUCTION_BACK_M
+                if abs(_drift) > 5.0e-3:
+                    print(f"[suck] **경고: 스테이지가 {_drift*1e3:+.1f}mm 표류했다** "
+                          f"({_st_now*1e3:+.1f}mm, 기대 {SUCTION_BACK_M*1e3:+.1f}mm) "
+                          f"— 되돌리고 진행한다", flush=True)
+                    _si = 0
+                    suction.set_dofs_position(np.array([SUCTION_BACK_M]),
+                                              dofs_idx_local=[_si])
+                    suction.set_dofs_velocity(velocity=None, dofs_idx_local=[_si])
+                    suction.control_dofs_position(np.array([SUCTION_BACK_M]),
+                                                  dofs_idx_local=[_si])
                 _sdrive(0.0, SUCTION_OPEN_M, "advance")
                 print(f"[phase] 13b 흡착 파지 — 조 {SUCTION_OPEN_M*1e3:+.0f} -> 0mm")
                 _sdrive(0.0, min(0.0, SUCK_JAW_MIN), "close")
@@ -3364,6 +3554,40 @@ def main(use_viewer: bool = False):
               f"{'정상' if abs(_acc - 9.81) < 0.3 else '이상'}")
         print(f"[saved] {_npz_ff}")
 
+    elif GRAIN and GRAIN_WHEN == "start":
+        # 파우더는 시작부터 봉투 안에 있었다 — 붓는 단계가 없다. 전 시퀀스
+        # (파지/리프트/삽입/압착/분쇄/회수/흡착)를 통과한 뒤 얼마나 남았는지만 잰다.
+        from scipy.spatial import cKDTree
+        _tmark("14 grain 판정")
+        _pg = grain_coupler.get_grain_positions(grain_spec)
+        _in, _z0, _z1 = _grain_inside(_pg)
+        _held = int(_in.sum())
+        _leak = int((_pg[:, 2] < _z0).sum())
+        _above = int((_pg[:, 2] > _z1).sum())
+        _beside = len(_pg) - _held - _leak - _above
+        _m1g = GRAIN_RHO * (4.0 / 3.0) * np.pi * GRAIN_RADIUS_M ** 3
+        _vp_end = _npy(bag.get_state().pos).squeeze()
+        _d_bag = cKDTree(_vp_end).query(_pg)[0]
+        _nn_g = cKDTree(_pg).query(_pg, k=2)[0][:, 1]
+        _npz_g = os.path.join(CASE_DIR, f"grain_{_TAG}.npz")
+        np.savez(_npz_g, final=_pg, bag_verts=_vp_end, bag_z=np.array([_z0, _z1]),
+                 d_to_bag=_d_bag, nn=_nn_g, n_grains=len(_pg), radius=GRAIN_RADIUS_M,
+                 rho=GRAIN_RHO, d_hat=IPC_D_HAT, n_leak=_leak,
+                 newton_tol=(NEWTON_TOL or 0.0),
+                 trace_name=np.array([t[0] for t in _gtrace]),
+                 trace_step=np.array([t[1] for t in _gtrace]),
+                 trace_held=np.array([t[2] for t in _gtrace]))
+        print()
+        print(f"[RESULT] grain(start) 담김 {_held}/{len(_pg)}알 "
+              f"({_held*_m1g*1e3:.3f}g / {len(_pg)*_m1g*1e3:.3f}g)  "
+              f"누출(바닥아래) {_leak}  입구위 {_above}  옆(xy밖) {_beside}")
+        _q = [0.05, 0.5, 0.95]
+        print(f"[RESULT] 낟알-봉투 최근접(mm) 5/50/95%: "
+              f"{np.round(np.quantile(_d_bag, _q)*1e3, 3)}")
+        print(f"[RESULT] 단계별 잔류: "
+              + "  ".join(f"{n.split()[0]}={h}" for n, _st, h, _tt in _gtrace))
+        print(f"[saved] {_npz_g}")
+
     elif GRAIN and stage_on("grain"):
         _tmark("14 grain")
         _vpg = _npy(bag.get_state().pos).squeeze()
@@ -3373,19 +3597,6 @@ def main(use_viewer: bool = False):
         _park_c = np.array([RECOVERY2_POS[0], RECOVERY2_POS[1], GRAIN_PARK_Z])
         _bag_bottom_g = float(_vpg[:, 2].min())
 
-        def _grain_inside(pg):
-            """낟알이 봉투 **안**에 있는가 — 바닥 z 만으로는 판정이 안 된다.
-            봉투가 누우면 "바닥보다 위"가 전부 참이 돼 담김 100%라는 허수가
-            나온다(2026-09-08 실측, STAGE=grain 스모크런). 상단(입구) z 와 xy
-            외곽까지 **매번 현재 봉투 자세로** 다시 재서 함께 본다.
-            반환: (안에 있음 마스크, 바닥 z, 상단 z)"""
-            vp = _npy(bag.get_state().pos).squeeze()
-            z0, z1 = float(vp[:, 2].min()), float(vp[:, 2].max())
-            lo = vp[:, :2].min(axis=0) - GRAIN_RADIUS_M
-            hi = vp[:, :2].max(axis=0) + GRAIN_RADIUS_M
-            return ((pg[:, 2] >= z0) & (pg[:, 2] <= z1)
-                    & (pg[:, 0] >= lo[0]) & (pg[:, 0] <= hi[0])
-                    & (pg[:, 1] >= lo[1]) & (pg[:, 1] <= hi[1])), z0, z1
         print()
         print(f"[phase] 14 grain — 입구중심 {np.round(_mc*1e3, 1)}mm  "
               f"투입점 {np.round(_pour*1e3, 1)}mm  봉투바닥 {_bag_bottom_g*1e3:.1f}mm")
@@ -3567,6 +3778,31 @@ def main(use_viewer: bool = False):
     print(f"\n[timing] build={_build_s:.1f}s  steps={_steps_s:.1f}s "
           f"({_n} steps, {_steps_s / _n * 1e3:.1f}ms/step)  "
           f"합계={_build_s + _steps_s:.1f}s")
+    if BAG_TRACE and len(_bt) > 2:
+        _bta = np.asarray(_bt)
+        _com, _dmax = _bta[:, :3], _bta[:, 3]
+        _d = np.linalg.norm(np.diff(_com, axis=0), axis=1)      # 스텝당 COM 이동
+        _ax = int(np.argmax(np.abs(_com[-1] - _com[0])))         # 주 이동축
+        _v = np.diff(_com[:, _ax])
+        _mv = np.abs(_v) > 1e-6                                  # 정지 구간 제외
+        _vv = _v[_mv]
+        _flip = int((np.sign(_vv[1:]) * np.sign(_vv[:-1]) < 0).sum()) if len(_vv) > 2 else 0
+        _npz_t = os.path.join(CASE_DIR, f"bagtrace_{_TAG}.npz")
+        np.savez(_npz_t, com=_com, dmax=_dmax, dt=DT)
+        print()
+        print("=" * 66)
+        print(f"[trace] 스텝 {len(_bta)}  주 이동축={'xyz'[_ax]}  (1스텝 = 영상 1프레임)")
+        print(f"[trace] 스텝당 COM 이동(mm) 50/90/99/max: "
+              f"{np.round(np.quantile(_d, [.5, .9, .99, 1.0]) * 1e3, 3)}")
+        print(f"[trace] 스텝당 정점최대이동(mm) 50/90/99/max: "
+              f"{np.round(np.quantile(_dmax[1:], [.5, .9, .99, 1.0]) * 1e3, 3)}")
+        print(f"[trace] 주축 속도 부호반전 {_flip}/{max(1,len(_vv)-1)}회 "
+              f"({100*_flip/max(1,len(_vv)-1):.1f}%) — 잦으면 떨림, 드물면 거친 스텝")
+        print(f"[trace] 정점최대이동 / COM이동 중앙값 비 = "
+              f"{np.median(_dmax[1:])/max(np.median(_d),1e-12):.2f} "
+              f"(1 에 가까우면 통째로 움직임, 크면 국소 떨림)")
+        print(f"[saved] {_npz_t}")
+        print("=" * 66)
     print("완료.")
 
 
