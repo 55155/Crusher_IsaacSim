@@ -646,6 +646,28 @@ CRUSH_WALL_SET_EVERY = int(os.environ.get("CRUSH_WALL_SET_EVERY", "0"))
 
 CRUSH_SECONDS = float(os.environ.get("CRUSH_SECONDS", "0"))
 CRUSH_RENDER_EVERY = int(os.environ.get("CRUSH_RENDER_EVERY", "10"))
+# **분쇄를 실제로 스텝하는 런인가** (2026-09-10, 사용자 지시: "낟알 든 봉투를
+# Crusher 로 때리는 공정만 따로 떼서"). CLAMP_ONLY 는 충돌판(L9_PLATE)을 접촉에서
+# 빼 버린다(patch_crusher_mjcf) — 빌드 시 슬롯에 스폰한 봉투와 겹쳐 libuipc 가
+# 죽기 때문인데, **그 판이 바로 때리는 면**이라 분쇄 구간에서는 뺄 수 없다.
+# 그래서 이 플래그가 서면 판을 접촉에 남기고, 대신 봉투를 슬롯 **위로 띄워**
+# 스폰한 뒤 크랭크를 -180deg 로 물린 다음 SPC 로 내려놓는다(_SPAWN_HI).
+# 실측 근거(겹침): 판 q=0 AABB y[-8.52,+1.48] z[25,75]mm, 슬롯 봉투 y[-8.27,-2.27]
+# z[51,141]mm -> 50x6x24mm 교차. 크랭크 -180deg 면 판이 y[+31.5,+41.5] 로 빠진다.
+CRUSH_LIVE = CRUSH_SECONDS > 0 and stage_on("crush")
+# 분쇄 구간 계측 — 어떤 채널을 얼마나 자주 뜰지. 스칼라/집계는 매 스텝(1),
+# 낟알 전량 좌표·속도는 FIELD_EVERY, 봉투 정점은 BAG_EVERY 간격으로 남긴다.
+# 분쇄 시작에서 봉투 SPC 를 **몇 스텝에 걸쳐 풀 것인가**(2026-09-11, 사용자 지시).
+# 0 이면 종전대로 한 스텝에 통째로 놓는다. 근거는 §27-7.
+BAG_SPC_RELEASE_STEPS = int(os.environ.get("BAG_SPC_RELEASE_STEPS", "400"))
+# 분쇄 **밖** 구간의 렌더 솎기. 기본 1(종전과 동일 = 매 스텝). CRUSH_RENDER_EVERY
+# 와 맞추면 영상 재생속도가 분쇄 경계에서 안 튄다 — "갑자기 프레임이 끊긴다"의
+# 정체가 이 두 값의 10배 차이였다(물리가 아니라 렌더 간격).
+RENDER_EVERY = max(1, int(os.environ.get("RENDER_EVERY", "1")))
+CRUSH_DATA = os.environ.get("CRUSH_DATA", "1") == "1"
+CRUSH_DATA_EVERY = max(1, int(os.environ.get("CRUSH_DATA_EVERY", "1")))
+CRUSH_FIELD_EVERY = max(1, int(os.environ.get("CRUSH_FIELD_EVERY", "5")))
+CRUSH_BAG_EVERY = max(1, int(os.environ.get("CRUSH_BAG_EVERY", "10")))
 CRANK_RPM = 8.0
 CRANK_OMEGA = CRANK_RPM * 2.0 * np.pi / 60.0     # 0.8378 rad/s
 CRANK_TORQUE_LIM = float(os.environ.get("CRANK_TORQUE_LIM_NM", "12.5"))
@@ -690,7 +712,7 @@ def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999
                           f"(링크 질량 0.312kg + 랙/피니언/감속기/로터). "
                           f"100N -> {100.0/(0.312+WALL_ARMATURE):.1f} m/s^2, "
                           f"kv 안정 한계 {2*(0.312+WALL_ARMATURE)/5e-3:.0f}")
-        if CLAMP_ONLY:
+        if CLAMP_ONLY and not CRUSH_LIVE:
             # CLAMP_ONLY 는 봉투를 빌드 시점에 이미 슬롯 안에 스폰한다. 그런데
             # 크랭크 q=0 이면 impact plate(L9_PLATE_v3_1)가 그 슬롯을 차지한다 —
             # 실측 world AABB x[0.1865,0.2365] y[-0.0085,0.0015] z[0.025,0.075]
@@ -711,6 +733,11 @@ def patch_crusher_mjcf(src, dst, eq_solref="0.0002 50", eq_solimp="0.999 0.99999
                     _n_plate += 1
             print(f"[mjcf] CLAMP_ONLY — impact plate geom {_n_plate}개를 시각 전용으로 "
                   f"내림(빌드 시 봉투와 겹침 회피). 압착 격리 모드라 분쇄는 대상이 아니다.")
+        elif CLAMP_ONLY:
+            # CRUSH_LIVE — 분쇄를 실제로 돌리므로 충돌판을 **접촉에 남긴다**.
+            # 겹침은 형상을 빼서가 아니라 봉투를 띄워 스폰해서 피한다(§CRUSH_LIVE).
+            print("[mjcf] CLAMP_ONLY + CRUSH_LIVE — impact plate 를 접촉에 **남긴다**"
+                  "(때리는 면). 빌드 겹침은 봉투를 슬롯 위로 띄워 스폰해 피한다.")
         if LEFTWALL_SPLIT:
             _split_leftwall_collision(root, wb)
         if LEFTWALL_CLAMP_FACE:
@@ -1483,7 +1510,7 @@ assert GRAIN_WHEN in ("end", "start"), f"GRAIN_WHEN={GRAIN_WHEN!r}"
 # RECOVER 가 꺼져 있으면 recover/rclock/suction 이 통째로 안 돌아 봉투가 크러셔
 # 슬롯에 남고(2026-09-08 실측: hold2 에서 끝남), 낟알을 부어도 의미가 없다.
 # 환경변수를 말없이 덮어쓰지는 않는다 — 사용자가 준 조건을 바꾸면 안 되므로 경고만 한다.
-if GRAIN and not RECOVER:
+if GRAIN and not RECOVER and GRAIN_WHEN == "end":
     print("=" * 78)
     print("[grain] **경고: GRAIN=1 인데 RECOVER=0 이다.**")
     print("[grain] recover/rclock/suction 이 안 돌아 봉투가 회수장치에 서지 않는다.")
@@ -1879,6 +1906,9 @@ def main(use_viewer: bool = False):
     # 스테이지가 성립하지 않는다. 목표 좌표는 Phase 12c 가 쓰는 것과 같은 식
     # (rc_x/rc_y/rc_seal_z) — 거기서 IK 로 맞추는 값을 여기서는 직접 놓는다.
     _SPAWN_AT_RC = STAGE_FROM >= STAGE_ORDER.index("rclock")
+    # CRUSH_LIVE 는 충돌판을 접촉에 남기므로 슬롯에 바로 스폰하면 판과 겹쳐
+    # libuipc 빌드가 죽는다. 슬롯 **위로 띄워** 스폰하고 prep 뒤에 SPC 로 내린다.
+    _SPAWN_HI = CLAMP_ONLY and CRUSH_LIVE and not _SPAWN_AT_RC and STAGE_SPAWN_DZ > 0
     if _SPAWN_AT_RC:
         import genesis.utils.geom as gu
         _bv = tm.load(bag_obj).vertices * BAG_SCALE
@@ -1902,12 +1932,16 @@ def main(use_viewer: bool = False):
         _bw = (gu.quat_to_R(gu.xyz_to_quat(np.array(BAG_EULER), rpy=True, degrees=True))
                @ _bv.T).T
         _lo, _hi = _bw.min(0), _bw.max(0)
+        _dz_hi = STAGE_SPAWN_DZ if _SPAWN_HI else 0.0
         _bag_spawn_pos = (float(_sg["gap_cx"] - (_lo[0] + _hi[0]) / 2),
                           float(_sg["gap_cy"] - (_lo[1] + _hi[1]) / 2),
-                          float(_sg["wall_center_z"] - _lo[2]))
+                          float(_sg["wall_center_z"] - _lo[2] + _dz_hi))
         print(f"[clamp_only] 봉투를 슬롯에 직접 스폰: pos={np.round(_bag_spawn_pos, 4)} "
               f"(기본 {BAG_POS}) — 슬롯 중심 ({_sg['gap_cx']:.4f},{_sg['gap_cy']:.4f}), "
               f"bag_bottom 목표 {_sg['wall_center_z']:.4f}")
+        if _SPAWN_HI:
+            print(f"[stage] CRUSH_LIVE — 충돌판을 피해 {_dz_hi*1e3:.0f}mm 띄워 스폰했다. "
+                  f"prep 으로 크랭크를 -180deg 로 물린 뒤 SPC 로 슬롯에 내린다.")
 
     bag = scene.add_entity(
         material=gs.materials.FEM.Cloth(
@@ -1957,6 +1991,14 @@ def main(use_viewer: bool = False):
     # bagcam 은 컵 당김축(world X)을 거의 정면으로 보고 있어 개구가 단축돼 보인다
     # — 봉투 입구가 2.5 -> 35.1mm 로 벌어져도 그림에서 안 읽힌다. 입구를 **위에서
     # 내려다보면** 슬릿이 타원으로 벌어지는 게 그대로 보인다. 녹화는 안 걸고
+    # 배치 스틸 전용 카메라 (LAYOUT_ONLY, 2026-09-11). fov 는 add_camera 시점에
+    # 고정이라(set_pose 로 못 바꾼다) 화각을 바꾸려면 카메라를 따로 만들어야 한다.
+    # cam_over 의 fov=48 은 광각이라 장치가 작게 잡히고 원근 왜곡이 크다.
+    cam_layout = None
+    if LAYOUT_ONLY:
+        cam_layout = scene.add_camera(
+            res=(1920, 1440), pos=OVERVIEW_CAM_POS, lookat=OVERVIEW_CAM_LOOK,
+            fov=float(os.environ.get("LAYOUT_FOV", "34")), GUI=False)
     # 13c 시작/끝에서 스틸만 두 장 뽑으므로 매 스텝 렌더 비용이 없다.
     cam_mouth = scene.add_camera(res=(1280, 960), pos=OVERVIEW_CAM_POS,
                                  lookat=OVERVIEW_CAM_LOOK, fov=30, GUI=False, debug=GRAIN)
@@ -2069,18 +2111,65 @@ def main(use_viewer: bool = False):
     if LAYOUT_ONLY:
         # 실설계 배치만 확인하는 모드 — 시뮬 없이 정지 프레임만 뽑고 끝낸다.
         _out = os.path.join(CASE_DIR, f"layout_{_TS}")
-        cam_over.set_pose(pos=(1.30, -1.30, 0.95), lookat=(0.0, -0.10, 0.10))
-        cam_over.render(rgb=True)[0]
         import PIL.Image as _I
-        for _tag, _pos, _look in (
-            ("iso",  (1.30, -1.30, 0.95), (0.00, -0.10, 0.10)),
-            ("top",  (0.00,  0.00, 1.80), (0.00,  0.00, 0.00)),
-            ("front",(0.00, -1.90, 0.45), (0.00,  0.00, 0.15)),
-            ("side", (1.90,  0.00, 0.45), (0.00,  0.00, 0.15)),
-        ):
-            cam_over.set_pose(pos=_pos, lookat=_look)
-            _I.fromarray(cam_over.render(rgb=True)[0]).save(f"{_out}_{_tag}.png")
+        # 로봇을 **작업 자세로 세운 뒤** 찍는다. 빌드 직후는 MJCF 기본자세(관절 0)
+        # = 팔이 수직으로 뻗은 상태라 키가 1.2m 를 넘어, 장치를 크게 담으면 팔이
+        # 잘리고 팔을 담으면 장치가 작아진다. Q_GRASP 는 이 파이프라인이 실제로
+        # 출발하는 자세이므로 배치 그림으로도 그쪽이 맞다.
+        # (crank_dof/wall_dof 는 아래에서 정의되므로 여기서 직접 찾는다)
+        robot.set_dofs_position(np.concatenate([Q_GRASP, [FING_OPEN] * 6]))
+        _cj_l = {j.name: j for j in crusher.joints}
+        for _jn, _q in ((CRANK_JOINT, CRANK_START_Q), (WALL_JOINT, WALL_OFFSET)):
+            _d = _cj_l[_jn].dofs_idx_local
+            _d = _d[0] if isinstance(_d, (list, tuple, np.ndarray)) else _d
+            crusher.set_dofs_position(np.array([_q]), dofs_idx_local=[_d])
+        # **프레이밍을 하드코딩하지 않는다.** 종전 (1.30,-1.30,0.95)/fov48 은
+        # 대상까지 1.96m 에 세로 1.75m 를 담아 장치가 화면의 1/3 밖에 안 됐다
+        # ("너무 멀고 이상한 각도"). 장치 배치에서 중심과 반경을 계산해 거리를
+        # 화각에서 역산한다: dist = R / tan(fov/2).
+        _dev = np.array([CRUSHER_POS, FIXTURE_POS, RECOVERY2_POS, SUCTIONV1_POS,
+                         tuple(ROBOT_OFFSET)], dtype=float)
+        _cx = float(os.environ.get("LAYOUT_CX", (_dev[:, 0].min() + _dev[:, 0].max()) / 2))
+        _cy = float(os.environ.get("LAYOUT_CY", (_dev[:, 1].min() + _dev[:, 1].max()) / 2))
+        _cz = float(os.environ.get("LAYOUT_CZ", "0.14"))
+        _look = (_cx, _cy, _cz)
+        # 담을 반경 [m]. 기본 0.52 = 장치 무리 + 로봇 높이. 판 끝까지 넣으려면 0.62.
+        _R = float(os.environ.get("LAYOUT_R", "0.52"))
+        _fov = cam_layout.fov
+        _dist = _R / np.tan(np.radians(_fov / 2))
+
+        def _orb(az_deg, el_deg, d=None):
+            """대상 중심 기준 방위각/고도각으로 카메라 위치를 만든다."""
+            d = _dist if d is None else d
+            a, e = np.radians(az_deg), np.radians(el_deg)
+            return (_cx + d * np.cos(e) * np.cos(a),
+                    _cy + d * np.cos(e) * np.sin(a),
+                    _cz + d * np.sin(e))
+
+        # 뷰 목록은 환경변수로 바꾼다: LAYOUT_VIEWS="이름:방위각:고도각,..."
+        # 고도각 0 = 수평시선 = **판이 화면에서 수평선으로 보이는 정면도**,
+        # 90 = 진짜 평면도. 기본값은 사용자 지시(2026-09-11)의 3컷 + 참고컷.
+        _vspec = os.environ.get("LAYOUT_VIEWS", "").strip()
+        if _vspec:
+            _views = []
+            for _t in _vspec.split(","):
+                _n, _a, _e = _t.split(":")
+                _views.append((_n, _orb(float(_a), float(_e))))
+        else:
+            _views = [
+                ("front", _orb(-90, 0)),     # 정면도 — 판이 수평, 틀어짐 없음
+                ("top", _orb(-90, 90)),      # 평면도
+                ("iso45", _orb(-90, 45)),    # 정면-상단 45도
+            ]
+        for _tag, _pos in _views:
+            # 진짜 평면도(고도 90)는 시선과 기본 up 벡터가 평행해 자세가 정의되지
+            # 않는다 — 그 때만 up 을 +Y 로 준다(화면 위쪽이 +Y).
+            _up = (0.0, 1.0, 0.0) if abs(float(_pos[2]) - _cz) > 0.999 * _dist else (0.0, 0.0, 1.0)
+            cam_layout.set_pose(pos=tuple(float(v) for v in _pos), lookat=_look, up=_up)
+            _I.fromarray(cam_layout.render(rgb=True)[0]).save(f"{_out}_{_tag}.png")
             print(f"[layout] saved {_out}_{_tag}.png")
+        print(f"[layout] 중심 {np.round(_look, 3)}  반경 {_R:.2f}m  fov {_fov:.0f}deg  "
+              f"거리 {_dist:.2f}m  (LAYOUT_CX/CY/CZ, LAYOUT_R, LAYOUT_FOV 로 조정)")
         print(f"[layout] 판 {PLATE_SIZE[0]*1000:.0f}x{PLATE_SIZE[1]*1000:.0f}x"
               f"{PLATE_SIZE[2]*1000:.0f}mm, 상면 z=0")
         for _n, _p in (("Crusher", CRUSHER_POS), ("고정장치", FIXTURE_POS),
@@ -2416,8 +2505,13 @@ def main(use_viewer: bool = False):
     def _finger_z():
         return float(_npy(left_link.get_pos()).squeeze()[2])
 
+    _render_n = [0]
+
     def render_cams():
         if NO_VIDEO:
+            return
+        _render_n[0] += 1
+        if RENDER_EVERY > 1 and (_render_n[0] - 1) % RENDER_EVERY:
             return
         if grain_coupler is not None and _grain_visible[0]:
             # 낟알은 uipc pointcloud 로만 존재하고 Genesis 엔티티가 아니라서
@@ -2504,7 +2598,11 @@ def main(use_viewer: bool = False):
     _tmark("0 prep")
     print(f"\n[phase] 0 prep ({N_PREP*DT:.1f}s) — 크랭크 0->{CRANK_START_Q:+.3f}rad(-180deg), "
           f"Left_Wall 0->{WALL_OFFSET*1000:+.0f}mm(개방)")
-    for k in range(0 if CLAMP_ONLY else N_PREP):
+    # _SPAWN_HI 에서는 **램프를 실제로 돈다.** 크랭크만 set_dofs_position 으로
+    # 순간이동시키면 커넥팅로드/슬라이더 DOF 는 0 에 남아 weld 폐루프가 모순된
+    # 자세에서 출발한다(CLAMP_ONLY 는 판을 접촉에서 빼 놓았으므로 그게 드러나지
+    # 않았다). 판을 접촉에 남기는 런에서는 기구가 제대로 접혀야 하므로 램프로 돈다.
+    for k in range(N_PREP if (not CLAMP_ONLY or _SPAWN_HI) else 0):
         s = (k + 1) / N_PREP
         crusher.control_dofs_position(np.array([CRANK_START_Q * s]), dofs_idx_local=[crank_dof])
         crusher.control_dofs_position(np.array([WALL_OFFSET * s]), dofs_idx_local=[wall_dof])
@@ -2516,12 +2614,41 @@ def main(use_viewer: bool = False):
         scene.step()
         _step_n[0] += 1
         render_cams()
-    if CLAMP_ONLY:      # 램프 없이 슬롯 준비 상태로 바로 놓는다
+    if CLAMP_ONLY and not _SPAWN_HI:      # 램프 없이 슬롯 준비 상태로 바로 놓는다
         crusher.set_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
         crusher.set_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
     cq = _npy(crusher.get_dofs_position())[crank_dof]
     wq = _npy(crusher.get_dofs_position())[wall_dof]
     print(f"[phase] prep     @done  crank={cq:+.3f}rad  wall={wq*1000:+.2f}mm")
+
+    # ── 봉투를 슬롯 안으로 내린다 (CRUSH_LIVE, 2026-09-10) ────────────────────
+    # 크랭크가 -180deg 로 물러나 충돌판이 슬롯을 비웠으므로, 띄워 스폰한 봉투를
+    # SPC 목표를 내려 제자리로 데려온다. rclock 스테이지가 쓰는 것과 **같은**
+    # 처방이다(하드 핀은 자기 정점만 옮겨 메시를 찢는다 — §BAG_ATTACH).
+    # 팔은 아직 q_grasp 에 있어 슬롯에서 멀다 — 핑거와 부딪히지 않는다.
+    if _SPAWN_HI:
+        _tmark("0b lower")
+        _n_dn = max(1, int(round(STAGE_SPAWN_DZ / 0.05 / DT)))          # 50mm/s
+        _cz_goal = slot_geometry()["wall_center_z"]
+        print(f"[stage] 봉투 하강 {STAGE_SPAWN_DZ*1e3:.0f}mm ({_n_dn}스텝, 50mm/s) "
+              f"— SPC 로 슬롯에 넣는다 (바닥 목표 {_cz_goal:.4f})")
+        _p_hi = bag_pos0[bag_fixed_idx].copy()
+        for _k in range(_n_dn):
+            _e = ease((_k + 1) / _n_dn)
+            _t = _p_hi.copy()
+            _t[:, 2] -= STAGE_SPAWN_DZ * _e
+            _spc(bag_fixed_idx, _t)
+            crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
+            crusher.control_dofs_position(np.array([WALL_OFFSET]), dofs_idx_local=[wall_dof])
+            _rc_drive(_rc_hold[0])
+            robot.set_dofs_position(np.concatenate([q_grasp, [FING_OPEN] * 6]))
+            scene.step()
+            _step_n[0] += 1
+            render_cams()
+        _w0, _h0, _b0 = _bag_extent()
+        print(f"[stage] 하강 완료 bag_com={_bag_com()}  bottom={_b0:.4f} "
+              f"(목표 {_cz_goal:.4f}, 오차 {(_b0-_cz_goal)*1e3:+.1f}mm)  "
+              f"폭 {_w0*1e3:.1f}mm 높이 {_h0*1e3:.1f}mm")
 
     # ── Phase 1-6: 정제 낙하 -> 봉투 파지 -> 리프트 (tablet_bag_grasp_pipeline.py 동일) ──
     run_arm("drop", q_grasp, q_grasp, FING_OPEN, FING_OPEN, N_DROP,
@@ -2710,7 +2837,24 @@ def main(use_viewer: bool = False):
     if CLAMP_ONLY:
         # 봉투는 이미 슬롯에 스폰돼 있다(위 _bag_spawn_pos). 여기서는 형상 고정을
         # 풀고 **상단만** 다시 구속해 그리퍼 대신 매단 뒤 잠깐 안정화한다.
-        _spc(None) if BAG_ATTACH else bag.remove_vertex_constraints()
+        #
+        # **_SPAWN_HI 는 여기서 풀지 않는다 (2026-09-10).** 풀면 봉투가 포켓 안에서
+        # 12mm 주저앉고 낟알이 퍼져 폭이 43mm 가 된다(실측). 그러면 벽이 봉투를
+        # 제 높이에서 만나지 못해 하드스톱 근처(-16.60mm, 본체면 잔여 0.90mm)까지
+        # 닫히고, 그 자세에서는 벽의 스텝 속도가 **안쪽(-220mm/s)** 을 향한다 —
+        # 기구학 구동(set)이 끊기는 분쇄 시작 순간 벽이 풀려 -11.5m 로 발산했다.
+        # 풀 시퀀스는 이 구간에서 그리퍼가 봉투를 계속 쥐고 있어(HOLD_THROUGH_CLAMP)
+        # 같은 일이 안 난다 — 실측 비교: 풀 시퀀스 clamp 종료 -14.54mm / 잔여
+        # 2.96mm / 속도 **+192mm/s(바깥)** 으로 안정. 그리퍼 대신 SPC 가 봉투를
+        # 슬롯에 세워 두는 것이 그 경계조건의 대체물이다(§17 에서 파지 자체는
+        # 이미 검증됐고, 여기서 재는 것은 타격이다). 분쇄 직전에 풀어 준다.
+        if _SPAWN_HI:
+            vp = _npy(bag.get_state().pos).squeeze()
+            _n_on = _spc(bag_fixed_idx, vp[bag_fixed_idx])
+            print(f"[clamp_only] _SPAWN_HI — 바닥+측면 {_n_on}정점 SPC 유지(그리퍼 대체). "
+                  f"분쇄 시작 직전에 해제한다.")
+        else:
+            _spc(None) if BAG_ATTACH else bag.remove_vertex_constraints()
         vp = _npy(bag.get_state().pos).squeeze()
         if CLAMP_ONLY_PIN:
             # 그리퍼 대신 상단 정점을 매단다. **IPC 커플러와 궁합이 나쁘다** —
@@ -2723,7 +2867,7 @@ def main(use_viewer: bool = False):
             else:
                 bag.set_vertex_constraints(verts_idx_local=top_idx.tolist(), is_soft_constraint=False)
             print(f"[clamp_only] 상단 {len(top_idx)}/{len(vp)} 정점 구속(그리퍼 대체)")
-        else:
+        elif not _SPAWN_HI:
             print("[clamp_only] 정점 구속 없음 — 봉투는 포켓 안에 자유롭게 놓인다")
         for _ in range(N_SETTLE2):
             crusher.control_dofs_position(np.array([CRANK_START_Q]), dofs_idx_local=[crank_dof])
@@ -2907,6 +3051,41 @@ def main(use_viewer: bool = False):
     if CRUSH_SECONDS > 0 and stage_on("crush"):
         n_crush = int(round(CRUSH_SECONDS / DT))
         wall_hold = _wall_hold      # 속도지령 모드면 포화된 지령, 아니면 프리로드
+        # ── 봉투 SPC 해제 (2026-09-11) ────────────────────────────────────
+        # 봉투를 슬롯에 세우려고 잡고 있던 구속을 여기서 푼다 — 이제 벽이 물었고
+        # 그리퍼도 닫혀 있으므로 고정은 그쪽이 담당한다. 구속을 타격 중에도 걸어
+        # 두면 바닥·측면 정점이 못 움직여 정작 재려는 변형이 억제된다.
+        #
+        # **한 스텝에 통째로 놓으면 안 된다(사용자 지적).** 구속은 중력과 벽의
+        # 압착력을 대신 받아 주고 있었는데, 그걸 한 스텝에 없애면 그 하중이
+        # 통째로 임펄스로 들어간다. 실측(BAG_SPC_RELEASE_STEPS=0 런): 1주기에서만
+        # 벽이 3.39mm 밀리고(이후 주기는 0.4mm) 알당 반력이 0.158mN 로 튄다
+        # (이후 0.04~0.06mN) — 1주기를 통째로 못 쓰게 만드는 과도다.
+        #
+        # **정점을 하나씩 놓는 방식은 틀렸다(2026-09-11 실측).** 구속 개수를
+        # 246 -> 0 으로 줄여 봤더니 피크가 해제 **끝**으로 옮겨가며 오히려 커졌다
+        # (알당 0.158 -> 0.268mN, 낟알 최대속도 1,024 -> 1,662mm/s, 1주기 벽 밀림
+        # 3.39 -> 6.27mm). 남은 정점으로 하중이 **몰리기** 때문이다 — 마지막
+        # 몇 개가 봉투 전체를 혼자 버티다 터진다. 개수를 줄이는 것은 힘을 줄이는
+        # 것이 아니다.
+        #
+        # 맞는 방법은 **구속력 자체를 0 으로 보내는 것**이다. SPC 가 내는 힘은
+        # k*(aim - x) 이므로, 모든 정점을 계속 구속해 둔 채 aim 을 그 정점의
+        # **현재 위치 x 로 수렴**시키면 오차가 0 이 되어 힘이 0 으로 간다.
+        # 전 정점이 동시에 같은 비율로 힘을 놓으므로 몰림이 없다.
+        # (strength_rate 는 apply_to 로 빌드 때 박히는 값이라 런타임에 못 바꾼다.)
+        _rel_n, _rel_idx, _rel_tgt = 0, None, None
+        if _SPAWN_HI and BAG_ATTACH:
+            if BAG_SPC_RELEASE_STEPS > 0:
+                _rel_idx = np.asarray(bag_fixed_idx)
+                _rel_tgt = _npy(bag.get_state().pos).squeeze()[_rel_idx]
+                _rel_n = min(BAG_SPC_RELEASE_STEPS, n_crush)
+                print(f"[crush] 봉투 SPC 를 {_rel_n}스텝({_rel_n*DT:.1f}s)에 걸쳐 서서히 해제 "
+                      f"— {len(_rel_idx)}정점 전부 유지한 채 aim 을 현재 위치로 수렴시켜 "
+                      f"구속력을 0 으로 보낸다")
+            else:
+                _spc(None)
+                print("[crush] 봉투 SPC 즉시 해제 (BAG_SPC_RELEASE_STEPS=0)")
 
         def _tablet_extent():
             """정제 AABB (dx, dy, dz) mm — 분쇄 진행도의 대리 지표."""
@@ -2937,6 +3116,105 @@ def main(use_viewer: bool = False):
         # CRUSH_LOG_EVERY=1 이면 매 스텝 찍는다 — 크랭크 속도가 (a) 가속하다
         # 리셋되는지 (b) 애초에 가속을 안 하는지 가르는 계측용(2026-08-31).
         _log_every = int(os.environ.get("CRUSH_LOG_EVERY", "0")) or max(1, n_crush // 30)
+
+        # ── 분쇄 구간 전수 계측 (2026-09-10, 사용자 지시: "낟알에 가해지는
+        #    반력이나, sim 상에서 얻을 수 있는 데이터를 모두 수집") ─────────────
+        # 어느 채널이 무엇인지, 왜 그것을 읽는지:
+        #
+        #  (1) 크러셔 관절 반력 = `get_dofs_control_force()`.
+        #      kp*(cmd-pos)+kv*(vel-cmd_vel) 을 force_range 로 클램프한 값 =
+        #      **액추에이터가 실제로 낸 출력**이다(accessor.py). 지령을 따라가려고
+        #      모터가 낸 힘이므로, 봉투/낟알이 되미는 만큼 그대로 커진다.
+        #      `get_dofs_force()` 도 같이 남긴다 — 이쪽은 `dofs.force` 버퍼라
+        #      probe 씬(강체 단독)에서는 잔여값 ~0 이었지만(§8de08ac), 여기서는
+        #      IPC 커플러가 `apply_links_external_force` 로 접촉 반력을 그 버퍼에
+        #      실어 보내므로 다른 값이 나온다(실측: 벽 control_force -100N 포화
+        #      구간에서 dofs_force -183N). 둘은 다른 것을 재므로 둘 다 필요하다.
+        #  (2) IPC -> 강체 커플링 반력 = `coupler._coupling_data.out_forces/torques`.
+        #      k_trans*m*(x_ipc - x_aim) 로 매 스텝 각 링크에 실제로 걸리는
+        #      힘/토크다(coupler.py `_apply_abd_coupling_forces`). 충돌판 링크
+        #      (L8_Link3_Shaft_1)와 Left_Wall 링크를 보면 **봉투+낟알이 때리는 면을
+        #      되미는 힘**이 그대로 나온다. 관절 반력과 달리 방향까지 있다.
+        #  (3) 낟알에 걸리는 반력 = 운동량 변화에서 역산한다. uipc 는 입자별 접촉
+        #      힘을 밖으로 내주지 않으므로 좌표에서 만든다:
+        #          v^k = (x^k - x^{k-1})/dt ,  f^k = m*(v^k - v^{k-1})/dt - m*g
+        #      중력을 뺀 나머지 = 이웃 낟알/봉투/기구가 그 알을 민 합력이다.
+        #      **builtin `velocity` 속성은 쓰면 안 된다** — 읽기는 되는데 값이
+        #      항상 0 이다(2026-09-10 실측: fld_vel 전량 0 인데 같은 구간 좌표는
+        #      5스텝에 최대 1.27mm 움직였다). 커플러가 uipc 에서 매 스텝 되받는
+        #      것은 좌표뿐이고(`_retrieve_grain_states`), 속도는 프런트엔드
+        #      지오메트리에 되쓰이지 않는다. 차분은 backward-Euler 적분과 정합한다.
+        #  (4) 낟알/봉투 형상 — 좌표 전량. 압밀(부피/최근접거리)과 봉투 변형.
+        _rec = None
+        if CRUSH_DATA:
+            _m_g1 = GRAIN_RHO * (4.0 / 3.0) * np.pi * GRAIN_RADIUS_M ** 3 if GRAIN else 0.0
+            _cd = getattr(scene.sim.coupler, "_coupling_data", None)
+            _cd_names = [l.name for l in _cd.links] if _cd is not None else []
+            _rec = dict(t=[], step=[], dof_q=[], dof_v=[], dof_cf=[], dof_f=[],
+                        link_F=[], link_T=[],
+                        g_com=[], g_lo=[], g_hi=[], g_vmean=[], g_vmax=[], g_ke=[],
+                        g_fmean=[], g_fmax=[], g_fp95=[], g_fsum=[], g_ncon=[],
+                        b_com=[], b_lo=[], b_hi=[], b_zmin=[], b_zmax=[],
+                        fld_step=[], fld_pos=[], fld_vel=[], fld_f=[],
+                        fld_nn=[], fld_dbag=[], bagv_step=[], bagv_pos=[])
+            _pprev = [grain_coupler.get_grain_positions(grain_spec) if GRAIN else None]
+            _vprev = [np.zeros_like(_pprev[0]) if GRAIN else None]
+            print(f"[crush] 계측 ON — 관절 {crusher.n_dofs}dof, 커플링 링크 "
+                  f"{len(_cd_names)}개, 낟알 {0 if not GRAIN else len(_pprev[0])}알  "
+                  f"매 {CRUSH_DATA_EVERY}스텝 / 전량 {CRUSH_FIELD_EVERY}스텝 / "
+                  f"봉투정점 {CRUSH_BAG_EVERY}스텝")
+
+            def _record(k):
+                _r = _rec
+                _r["t"].append((k + 1) * DT)
+                _r["step"].append(_step_n[0])
+                _r["dof_q"].append(_npy(crusher.get_dofs_position()))
+                _r["dof_v"].append(_npy(crusher.get_dofs_velocity()))
+                _r["dof_cf"].append(_npy(crusher.get_dofs_control_force()))
+                _r["dof_f"].append(_npy(crusher.get_dofs_force()))
+                if _cd is not None:
+                    _r["link_F"].append(_cd.out_forces[0].copy())
+                    _r["link_T"].append(_cd.out_torques[0].copy())
+                # 봉투
+                _vp = _npy(bag.get_state().pos).squeeze()
+                _r["b_com"].append(_vp.mean(axis=0))
+                _r["b_lo"].append(_vp.min(axis=0))
+                _r["b_hi"].append(_vp.max(axis=0))
+                _r["b_zmin"].append(float(_vp[:, 2].min()))
+                _r["b_zmax"].append(float(_vp[:, 2].max()))
+                # 낟알
+                if GRAIN:
+                    _pg = grain_coupler.get_grain_positions(grain_spec)
+                    _vg = (_pg - _pprev[0]) / DT        # 좌표 차분(위 (3) 참고)
+                    # 접촉 합력 = 운동량 변화 - 중력
+                    _fg = _m_g1 * ((_vg - _vprev[0]) / DT - np.array([0.0, 0.0, -9.81]))
+                    _fn = np.linalg.norm(_fg, axis=1)
+                    _vn = np.linalg.norm(_vg, axis=1)
+                    _r["g_com"].append(_pg.mean(axis=0))
+                    _r["g_lo"].append(_pg.min(axis=0))
+                    _r["g_hi"].append(_pg.max(axis=0))
+                    _r["g_vmean"].append(float(_vn.mean()))
+                    _r["g_vmax"].append(float(_vn.max()))
+                    _r["g_ke"].append(float(0.5 * _m_g1 * (_vn ** 2).sum()))
+                    _r["g_fmean"].append(float(_fn.mean()))
+                    _r["g_fmax"].append(float(_fn.max()))
+                    _r["g_fp95"].append(float(np.quantile(_fn, 0.95)))
+                    _r["g_fsum"].append(_fg.sum(axis=0))
+                    # "접촉 중"의 기준: 중력만 받는 알의 반력은 0 이므로 무게의
+                    # 10% 를 넘으면 뭔가가 밀고 있는 것으로 센다.
+                    _r["g_ncon"].append(int((_fn > 0.1 * _m_g1 * 9.81).sum()))
+                    _vprev[0], _pprev[0] = _vg, _pg
+                    if k % CRUSH_FIELD_EVERY == 0:
+                        from scipy.spatial import cKDTree as _KD
+                        _r["fld_step"].append(k)
+                        _r["fld_pos"].append(_pg.astype(np.float32))
+                        _r["fld_vel"].append(_vg.astype(np.float32))
+                        _r["fld_f"].append(_fg.astype(np.float32))
+                        _r["fld_nn"].append(_KD(_pg).query(_pg, k=2)[0][:, 1].astype(np.float32))
+                        _r["fld_dbag"].append(_KD(_vp).query(_pg)[0].astype(np.float32))
+                if k % CRUSH_BAG_EVERY == 0:
+                    _r["bagv_step"].append(k)
+                    _r["bagv_pos"].append(_vp.astype(np.float32))
         for k in range(n_crush):
             # 팔은 release 자세 그대로 유지(핑거 z=0.134 는 impact plate 의 z대역
             # 0.024~0.074 보다 위라 간섭하지 않는다 — 회피 동작을 넣지 않는 이유).
@@ -2944,6 +3222,14 @@ def main(use_viewer: bool = False):
             # HOLD_THROUGH_CLAMP 면 분쇄 내내 봉투를 계속 파지한다(사용자 지시
             # 2026-08-31). 여기서 FING_OPEN 을 주면 Phase 10 에서 안 놓은 봉투를
             # 분쇄 시작과 동시에 놓아버려 §18-4 의 낙하 실패모드가 되살아난다.
+            if _rel_n and k <= _rel_n:
+                # aim = x + (aim0 - x)*w, w: 1 -> 0. ease 라 시작·끝 기울기가 0 이다.
+                _w = float(np.clip(1.0 - ease((k + 1) / _rel_n), 0.0, 1.0))
+                if _w > 1e-6:
+                    _cur = _npy(bag.get_state().pos).squeeze()[_rel_idx]
+                    _spc(_rel_idx, _cur + (_rel_tgt - _cur) * _w, reset=True)
+                else:
+                    _spc(None)
             robot.set_dofs_position(np.concatenate([qpos_insert, [_fing_end] * 6]))
             crusher.control_dofs_velocity(np.array([CRANK_OMEGA]), dofs_idx_local=[crank_dof])
             # **벽을 여기서 set_dofs_position 으로 잡으면 안 된다(2026-08-31 실측).**
@@ -2969,6 +3255,23 @@ def main(use_viewer: bool = False):
                 crusher.set_dofs_velocity(velocity=None, dofs_idx_local=[wall_dof])
             scene.step()
             _step_n[0] += 1
+            if _rec is not None and k % CRUSH_DATA_EVERY == 0:
+                _record(k)
+            # **발산 가드(2026-09-10).** 벽이 기구학 구동(set)에서 위치제어로
+            # 넘어가는 순간, 그 자세에서 스텝 속도가 안쪽을 향하면 100N 으로는
+            # 10.3kg(armature)을 못 세워 벽이 통째로 날아간다(실측 -11,560mm).
+            # 그 뒤 스텝은 전부 의미가 없으므로 12,000스텝을 태우지 않고 여기서 죽는다.
+            if k % 20 == 0:
+                _qw_now = float(_npy(crusher.get_dofs_position())[wall_dof])
+                if not (np.isfinite(_qw_now)
+                        and WALL_Q_FLOOR - 0.005 <= _qw_now <= WALL_OFFSET + 0.005):
+                    raise RuntimeError(
+                        f"[crush] Left_Wall DOF 발산: t={k*DT:.2f}s wall={_qw_now*1e3:.2f}mm "
+                        f"(허용 {(WALL_Q_FLOOR-0.005)*1e3:+.1f}~{(WALL_OFFSET+0.005)*1e3:+.1f}mm). "
+                        f"clamp 종료 {wq_final*1e3:+.2f}mm / 유지 지령 {wall_hold*1e3:+.2f}mm — "
+                        f"압착이 너무 깊어 벽이 봉투를 지나쳤을 때 이렇게 된다. "
+                        f"CLAMP_TARGET_MM 을 얕게 하거나 CRUSH_WALL_SET_EVERY 로 "
+                        f"벽을 주기적으로 제자리에 되돌려라.")
             if k % CRUSH_RENDER_EVERY == 0:
                 render_cams()
             if k % _log_every == 0:
@@ -2976,9 +3279,18 @@ def main(use_viewer: bool = False):
                 vc = float(_npy(crusher.get_dofs_velocity())[crank_dof])
                 qw = float(_npy(crusher.get_dofs_position())[wall_dof])
                 e = _tablet_extent()
+                _tq = float(_npy(crusher.get_dofs_control_force())[crank_dof])
+                _wf = float(_npy(crusher.get_dofs_control_force())[wall_dof])
+                _gtxt = ""
+                if GRAIN and _rec is not None and _rec["g_fmax"]:
+                    _gtxt = (f"  낟알 |f|최대 {_rec['g_fmax'][-1]*1e3:7.3f}mN "
+                             f"접촉 {_rec['g_ncon'][-1]:3d}알 "
+                             f"bbox {np.round((np.asarray(_rec['g_hi'][-1])-np.asarray(_rec['g_lo'][-1]))*1e3, 1)}mm")
                 print(f"    [crush t={k*DT:5.1f}s] crank={np.degrees(qc-q0_crank):+8.1f}deg "
-                      f"({vc*60/(2*np.pi):5.2f} RPM)  wall={qw*1e3:+6.2f}mm  "
-                      f"정제 {e[0]:5.2f}x{e[1]:5.2f}x{e[2]:5.2f}mm")
+                      f"({vc*60/(2*np.pi):5.2f} RPM, τ={_tq:+6.2f}N·m)  "
+                      f"wall={qw*1e3:+6.2f}mm (F={_wf:+7.1f}N)  "
+                      + (f"정제 {e[0]:5.2f}x{e[1]:5.2f}x{e[2]:5.2f}mm" if tablet is not None else "")
+                      + _gtxt)
 
         qc = float(_npy(crusher.get_dofs_position())[crank_dof])
         e1 = _tablet_extent()
@@ -2989,6 +3301,77 @@ def main(use_viewer: bool = False):
               f"(변화 {e1[0]-e0[0]:+.2f}/{e1[1]-e0[1]:+.2f}/{e1[2]-e0[2]:+.2f})")
         print(f"[crush] bag_com={_bag_com()}  tilt={_bag_tilt():.1f}deg  "
               f"bag_bottom={_bag_extent()[2]:.4f}")
+
+        # ── 계측 저장 + 요약 ────────────────────────────────────────────────
+        if _rec is not None and _rec["t"]:
+            _A = {k: np.asarray(v) for k, v in _rec.items() if v}
+            _npz_c = os.path.join(CASE_DIR, f"crush_{_TAG}.npz")
+            _meta = dict(
+                dt=DT, crush_seconds=CRUSH_SECONDS, n_crush=n_crush,
+                data_every=CRUSH_DATA_EVERY, field_every=CRUSH_FIELD_EVERY,
+                bag_every=CRUSH_BAG_EVERY,
+                crank_dof=crank_dof, wall_dof=wall_dof, n_dofs=crusher.n_dofs,
+                crank_rpm=CRANK_RPM, crank_omega=CRANK_OMEGA,
+                crank_torque_lim=CRANK_TORQUE_LIM, wall_force_lim=WALL_FORCE_LIM,
+                wall_kp=WALL_KP, wall_kv=WALL_KV, wall_hold=wall_hold,
+                clamp_wall_final=float(wq_final),
+                grain=int(GRAIN), n_grains=(len(_pprev[0]) if GRAIN else 0),
+                grain_radius=GRAIN_RADIUS_M, grain_rho=GRAIN_RHO,
+                grain_mass=_m_g1, grain_friction=GRAIN_FRICTION,
+                d_hat=IPC_D_HAT, cloth_thick=CLOTH_THICK, cloth_E=CLOTH_E,
+                newton_tol=(NEWTON_TOL or 0.0),
+                joint_names=np.array([j.name for j in crusher.joints]),
+                # 링크 이름은 엔티티 간에 중복된다(world/box_baselink) — 전역
+                # 인덱스를 같이 남겨야 어느 링크인지 특정된다.
+                link_names=np.array(_cd_names),
+                link_idx=np.array(_cd.links_idx if _cd is not None else []),
+            )
+            np.savez_compressed(_npz_c, **_A, **{k: np.asarray(v) for k, v in _meta.items()})
+            _sz = os.path.getsize(_npz_c) / 1e6
+            print()
+            print(f"[saved] {_npz_c}  ({_sz:.1f} MB, {len(_A['t'])}점)")
+            # 무엇이 들어 있는지 로그에 남긴다 — npz 를 나중에 열 사람을 위해.
+            print("[crush] 채널: " + "  ".join(
+                f"{k}{tuple(_A[k].shape)}" for k in sorted(_A) if k in
+                ("dof_q", "dof_v", "dof_cf", "dof_f", "link_F", "link_T",
+                 "fld_pos", "fld_vel", "fld_f", "fld_nn", "fld_dbag", "bagv_pos")))
+            _cf = _A["dof_cf"]
+            print(f"[RESULT] 벽 반력(control_force)  평균 {_cf[:, wall_dof].mean():+8.2f} N   "
+                  f"최대 |{np.abs(_cf[:, wall_dof]).max():.2f}| N   "
+                  f"(상한 {WALL_FORCE_LIM:.0f} N)")
+            print(f"[RESULT] 크랭크 토크           평균 {_cf[:, crank_dof].mean():+8.3f} N·m  "
+                  f"최대 |{np.abs(_cf[:, crank_dof]).max():.3f}| N·m "
+                  f"(상한 {CRANK_TORQUE_LIM:.1f} N·m)")
+            if "link_F" in _A and len(_cd_names):
+                _Fn = np.linalg.norm(_A["link_F"], axis=2)          # (n, n_link)
+                _top = np.argsort(-_Fn.max(axis=0))[:5]
+                print("[RESULT] IPC->강체 커플링 반력 상위 링크 (최대 |F| N):")
+                for _i in _top:
+                    print(f"           {_cd_names[_i]:28s} 최대 {_Fn[:, _i].max():8.3f}  "
+                          f"평균 {_Fn[:, _i].mean():8.3f}")
+            if GRAIN and "g_fmax" in _A:
+                _w1 = _m_g1 * 9.81
+                # 첫 표본은 버린다 — v^{-1} 을 0 으로 놓고 시작하므로 그 한 점만
+                # 가짜 임펄스가 섞인다(분쇄 직전 낟알은 사실상 정지 상태라 크지는
+                # 않지만, 최대값을 그 점이 가져가면 오독한다).
+                _fm, _fa, _f95 = _A["g_fmax"][1:], _A["g_fmean"][1:], _A["g_fp95"][1:]
+                print(f"[RESULT] 낟알 반력(1알)  평균 {_fa.mean()*1e3:.4f} mN  "
+                      f"95% {_f95.mean()*1e3:.4f} mN  "
+                      f"최대 {_fm.max()*1e3:.4f} mN "
+                      f"(= 자중 {_w1*1e3:.4f} mN 의 {_fm.max()/_w1:.1f} 배)")
+                print(f"[RESULT] 낟알 접촉 중  평균 {_A['g_ncon'].mean():.0f}알 / "
+                      f"최대 {_A['g_ncon'].max()}알   운동에너지 최대 "
+                      f"{_A['g_ke'].max()*1e6:.3f} uJ   속도 최대 "
+                      f"{_A['g_vmax'].max()*1e3:.1f} mm/s")
+                _ext0 = (_A["g_hi"][0] - _A["g_lo"][0]) * 1e3
+                _ext1 = (_A["g_hi"][-1] - _A["g_lo"][-1]) * 1e3
+                print(f"[RESULT] 낟알 더미 bbox {np.round(_ext0, 2)} -> "
+                      f"{np.round(_ext1, 2)} mm (변화 {np.round(_ext1-_ext0, 2)})")
+                if "fld_nn" in _A:
+                    _nn = _A["fld_nn"]
+                    print(f"[RESULT] 최근접 낟알 간격 중앙값 {np.median(_nn[0])*1e3:.3f} -> "
+                          f"{np.median(_nn[-1])*1e3:.3f} mm "
+                          f"(2R+d_hat = {(2*GRAIN_RADIUS_M+IPC_D_HAT)*1e3:.3f} mm)")
 
     # ── Phase 12: recover — 분쇄 끝난 봉투를 회수장치로 이송 (2026-08-31) ────
     # 사용자 지시: "Crushing 이후 회수장치로 샘플백을 옮겨서 고정". 이번 단계는

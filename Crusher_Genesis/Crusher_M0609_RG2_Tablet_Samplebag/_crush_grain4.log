@@ -1,0 +1,261 @@
+[stage] STAGE=clamp:crush -> clamp..crush (CLAMP_ONLY=1)
+============================================================
+ Full workflow: tablet drop -> bag catch -> grasp -> lift -> Crusher slot insert (viewer=False)
+============================================================
+[mjcf] Left_Wall 반사 관성 armature=10.0kg (링크 질량 0.312kg + 랙/피니언/감속기/로터). 100N -> 9.7 m/s^2, kv 안정 한계 4125
+[mjcf] CLAMP_ONLY + CRUSH_LIVE — impact plate 를 접촉에 **남긴다**(때리는 면). 빌드 겹침은 봉투를 슬롯 위로 띄워 스폰해 피한다.
+[mjcf] Left_Wall 형상 교체: 옛 geom 12개(시각 1 + hull 11) -> 본체 hull 5개 + 플랜지 1개 + 시각 1개. 플랜지 = **시각 전용(접촉 제외)**. 중립 간격 플랜지 12.50mm / 본체 17.50mm
+[seed] gs.init(seed=0) — RRTConnect 경로 재현 고정
+[fem_ipc_workarounds] FEMEntity.set_vertex_constraints 패치 완료 (IPC 커플러 버그 우회)
+[plate] Base.step 실측 판: 750x800x30mm, D6.0 구멍 15x16=240개 (피치 50 여백 25) -> 31692 faces, euler=-478 (=2-2x240)
+[38;5;226m[Genesis] [01:30:15] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] At least one of the meshes contain many faces (15432). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] At least one of the meshes contain many faces (15762). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] At least one of the meshes contain many faces (12522). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[suction] 조 range 하한 -3.0mm 로 제한 (2개 조인트) -> C:\Users\simuser\AppData\Local\Temp\suction_fw_2uuxacca\bdc4e8edd13b.xml
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:17] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:18] [WARNING] At least one of the meshes contain many faces (27466). Consider setting 'morph.decimate=True' to speed up collision detection and improve numerical stability.[0m
+[38;5;226m[Genesis] [01:30:18] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:18] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:18] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:18] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[38;5;226m[Genesis] [01:30:18] [WARNING] Mesh is not watertight. Falling back to convex hull for estimating inertial properties.[0m
+[clamp_only] 봉투를 슬롯에 직접 스폰: pos=[ 0.2125 -0.0053  0.196 ] (기본 (np.float64(0.0064632100000000005), np.float64(0.2561799), np.float64(0.39925346))) — 슬롯 중심 (0.2125,-0.0053), bag_bottom 목표 0.0510
+[stage] CRUSH_LIVE — 충돌판을 피해 100mm 띄워 스폰했다. prep 으로 크랭크를 -180deg 로 물린 뒤 SPC 로 슬롯에 내린다.
+[tablet] SKIP_TABLET=1 — 정제 제외, 봉투(FEM.Cloth)+IPC 만 검증
+[grain] 봉투 내부 후보 12375점 (여유 1.80mm 이상)
+[grain] 500알 등록  R=0.50mm 1알=0.785mg 총=0.393g  d_hat/R=0.20  최소간격=1.40mm  WHEN=start
+[grain] 봉투 내부 생성  x[191.2,233.7] y[-6.5,-4.1] z[152.8,241.0]mm  벽 여유 1.80mm 이상
+
+[build] scene.build() 시작...
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'L4_Motor2_Shaft_1' has dubious center of mass [x=0.000, y=-0.037, z=0.015] compared to the bounding box from geometry [x=(-0.018, 0.018), y=(-0.018, 0.018), z=(-0.000, 0.077)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'M_Bottom_1' has dubious center of mass [x=0.166, y=0.030, z=-0.073] compared to the bounding box from geometry [x=(0.106, 0.155), y=(-0.011, 0.071), z=(-0.078, -0.068)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'M_Back_1' has dubious center of mass [x=0.003, y=0.021, z=0.011] compared to the bounding box from geometry [x=(-0.035, -0.030), y=(-0.033, 0.076), z=(-0.005, 0.028)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'M_Left1_1' has dubious center of mass [x=-0.025, y=-0.002, z=-0.014] compared to the bounding box from geometry [x=(-0.088, -0.032), y=(-0.005, -0.000), z=(-0.038, 0.010)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'M_Right1_1' has dubious center of mass [x=-0.025, y=0.003, z=-0.014] compared to the bounding box from geometry [x=(-0.087, -0.033), y=(0.000, 0.005), z=(-0.038, 0.010)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'M_Top_1' has dubious center of mass [x=-0.024, y=0.028, z=0.005] compared to the bounding box from geometry [x=(-0.088, -0.032), y=(-0.031, 0.088), z=(-0.000, 0.010)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'M_LeftLink_1' has dubious center of mass [x=-0.002, y=0.005, z=0.046] compared to the bounding box from geometry [x=(-0.040, -0.035), y=(-0.005, 0.015), z=(-0.005, 0.095)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'M_RightLink_1' has dubious center of mass [x=-0.002, y=-0.005, z=0.046] compared to the bounding box from geometry [x=(-0.040, -0.035), y=(-0.015, 0.005), z=(-0.005, 0.095)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'M_LeftLink2_copy_1' has dubious center of mass [x=-0.005, y=-0.005, z=0.021] compared to the bounding box from geometry [x=(-0.044, -0.032), y=(-0.015, 0.005), z=(-0.000, 0.045)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Link 'link_2' has dubious center of mass [x=0.000, y=0.000, z=0.000] compared to the bounding box from geometry [x=(-0.068, 0.479), y=(-0.069, 0.069), z=(0.082, 0.274)].[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Neutral robot position (qpos0) exceeds joint limits.[0m
+[38;5;226m[Genesis] [01:30:20] [WARNING] Constraint solver time constant should be greater than 2*substep_dt. timeconst is changed from `0.0002` to `0.01`). Decrease simulation timestep or increase timeconst to avoid altering the original value.[0m
+[38;5;226m[Genesis] [01:30:21] [WARNING] Filtered out geometry pairs causing self-collision for the neutral configuration (qpos0): (90, 113), (103, 105). Consider tuning Morph option 'decompose_robot_error_threshold' or specify dedicated collision meshes. This behavior can be disabled by setting Morph option 'enable_neutral_collision=True'.[0m
+[fem_ipc_workarounds] SoftPositionConstraint 배선 완료 — 천 1개 (strength_rate=10000.0, 정점은 전부 꺼진 상태)
+C:\Users\simuser\miniconda3\envs\crusher_genesis\Lib\site-packages\quadrants\_test_tools\warnings_helper.py:11: UserWarning: cannot create weak reference to 'tuple' object. Template mapper caching disabled.
+  warnings.warn(message)
+[verify] L2_Left_Wall1_1 충돌 geom 5개 / 시각 geom 3개  (플랜지 접촉=OFF, 기대 충돌 5개)
+[build] 성공 (9.8s)
+[grain] 봉투 안에서 출발 — 구속 없음, 첫 스텝부터 자유
+[grain] 초기 간격 검증: 낟알-봉투 최소 1.91mm (요구 1.60mm)  위반 0/500  OK
+[bag dbg] 선택 246개 (바닥 102 + 측면 168), x폭 64.0mm y폭 6.0mm z폭 90.0mm
+[bag] shape 고정(SPC k=10000): 246/714 정점(바닥+양측면), 입구는 자유
+[slot] 간격축 = world Y (겹침 -12.5mm), 슬롯 길이축 = world X (겹침 +65.0mm)
+[slot] gap_cx=0.2125 gap_cy=-0.0053 gap_width=12.5mm wall_top_z=0.0870
+[slot] pocket(L1_Wall1_1) center=(0.1745,0.0330)
+[suction] LSM 후방 +100mm  (LSM-NK174218-1204_100MM__1_Dummy_1)  PD 로 유지
+[suction] 그리퍼 개방 -50mm  (L_E-SMLG9H-100-ES10_1_1_L_E-SMLG9H-100-ES10_2_1)  PD 로 유지
+[ctrl] Left_Wall armature=10.0kg (런타임 API) — 유효 질량 10.31kg, 100N -> 9.7 m/s^2, kv 안정 한계 4125 (현재 500)
+[ctrl] Left_Wall force clip: ±100 N (Motor2 ctrlrange, docs/Crusher.md §5) — 벽은 이 힘에서 균형지는 위치에 멈춘다
+[bag] grip_strip verts near FINGER_MID: 0
+[38;5;226m[Genesis] [01:30:30] [WARNING] fps=30 is not reachable with dt=0.005. Recording at fps=28.57142857142857 instead.[0m
+[38;5;226m[Genesis] [01:30:30] [WARNING] fps=30 is not reachable with dt=0.005. Recording at fps=28.57142857142857 instead.[0m
+[38;5;226m[Genesis] [01:30:30] [WARNING] fps=30 is not reachable with dt=0.005. Recording at fps=28.57142857142857 instead.[0m
+[grain] @0 prep           담김  500/500  봉투 z=[151.0,241.0]mm
+
+[phase] 0 prep (1.0s) — 크랭크 0->-3.142rad(-180deg), Left_Wall 0->+6mm(개방)
+[phase] prep     @done  crank=-3.000rad  wall=+5.44mm
+[grain] @0b lower         담김  500/500  봉투 z=[151.0,241.0]mm
+[stage] 봉투 하강 100mm (400스텝, 50mm/s) — SPC 로 슬롯에 넣는다 (바닥 목표 0.0510)
+[stage] 하강 완료 bag_com=[ 0.2124963  -0.00527383  0.09599993]  bottom=0.0510 (목표 0.0510, 오차 -0.0mm)  폭 6.0mm 높이 90.0mm
+[phase] drop     @skip  (CLAMP_ONLY)
+[phase] settle   @skip  (CLAMP_ONLY)
+[phase] close    @skip  (CLAMP_ONLY)
+[phase] grasp    @skip  (CLAMP_ONLY)
+[phase] lift     @skip  (CLAMP_ONLY)
+[phase] hold     @skip  (CLAMP_ONLY)
+[slot] wall_center_z=0.0510  insert_z(finger)=0.1330  hang=82mm
+[slot] 봉투중심 보정 dy=+0.0mm -> finger_y=-0.0053 (봉투중심 y=-0.0053 = gap_cy -0.0053)
+[slot] 봉투중심 보정 dx=-28.0mm -> finger_x=0.2405 (봉투중심 x=0.2125 = gap_cx 0.2125) — 실링이 측벽에 물린다
+[sweep] Y_OFFSET_MM=+0.0mm -> target_xy=[ 0.24049766 -0.00527226]  (gap_cy=-0.0053)
+[cam] side view 고정: pos=(np.float64(0.21249766187667846), np.float64(-0.5552722595214844), np.float64(0.169001227684021)) look=(np.float64(0.21249766187667846), np.float64(-0.005272259521484357), np.float64(0.169001227684021)) (gap_width=12.5mm, z범위 above=0.2870~insert=0.1330)
+
+[ik] above-slot target=[ 0.24049766 -0.00527226  0.28700123]  arm_q=[-5.1325041e-01  4.4090718e-01  8.6750549e-01  3.3082906e-04
+  1.8329884e+00  4.1989994e+00]
+[phase] above    @skip  (CLAMP_ONLY)
+[phase] aboveset @skip  (CLAMP_ONLY)
+[ik] insert target=[ 0.24049766 -0.00527226  0.13300123]  웨이포인트 41개(카테시안 직선)  arm_q=[-5.1323801e-01  4.2134684e-01  1.3183427e+00  4.1361811e-04
+  1.4017031e+00  4.1988778e+00]
+[phase] insert   @skip  (CLAMP_ONLY)
+[phase] settle2  @skip  (CLAMP_ONLY)
+[trim] TRIM_ROUNDS=0 — 생략(기본값). settle2 시점 bag_bottom 오차 +0.0mm 를 그대로 결과로 쓴다.
+[trim] 최종 finger_z=0.1330  (초기 0.1330, 하한 0.1030)
+[clamp_only] _SPAWN_HI — 바닥+측면 246정점 SPC 유지(그리퍼 대체). 분쇄 시작 직전에 해제한다.
+[clamp_only] settle 후 bag_com=[ 0.21249768 -0.00527267  0.09599787]  tilt=0.2deg  bag_bottom=0.0510 (목표 0.0510, 오차 -0.0mm)  폭 6.0mm 높이 90.0mm
+[grain] @9 clamp          담김  500/500  봉투 z=[51.0,141.0]mm
+
+[phase] 9 clamp (4.3s) — Left_Wall +6.0mm 에서 **속도지령** 8.0mm/s 로 계속 닫음 (docs §11-5), lead 20.0mm = 정지 시 100N, 가드 -17.0mm
+    [clamp t= 0.00s] wall=  +5.96mm v=  +0.08mm/s  본체면 잔여 +23.46mm  bag_com=[ 0.21249762 -0.00531752  0.09600207]
+    [clamp t= 0.17s] wall=  +4.61mm v=  +2.83mm/s  본체면 잔여 +22.11mm  bag_com=[ 0.21249756 -0.00531727  0.09599967]
+    [clamp t= 0.34s] wall=  +3.27mm v=  +5.39mm/s  본체면 잔여 +20.77mm  bag_com=[ 0.21249765 -0.00531724  0.09599965]
+    [clamp t= 0.51s] wall=  +1.92mm v=  +8.04mm/s  본체면 잔여 +19.42mm  bag_com=[ 0.21249744 -0.00531724  0.09599963]
+    [clamp t= 0.68s] wall=  +0.57mm v= +10.68mm/s  본체면 잔여 +18.07mm  bag_com=[ 0.21249741 -0.00531725  0.09599965]
+    [clamp t= 0.85s] wall=  -0.77mm v= +13.34mm/s  본체면 잔여 +16.73mm  bag_com=[ 0.21249741 -0.00531725  0.09599967]
+    [clamp t= 1.02s] wall=  -2.12mm v= +16.00mm/s  본체면 잔여 +15.38mm  bag_com=[ 0.21249709 -0.00531725  0.09599967]
+    [clamp t= 1.19s] wall=  -3.47mm v= +18.70mm/s  본체면 잔여 +14.03mm  bag_com=[ 0.2124974  -0.00531725  0.09599967]
+    [clamp t= 1.36s] wall=  -4.81mm v= +21.25mm/s  본체면 잔여 +12.69mm  bag_com=[ 0.21249741 -0.00531724  0.09599967]
+    [clamp t= 1.53s] wall=  -6.16mm v= +23.96mm/s  본체면 잔여 +11.34mm  bag_com=[ 0.21249744 -0.00531724  0.09599967]
+    [clamp t= 1.70s] wall=  -7.51mm v= +26.61mm/s  본체면 잔여  +9.99mm  bag_com=[ 0.21249741 -0.00531724  0.09599967]
+    [clamp t= 1.87s] wall=  -8.82mm v= +36.40mm/s  본체면 잔여  +8.68mm  bag_com=[ 0.21249746 -0.00531724  0.0959997 ]
+    [clamp t= 2.04s] wall= -10.00mm v= +71.92mm/s  본체면 잔여  +7.50mm  bag_com=[ 0.2124975  -0.00509906  0.09599997]
+    [clamp t= 2.21s] wall= -11.17mm v=+110.50mm/s  본체면 잔여  +6.33mm  bag_com=[ 0.21249683 -0.0047683   0.09600016]
+    [clamp t= 2.38s] wall= -12.34mm v=+147.06mm/s  본체면 잔여  +5.16mm  bag_com=[ 0.21249467 -0.00446333  0.09600022]
+    [clamp t= 2.55s] wall= -13.54mm v=+180.00mm/s  본체면 잔여  +3.96mm  bag_com=[ 0.21249261 -0.00428536  0.0960004 ]
+    [clamp t= 2.72s] wall= -14.51mm v=+198.27mm/s  본체면 잔여  +2.99mm  bag_com=[ 0.21249132 -0.00427867  0.09600016]
+    [clamp t= 2.89s] wall= -14.53mm v=+193.06mm/s  본체면 잔여  +2.97mm  bag_com=[ 0.21249157 -0.00427864  0.09600011]
+    [clamp t= 3.06s] wall= -14.55mm v=+189.44mm/s  본체면 잔여  +2.95mm  bag_com=[ 0.2124925  -0.00427862  0.09599997]
+    [clamp t= 3.23s] wall= -14.56mm v=+187.02mm/s  본체면 잔여  +2.94mm  bag_com=[ 0.21249288 -0.00427861  0.09599982]
+    [clamp t= 3.40s] wall= -14.57mm v=+185.59mm/s  본체면 잔여  +2.93mm  bag_com=[ 0.21249282 -0.00427861  0.09599981]
+    [clamp t= 3.57s] wall= -14.58mm v=+184.65mm/s  본체면 잔여  +2.92mm  bag_com=[ 0.21249297 -0.0042786   0.09599979]
+    [clamp t= 3.74s] wall= -14.58mm v=+184.01mm/s  본체면 잔여  +2.92mm  bag_com=[ 0.21249306 -0.0042786   0.09599978]
+    [clamp t= 3.91s] wall= -14.58mm v=+183.56mm/s  본체면 잔여  +2.92mm  bag_com=[ 0.21249312 -0.0042786   0.09599977]
+    [clamp t= 4.08s] wall= -14.58mm v=+183.23mm/s  본체면 잔여  +2.92mm  bag_com=[ 0.21249318 -0.00427859  0.09599976]
+    [clamp t= 4.25s] wall= -14.59mm v=+182.99mm/s  본체면 잔여  +2.91mm  bag_com=[ 0.21249321 -0.00427859  0.09599976]
+[phase] clamp    @done  wall=-14.59mm  (잔여: 플랜지면(비접촉) -2.09mm / 본체면 2.91mm)  bag_com=[ 0.21249321 -0.00427859  0.09599976]
+[clamp] 봉투 반력에 막혀 정지  (가드 -17.00mm, 최종 v=+182.92mm/s)
+    [hold2 k=   0] tablet_z=+nanmm bag_com=[ 0.21249321 -0.00427859  0.09599976]
+    [hold2 k=  40] tablet_z=+nanmm bag_com=[ 0.21249324 -0.00427859  0.09599975]
+    [hold2 k=  80] tablet_z=+nanmm bag_com=[ 0.21249326 -0.00427859  0.09599975]
+[phase] hold2    @done  bag_com=[ 0.21249327 -0.00427859  0.09599975]  finger_z=0.1328  tablet_z=+nanmm  tilt=1.0deg  bag_bottom=0.0507
+[crush] 봉투 SPC 를 400스텝(2.0s)에 걸쳐 서서히 해제 — 246정점 전부 유지한 채 aim 을 현재 위치로 수렴시켜 구속력을 0 으로 보낸다
+[grain] @11 crush         담김  500/500  봉투 z=[50.7,141.1]mm
+
+[phase] 11 crush (60s, 12000 step) — 크랭크 8.0 RPM (0.8378 rad/s) 연속 회전 ≈ 8.0 바퀴
+[ctrl] crank torque clip: ±12.5 N·m (docs/Crusher.md §2-2), kv=5000 — velocity 제어
+[crush] 시작 정제 크기 nan x nan x nan mm
+[crush] 계측 ON — 관절 8dof, 커플링 링크 11개, 낟알 500알  매 1스텝 / 전량 5스텝 / 봉투정점 10스텝
+    [crush t=  0.0s] crank=    +0.0deg ( 0.02 RPM, τ=+12.50N·m)  wall=-13.80mm (F=  -86.9N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [46.6  2.8  4.1]mm
+    [crush t=  1.0s] crank=   +14.4deg ( 4.74 RPM, τ=+12.50N·m)  wall=-13.04mm (F=  -12.9N)    낟알 |f|최대   0.011mN 접촉 500알 bbox [46.8  2.8  4.2]mm
+    [crush t=  2.0s] crank=   +55.6deg ( 8.00 RPM, τ= +0.32N·m)  wall=-12.89mm (F=  -11.4N)    낟알 |f|최대   0.027mN 접촉 499알 bbox [45.2  4.2  4.8]mm
+    [crush t=  3.0s] crank=  +103.6deg ( 8.00 RPM, τ= +0.49N·m)  wall=-12.85mm (F=  -13.2N)    낟알 |f|최대   0.010mN 접촉 500알 bbox [44.   4.2  4.7]mm
+    [crush t=  4.0s] crank=  +148.4deg ( 4.46 RPM, τ=+12.50N·m)  wall=-12.91mm (F=  -12.9N)    낟알 |f|최대   0.014mN 접촉 500알 bbox [47.2  1.4  7.8]mm
+    [crush t=  5.0s] crank=  +146.5deg (-3.05 RPM, τ=+12.50N·m)  wall=-12.97mm (F=  -12.7N)    낟알 |f|최대   0.008mN 접촉 500알 bbox [48.3  0.8 10.7]mm
+    [crush t=  6.0s] crank=  +139.2deg ( 1.05 RPM, τ=+12.50N·m)  wall=-12.90mm (F=  -13.0N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [46.7  1.5 10.1]mm
+    [crush t=  7.0s] crank=  +153.8deg ( 2.23 RPM, τ=+12.50N·m)  wall=-12.90mm (F=  -13.5N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [48.9  0.6 12.2]mm
+    [crush t=  8.0s] crank=  +160.5deg ( 0.21 RPM, τ=+12.50N·m)  wall=-12.76mm (F=  -13.6N)    낟알 |f|최대   0.008mN 접촉 500알 bbox [48.6  0.3 13.2]mm
+    [crush t=  9.0s] crank=  +160.7deg ( 0.20 RPM, τ=+12.50N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.008mN 접촉 500알 bbox [48.4  0.2 13. ]mm
+    [crush t= 10.0s] crank=  +165.4deg ( 1.43 RPM, τ=+12.50N·m)  wall=-12.91mm (F=  -12.9N)    낟알 |f|최대   0.010mN 접촉 500알 bbox [48.1  0.2 13. ]mm
+    [crush t= 11.0s] crank=  +180.0deg ( 3.94 RPM, τ=+12.50N·m)  wall=-12.94mm (F=  -12.8N)    낟알 |f|최대   0.008mN 접촉 500알 bbox [47.8  0.2 13. ]mm
+    [crush t= 12.0s] crank=  +219.0deg ( 8.00 RPM, τ= +0.58N·m)  wall=-12.90mm (F=  -13.0N)    낟알 |f|최대   0.022mN 접촉 493알 bbox [47.2  2.8 13.2]mm
+    [crush t= 13.0s] crank=  +267.0deg ( 8.00 RPM, τ= +0.40N·m)  wall=-12.84mm (F=  -13.4N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [45.9  4.  10.2]mm
+    [crush t= 14.0s] crank=  +315.0deg ( 8.00 RPM, τ= +0.28N·m)  wall=-12.83mm (F=  -13.4N)    낟알 |f|최대   0.010mN 접촉 500알 bbox [45.5  3.9  9.1]mm
+    [crush t= 15.0s] crank=  +363.0deg ( 8.00 RPM, τ= +0.25N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [44.8  3.8  9.1]mm
+    [crush t= 16.0s] crank=  +411.0deg ( 8.00 RPM, τ= +0.31N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.011mN 접촉 500알 bbox [44.4  3.8  9.2]mm
+    [crush t= 17.0s] crank=  +459.0deg ( 8.00 RPM, τ= +0.48N·m)  wall=-12.83mm (F=  -13.4N)    낟알 |f|최대   0.011mN 접촉 500알 bbox [44.2  3.9  8.8]mm
+    [crush t= 18.0s] crank=  +507.0deg ( 7.99 RPM, τ= +4.05N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.012mN 접촉 500알 bbox [44.2  2.4  8.3]mm
+    [crush t= 19.0s] crank=  +554.1deg ( 8.01 RPM, τ= -6.56N·m)  wall=-12.96mm (F=  -12.7N)    낟알 |f|최대   0.010mN 접촉 500알 bbox [48.9  0.8  9.1]mm
+    [crush t= 20.0s] crank=  +602.1deg ( 8.00 RPM, τ= +0.51N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.014mN 접촉 500알 bbox [47.4  3.4  7.7]mm
+    [crush t= 21.0s] crank=  +650.1deg ( 8.00 RPM, τ= +0.34N·m)  wall=-12.83mm (F=  -13.4N)    낟알 |f|최대   0.012mN 접촉 500알 bbox [46.3  3.7  7.9]mm
+    [crush t= 22.0s] crank=  +698.1deg ( 8.00 RPM, τ= +0.26N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.011mN 접촉 500알 bbox [45.8  3.7  7.8]mm
+    [crush t= 23.0s] crank=  +746.1deg ( 8.00 RPM, τ= +0.27N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [45.   3.7  7.8]mm
+    [crush t= 24.0s] crank=  +794.1deg ( 8.00 RPM, τ= +0.38N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.014mN 접촉 500알 bbox [44.6  3.9  7.7]mm
+    [crush t= 25.0s] crank=  +842.1deg ( 8.00 RPM, τ= +0.55N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.010mN 접촉 500알 bbox [44.4  3.8  7.3]mm
+    [crush t= 26.0s] crank=  +889.8deg ( 7.79 RPM, τ=+12.50N·m)  wall=-12.90mm (F=  -12.9N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [47.1  1.1  8.3]mm
+    [crush t= 27.0s] crank=  +937.8deg ( 8.00 RPM, τ= +0.59N·m)  wall=-12.88mm (F=  -13.2N)    낟알 |f|최대   0.023mN 접촉 500알 bbox [47.3  2.8  7.8]mm
+    [crush t= 28.0s] crank=  +985.8deg ( 8.00 RPM, τ= +0.42N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [46.1  3.5  7.9]mm
+    [crush t= 29.0s] crank= +1033.8deg ( 8.00 RPM, τ= +0.29N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.011mN 접촉 500알 bbox [45.7  3.6  7.9]mm
+    [crush t= 30.0s] crank= +1081.7deg ( 8.00 RPM, τ= +0.25N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.010mN 접촉 500알 bbox [45.1  3.7  8. ]mm
+    [crush t= 31.0s] crank= +1129.7deg ( 8.00 RPM, τ= +0.31N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [44.5  3.8  8.1]mm
+    [crush t= 32.0s] crank= +1177.7deg ( 8.00 RPM, τ= +0.46N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.014mN 접촉 500알 bbox [44.3  3.8  8.1]mm
+    [crush t= 33.0s] crank= +1225.7deg ( 8.00 RPM, τ= +0.95N·m)  wall=-12.85mm (F=  -13.3N)    낟알 |f|최대   0.010mN 접촉 500알 bbox [44.1  2.7  7.9]mm
+    [crush t= 34.0s] crank= +1273.4deg ( 8.01 RPM, τ= -5.61N·m)  wall=-12.97mm (F=  -12.6N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [49.   0.8 10. ]mm
+    [crush t= 35.0s] crank= +1321.4deg ( 8.00 RPM, τ= +0.52N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.014mN 접촉 500알 bbox [47.3  3.5  8.3]mm
+    [crush t= 36.0s] crank= +1369.4deg ( 8.00 RPM, τ= +0.34N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.011mN 접촉 500알 bbox [46.3  3.7  8.3]mm
+    [crush t= 37.0s] crank= +1417.4deg ( 8.00 RPM, τ= +0.26N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.012mN 접촉 500알 bbox [45.9  3.8  8.3]mm
+    [crush t= 38.0s] crank= +1465.4deg ( 8.00 RPM, τ= +0.27N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [45.3  3.8  8.3]mm
+    [crush t= 39.0s] crank= +1513.4deg ( 8.00 RPM, τ= +0.38N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [45.   3.8  8.3]mm
+    [crush t= 40.0s] crank= +1561.4deg ( 8.00 RPM, τ= +0.55N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.015mN 접촉 500알 bbox [44.7  3.8  8.3]mm
+    [crush t= 41.0s] crank= +1609.2deg ( 7.80 RPM, τ=+12.50N·m)  wall=-12.88mm (F=  -12.9N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [47.2  1.1  8.8]mm
+    [crush t= 42.0s] crank= +1657.1deg ( 8.00 RPM, τ= +0.59N·m)  wall=-12.87mm (F=  -13.2N)    낟알 |f|최대   0.016mN 접촉 500알 bbox [47.5  2.7  8.7]mm
+    [crush t= 43.0s] crank= +1705.1deg ( 8.00 RPM, τ= +0.42N·m)  wall=-12.83mm (F=  -13.4N)    낟알 |f|최대   0.011mN 접촉 500알 bbox [46.5  3.5  8.8]mm
+    [crush t= 44.0s] crank= +1753.1deg ( 8.00 RPM, τ= +0.29N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [46.   3.6  8.9]mm
+    [crush t= 45.0s] crank= +1801.1deg ( 8.00 RPM, τ= +0.25N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [45.6  3.6  9. ]mm
+    [crush t= 46.0s] crank= +1849.1deg ( 8.00 RPM, τ= +0.31N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.012mN 접촉 500알 bbox [45.   3.6  8.9]mm
+    [crush t= 47.0s] crank= +1897.1deg ( 8.00 RPM, τ= +0.46N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [44.7  3.6  9. ]mm
+    [crush t= 48.0s] crank= +1945.1deg ( 8.00 RPM, τ= +0.66N·m)  wall=-12.85mm (F=  -13.2N)    낟알 |f|최대   0.010mN 접촉 500알 bbox [44.5  2.9  8.2]mm
+    [crush t= 49.0s] crank= +1992.9deg ( 8.01 RPM, τ= -5.49N·m)  wall=-12.97mm (F=  -12.6N)    낟알 |f|최대   0.008mN 접촉 500알 bbox [48.3  0.9 10. ]mm
+    [crush t= 50.0s] crank= +2040.9deg ( 8.00 RPM, τ= +0.51N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.015mN 접촉 500알 bbox [46.7  3.3  8.6]mm
+    [crush t= 51.0s] crank= +2088.9deg ( 8.00 RPM, τ= +0.35N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.012mN 접촉 500알 bbox [46.2  3.5  8.6]mm
+    [crush t= 52.0s] crank= +2136.9deg ( 8.00 RPM, τ= +0.26N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.009mN 접촉 500알 bbox [45.6  3.8  8.4]mm
+    [crush t= 53.0s] crank= +2184.9deg ( 8.00 RPM, τ= +0.27N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [44.9  3.8  8.6]mm
+    [crush t= 54.0s] crank= +2232.9deg ( 8.00 RPM, τ= +0.37N·m)  wall=-12.84mm (F=  -13.3N)    낟알 |f|최대   0.012mN 접촉 500알 bbox [44.6  3.8  8.5]mm
+    [crush t= 55.0s] crank= +2280.9deg ( 8.00 RPM, τ= +0.55N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.015mN 접촉 500알 bbox [44.5  3.8  7.9]mm
+    [crush t= 56.0s] crank= +2328.8deg ( 7.89 RPM, τ=+12.50N·m)  wall=-12.90mm (F=  -12.8N)    낟알 |f|최대   0.015mN 접촉 500알 bbox [47.3  1.1  8.7]mm
+    [crush t= 57.0s] crank= +2376.7deg ( 8.00 RPM, τ= +0.58N·m)  wall=-12.88mm (F=  -13.2N)    낟알 |f|최대   0.021mN 접촉 498알 bbox [47.4  2.5  8.3]mm
+    [crush t= 58.0s] crank= +2424.7deg ( 8.00 RPM, τ= +0.42N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.017mN 접촉 500알 bbox [46.4  3.5  8. ]mm
+    [crush t= 59.0s] crank= +2472.7deg ( 8.00 RPM, τ= +0.29N·m)  wall=-12.83mm (F=  -13.3N)    낟알 |f|최대   0.013mN 접촉 500알 bbox [46.   3.6  7.4]mm
+[phase] crush    @done  크랭크 +2520.5deg (7.00 바퀴)  wall=-12.84mm
+[crush] 정제 nanxnanxnan -> nanxnanxnan mm  (변화 +nan/+nan/+nan)
+[crush] bag_com=[ 0.21232226 -0.00481823  0.09574205]  tilt=3.7deg  bag_bottom=0.0503
+
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT_crush_grain4\grip-28mm\crush_grip-28mm_yoff+0.0mm_20260911_013010.npz  (59.8 MB, 12000점)
+[crush] 채널: bagv_pos(1200, 714, 3)  dof_cf(12000, 8)  dof_f(12000, 8)  dof_q(12000, 8)  dof_v(12000, 8)  fld_dbag(2400, 500)  fld_f(2400, 500, 3)  fld_nn(2400, 500)  fld_pos(2400, 500, 3)  fld_vel(2400, 500, 3)  link_F(12000, 11, 3)  link_T(12000, 11, 3)
+[RESULT] 벽 반력(control_force)  평균   -13.19 N   최대 |86.86| N   (상한 100 N)
+[RESULT] 크랭크 토크           평균   +2.862 N·m  최대 |12.500| N·m (상한 12.5 N·m)
+[RESULT] IPC->강체 커플링 반력 상위 링크 (최대 |F| N):
+           L8_Link3_Shaft_1             최대 7677.457  평균  821.398
+           L2_Left_Wall1_1              최대 1572.398  평균   76.593
+           f2_finger_tip                최대    4.470  평균    4.053
+           f1_finger_tip                최대    4.092  평균    3.948
+           box_baselink                 최대    0.000  평균    0.000
+[RESULT] 낟알 반력(1알)  평균 0.0077 mN  95% 0.0081 mN  최대 0.0593 mN (= 자중 0.0077 mN 의 7.7 배)
+[RESULT] 낟알 접촉 중  평균 500알 / 최대 500알   운동에너지 최대 4.547 uJ   속도 최대 337.9 mm/s
+[RESULT] 낟알 더미 bbox [46.59  2.83  4.07] -> [45.47  3.73  7.51] mm (변화 [-1.12  0.9   3.44])
+[RESULT] 최근접 낟알 간격 중앙값 1.097 -> 1.099 mm (2R+d_hat = 1.100 mm)
+[grain] @14 grain 판정      담김  500/500  봉투 z=[50.3,140.6]mm
+
+[RESULT] grain(start) 담김 500/500알 (0.393g / 0.393g)  누출(바닥아래) 0  입구위 0  옆(xy밖) 0
+[RESULT] 낟알-봉투 최근접(mm) 5/50/95%: [1.857 2.646 3.416]
+[RESULT] 단계별 잔류: 0=500  0b=500  9=500  11=500  14=500
+[saved] C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT_crush_grain4\grip-28mm\grain_grip-28mm_yoff+0.0mm_20260911_013010.npz
+
+[RESULT] GRIP_OFFSET_MM=-28mm  Y_OFFSET_MM=+0.0mm  verdict=PASS  (삽입 성공, 걸림/붕괴 없음)
+[RESULT] final_bottom_z=0.0503  wall_center_z=0.0510  오차=-0.7mm(+면 얕음/-면 깊음)
+[RESULT] width_y=15.8mm(baseline 6.0mm)  height_z=90.3mm(baseline 90.0mm)
+[SUMMARY] flange=OFF mode=velocity v=8.0mm/s F=100N kp=5000 hold=1 wall=-14.59mm body_gap=+2.91mm stalled=Y drop=-0.5mm tilt=3.7deg width=15.8mm reach_err=-0.7mm verdict=PASS
+[grain] @종료               담김  500/500  봉투 z=[50.3,140.6]mm
+
+==================================================================
+단계                           벽시계       스텝     ms/스텝      비중
+------------------------------------------------------------------
+[cost] setup                 0.0s        0      nan    0.0%
+[cost] 0 prep               58.5s      200    292.5    4.8%
+[cost] 0b lower            242.0s      500    484.0   19.9%
+[cost] 9 clamp              61.5s      962     64.0    5.0%
+[cost] 11 crush            856.5s    12000     71.4   70.3%
+[cost] 14 grain 판정           0.0s        0      nan    0.0%
+==================================================================
+[cost] 합계                 1218.6s    13662
+
+[saved] overview -> C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT_crush_grain4\grip-28mm\full_workflow_grip-28mm_yoff+0.0mm_20260911_013010_overview.mp4
+[saved] bagcam   -> C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT_crush_grain4\grip-28mm\full_workflow_grip-28mm_yoff+0.0mm_20260911_013010_bagcam.mp4
+[saved] sideview -> C:\Crusher_isaacsim\Crusher_Genesis\Crusher_M0609_RG2_Tablet_Samplebag\RESULT_crush_grain4\grip-28mm\full_workflow_grip-28mm_yoff+0.0mm_20260911_013010_sideview.mp4
+
+[timing] build=9.8s  steps=1219.1s (13662 steps, 89.2ms/step)  합계=1228.8s
+완료.
