@@ -4,6 +4,65 @@ Crusher 시뮬레이션에 사용된 실제 모터 스펙과 MuJoCo 내 구현 �
 
 ---
 
+## 기호 정의 (Notation)
+
+![기호 정의](motor_notation.png)
+
+### 구동계 (drivetrain)
+
+| 기호 | 의미 | 값 | 단위 |
+|------|------|----|------|
+| `τ_motor` | 모터 정격(stall) 토크 — motor rated torque | 0.185 | N·m |
+| `n` | **감속비** — gear (reduction) ratio | 212 | — |
+| `η` | **감속기 전달 효율** — gearbox transmission efficiency | 0.5 (카탈로그) / ≈0.26 (실측 환산) | — |
+| `τ_crank` | 크랭크 토크 (감속기 출력) — crank output torque | 12.5 (시뮬 상한) / 9~10 (실측 역산) | N·m |
+| `τ_design` | 설계 토크 = 요구 토크 × 안전계수 | 10 | N·m |
+| `SF` | 안전계수 — safety factor | 1.25 | — |
+| `J_motor` | 로터 관성 — rotor inertia | 7.2×10⁻⁶ | kg·m² |
+| `J_refl` | 환산(반영) 관성 = `J_motor · n²` — reflected inertia | 0.324 | kg·m² |
+| `N_motor` | 모터 무부하 속도 — no-load speed | 5,800 | RPM |
+
+> **η 주의** — 감속기 효율은 **방향 의존**이다(정구동 ≠ 역구동). 카탈로그 50 %는
+> 정구동 기준이며, 다각도 실측에서 역산한 종합 효율은 `τ_crank/(τ_motor·n) ≈ 26 %`로
+> 절반 수준이다([`Crusher.md`](Crusher.md) §12-8).
+
+### 크랭크-슬라이더 기구 (mechanism)
+
+| 기호 | 의미 | 값 | 단위 |
+|------|------|----|------|
+| `r` | 크랭크 반경 — crank radius | 20 | mm |
+| `L` | 커넥팅 로드 유효 길이 — connecting rod length | 80 | mm |
+| `λ` | 로드비 = `r/L` — crank-to-rod ratio | 0.25 | — |
+| `S` | 스트로크 = `2r` — stroke | 40 | mm |
+| `θ` | 크랭크 각 (사점 = 0°) — crank angle | 0~180 | ° |
+| `θ_c` | **접촉(타격) 시 크랭크 각** — crank angle at contact | 30 | ° |
+| `φ` | 로드 경사각, `sin φ = λ sin θ` — rod obliquity angle | ≤ 14.5 | ° |
+| `x(θ)` | 슬라이더 위치 = `r cos θ + √(L² − r² sin²θ)` | — | m |
+| `dx/dθ` | **속도비** = `r sin θ · k(θ)` — velocity ratio | 0~20.6 | mm/rad |
+| `k(θ)` | 경사 보정항 = `1 + λcos θ/√(1−λ²sin²θ)` | 0.75~1.25 | — |
+| `ω` | 크랭크 각속도 — crank angular velocity | 0.8378 (= 8 RPM) | rad/s |
+
+### 하중 (load)
+
+| 기호 | 의미 | 값 | 단위 |
+|------|------|----|------|
+| `F(θ)`, `F_slider` | 슬라이더(벽) 반력 — slider reaction force | 각도 의존 | N |
+| `F_req` | **요구 반력** (설계 입력) — required force | 800 | N |
+| `F_meas(θ)` | force gauge 실측 반력 (robust-mean) | 394~896 | N |
+| `F_rod` | 커넥팅 로드 축력 = `F/cos φ` | — | N |
+| `Q` | 준정적 지표 = `m r ω²/F` (≪1 이면 준정적) | 8.6×10⁻⁶ | — |
+
+### 시뮬레이션 (MuJoCo)
+
+| 기호 | 의미 | 값 | 단위 |
+|------|------|----|------|
+| `kv` | velocity actuator 속도 게인 = `τ_stall/ω_target` | 14.9 | N·m·s/rad |
+| `forcerange` | 액추에이터 토크 상한 (= `τ_crank` 상한) | ±12.5 | N·m |
+| `FORCE_SCALE` | 실측 정합 스칼라 보정 | 0.9453 | — |
+| `dt` | 적분 시간 간격 — timestep | 0.001~0.002 | s |
+
+---
+
 ## 1. 실제 모터 — BL4281 (BLDC)
 
 | 항목 | 값 | 단위 |
