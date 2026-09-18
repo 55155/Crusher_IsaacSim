@@ -1265,7 +1265,13 @@ CRUSHER_COUP_FILTER = os.environ.get("CRUSHER_COUP_FILTER", "0") == "1"
 # 검증된 1.0mm 를 그대로 쓴다(E 도 원래 4.0e5, E*t = 400 N/m).
 CLOTH_THICK = float(os.environ.get("CLOTH_THICK_MM", "1.0")) * 1e-3
 CLOTH_E = float(os.environ.get("CLOTH_E", "4.0e5"))
-CLOTH_NU, CLOTH_RHO = 0.499, 200.0
+CLOTH_NU = 0.499
+# CLOTH_RHO 는 실측이 아니라 **t=1.0mm 에서 프록시 질량 2.597g 을 맞추려고** 넣은
+# 값이다(§13-3 의 t=CLOTH_THICK -> density=CLOTH_RHO 트릭). 두께를 실물로 내리면
+# 이 값도 같이 움직여야 질량이 안 무너진다 — 물리적으로 맞출 양은 rho 단독이 아니라
+# **면밀도 rho*t** 다. 2026-09-18 실측: PTFE 봉투 70x110mm 2겹(15,400mm^2) 3.84g
+# -> rho*t = 0.2494 kg/m^2, 역산 t = 0.1133mm (캘리퍼 0.10~0.13mm 와 일치).
+CLOTH_RHO = float(os.environ.get("CLOTH_RHO", "200.0"))
 CLOTH_BEND = float(os.environ.get("CLOTH_BEND", "400.0"))
 CLOTH_FRICTION = 0.8
 # 봉투 울림의 손잡이. dt 로는 못 잡는다 — dt 를 절반으로 줄여도 z 가속도
@@ -1320,7 +1326,15 @@ if WRIST6_DEG:
         _a[0]*_b[1] + _a[1]*_b[0] + _a[2]*_b[3] - _a[3]*_b[2],
         _a[0]*_b[2] - _a[1]*_b[3] + _a[2]*_b[0] + _a[3]*_b[1],
         _a[0]*_b[3] + _a[1]*_b[2] - _a[2]*_b[1] + _a[3]*_b[0]])
-FING_OPEN, FING_CLOSE = 1.00, 1.20
+# FING_CLOSE 는 **CLOTH_THICK 과 묶여 있다** — 천이 제시하는 IPC 접촉 껍질이
+# 두께만큼 두꺼워서, 두께를 내리면 핑거가 그만큼 더 닫혀야 닿는다(§17-7: 1.0->0.1mm
+# 에서 파지가 아예 안 잡혔다). MuJoCo FK 실측(2026-09-18): gripper_joint 는 q 0.01 당
+# 패드가 약 1.10mm 닫힌다. 필요 추가 닫힘 = 2*(1.0mm - CLOTH_THICK) 이므로
+#     FING_CLOSE ~= 1.20 + 2*(1.0e-3 - CLOTH_THICK)/1.10e-4 * 0.01
+# 관절 하드 상한은 range/ctrlrange 둘 다 1.3 이고, 1.20->1.30 이 11.0mm 라 여유는 넉넉하다.
+FING_OPEN = float(os.environ.get("FING_OPEN", "1.00"))
+FING_CLOSE = float(os.environ.get("FING_CLOSE", "1.20"))
+assert FING_CLOSE <= 1.3, f"gripper_joint 상한 1.3 초과: {FING_CLOSE}"  # MJCF range="0 1.3"
 
 # 슬롯(약 (-0.33,-0.05,0.09))에서 0.87m 떨어진 원래 위치((0,0.7,0))는 orientation
 # 고정 IK 오차가 12cm 까지 났다 — 슬롯에 훨씬 가까운 위치로 재배치(오차 <0.001m
@@ -1497,6 +1511,13 @@ assert GRAIN_TEST in ("pour", "freefall"), f"GRAIN_TEST={GRAIN_TEST!r}"
 # 갈린다 — 반전이 잦으면 떨림, 반전 없이 이동량만 크면 거친 스텝이다.
 # scene.step 을 감싸므로 호출 지점 15곳을 전부 잡는다.
 BAG_TRACE = os.environ.get("BAG_TRACE", "0") == "1"
+# BAGV_SNAP=1 — 각 팔 페이즈가 끝날 때 **봉투 정점 전량**을 한 장씩 남긴다
+# (2026-09-18). `bagv_pos` 는 분쇄 구간에서만 찍히므로 삽입 시점 단면을 볼 방법이
+# 없었다. 그런데 "봉투가 얼마나 두꺼운가"는 AABB(`_bag_extent` 의 width_y)로는
+# 답이 안 나온다 — 봉투가 기울면 기울기분이 통째로 섞인다(§13-7). 높이대별
+# 국소 두께를 재려면 정점이 필요하다. 스냅샷은 페이즈당 714점 x 3 = 17KB 라
+# 스텝 비용이 없고, 매번 npz 를 덮어써 런이 어디서 끝나든 남는다.
+BAGV_SNAP = os.environ.get("BAGV_SNAP", "0") == "1"
 # ARM_VEL=1 — 팔을 set_dofs_position 으로 순간이동시킬 때 **속도도 같이 써준다**.
 # 종전에는 위치만 덮어썼다. 그러면 핑거가 매 스텝 수 mm 씩 텔레포트하는데 속도는
 # 갱신되지 않아, 봉투 입장에서는 "움직이는 표면에 끌려가는" 게 아니라 "매 스텝
@@ -2475,9 +2496,25 @@ def main(use_viewer: bool = False):
         print("[trace] BAG_TRACE=1 — 매 스텝 봉투 COM/정점최대이동 기록")
 
     def _bag_extent():
-        """(width_y, height_z, bottom_z) — Y 스윕 판정용(사용자 지시, 2026-07-23)."""
+        """(width_y, height_z, bottom_z) — Y 스윕 판정용(사용자 지시, 2026-07-23).
+
+        **주의**: width_y/height_z 는 AABB 라 자세가 섞인다(§13-7). 두께로 읽지 말 것 —
+        국소 두께가 필요하면 `BAGV_SNAP=1` 스냅샷을 높이대로 잘라 재라.
+        """
         p = _npy(bag.get_state().pos).squeeze()
         return float(p[:, 1].max() - p[:, 1].min()), float(p[:, 2].max() - p[:, 2].min()), float(p[:, 2].min())
+
+    _bagv_snaps = {}
+
+    def _bagv_snap(name):
+        """페이즈 종료 시점의 봉투 정점 전량을 한 장 남긴다(BAGV_SNAP=1일 때만)."""
+        if not BAGV_SNAP:
+            return
+        _bagv_snaps[name] = _npy(bag.get_state().pos).squeeze().astype(np.float32)
+        _p = os.path.join(CASE_DIR, f"bagvsnap_{_TAG}.npz")
+        os.makedirs(CASE_DIR, exist_ok=True)
+        np.savez(_p, names=np.array(list(_bagv_snaps)),
+                 **{f"v_{k}": v for k, v in _bagv_snaps.items()})
 
     def _bag_tilt():
         """봉투 높이축이 world +Z 에서 몇 도 기울었나(2026-08-14).
@@ -2560,6 +2597,7 @@ def main(use_viewer: bool = False):
             if trace and k % 40 == 0:
                 print(f"    [{name} k={k:4d}] tablet_z={_tablet_z()*1e3:+.2f}mm bag_com={_bag_com()}")
         bc = _bag_com()
+        _bagv_snap(name)
         print(f"[phase] {name:8s} @done  bag_com={bc}  finger_z={_finger_z():.4f}  "
               f"tablet_z={_tablet_z()*1e3:+.2f}mm  tilt={_bag_tilt():.1f}deg  "
               f"bag_bottom={_bag_extent()[2]:.4f}")
@@ -2590,6 +2628,7 @@ def main(use_viewer: bool = False):
             if trace and k % 40 == 0:
                 print(f"    [{name} k={k:4d}] tablet_z={_tablet_z()*1e3:+.2f}mm bag_com={_bag_com()}")
         bc = _bag_com()
+        _bagv_snap(name)
         print(f"[phase] {name:8s} @done  bag_com={bc}  finger_z={_finger_z():.4f}  "
               f"tablet_z={_tablet_z()*1e3:+.2f}mm  tilt={_bag_tilt():.1f}deg  "
               f"bag_bottom={_bag_extent()[2]:.4f}")
@@ -3005,6 +3044,7 @@ def main(use_viewer: bool = False):
     # 안 누른다. 음수로 내려가도 정상이며(형상이 봉투를 통과해 지나간다) 압착을
     # 판단할 면은 본체면 하나뿐이다.
     _fl_tag = "" if LEFTWALL_FLANGE_CONTACT else "(비접촉)"
+    _bagv_snap("clamp")
     print(f"[phase] clamp    @done  wall={wq_final*1000:+.2f}mm  "
           f"(잔여: 플랜지면{_fl_tag} {_g_flange:.2f}mm / "
           f"본체면 {_g_body*1000:.2f}mm)  bag_com={_bag_com()}")
@@ -3150,7 +3190,59 @@ def main(use_viewer: bool = False):
             _m_g1 = GRAIN_RHO * (4.0 / 3.0) * np.pi * GRAIN_RADIUS_M ** 3 if GRAIN else 0.0
             _cd = getattr(scene.sim.coupler, "_coupling_data", None)
             _cd_names = [l.name for l in _cd.links] if _cd is not None else []
+            # ── 입자별 **접촉력** 채널 (2026-09-11, §27-11) ──────────────────
+            # 운동량 역산은 알짜힘이라 준정적 압착에서 자중으로 수렴해 접촉 하중을
+            # 못 잰다(§27-5). uipc 의 ContactSystemFeature 가 접촉 에너지의 정점별
+            # 기울기를 내주므로 그걸 직접 읽는다:
+            #     접촉력 = -contact_gradient / dt^2
+            # dt^2 은 IPC 증분 포텐셜(0.5|x-x~|^2_M + dt^2*(E_el+E_ct))에서 온다 —
+            # 빼먹으면 힘이 1/40000 로 나온다. 정적평형 검산은 probe/probe_contact_force.py.
+            # 비용은 10타입 1회 0.17ms 라 매 스텝 떠도 12,000스텝에 2초다.
+            _csf = _g_lo_i = _g_hi_i = None
+            if GRAIN:
+                try:
+                    import uipc as _u, uipc.core as _uc, uipc.geometry as _ug
+                    _csf = scene.sim.coupler._ipc_world.features().find(_uc.ContactSystemFeature)
+                    _gg = grain_coupler.grain_slots[(grain_spec, 0)].geometry()
+                    _g_lo_i = int(np.asarray(
+                        _gg.meta().find(_u.builtin.global_vertex_offset).view()).ravel()[0])
+                    _g_hi_i = _g_lo_i + _gg.vertices().size()
+                    _ptypes = list(_csf.contact_primitive_types())
+                    print(f"[crush] 접촉력 채널 ON — 낟알 전역 정점 [{_g_lo_i},{_g_hi_i}) "
+                          f"프리미티브 {_ptypes}")
+                except Exception as _e:
+                    _csf = None
+                    print(f"[crush] 접촉력 채널 사용 불가({_e!r}) — 운동량 역산만 남긴다")
+
+            def _contact_forces():
+                """낟알별 (법선힘, 마찰힘, 타입별 접촉수). 못 읽으면 None."""
+                if _csf is None:
+                    return None
+                import uipc.geometry as _ug
+                n_g = _g_hi_i - _g_lo_i
+                fn = np.zeros((n_g, 3)); ft = np.zeros((n_g, 3)); cnt = {}
+                for _pt in _ptypes:
+                    _geo = _ug.Geometry()
+                    _csf.contact_gradient(_pt, _geo)
+                    _inst = _geo.instances()
+                    _n = _inst.size()
+                    if _n == 0:
+                        cnt[_pt] = 0
+                        continue
+                    _gr = np.asarray(_inst.find("grad").view()).reshape(_n, 3)
+                    _ix = np.asarray(_inst.find("i").view()).reshape(_n).astype(np.int64)
+                    _m = (_ix >= _g_lo_i) & (_ix < _g_hi_i)
+                    cnt[_pt] = int(_m.sum())
+                    if not _m.any():
+                        continue
+                    _tgt = ft if _pt.endswith("+F") else fn
+                    np.add.at(_tgt, _ix[_m] - _g_lo_i, -_gr[_m] / (DT * DT))
+                return fn, ft, cnt
+
             _rec = dict(t=[], step=[], dof_q=[], dof_v=[], dof_cf=[], dof_f=[],
+                        cf_n_mean=[], cf_n_max=[], cf_n_p95=[], cf_n_sum=[],
+                        cf_t_mean=[], cf_t_max=[], cf_t_p95=[], cf_n_cnt=[],
+                        cf_types=[], fld_fn=[], fld_ft=[],
                         link_F=[], link_T=[],
                         g_com=[], g_lo=[], g_hi=[], g_vmean=[], g_vmax=[], g_ke=[],
                         g_fmean=[], g_fmax=[], g_fp95=[], g_fsum=[], g_ncon=[],
@@ -3204,6 +3296,22 @@ def main(use_viewer: bool = False):
                     # 10% 를 넘으면 뭔가가 밀고 있는 것으로 센다.
                     _r["g_ncon"].append(int((_fn > 0.1 * _m_g1 * 9.81).sum()))
                     _vprev[0], _pprev[0] = _vg, _pg
+                    # ── 접촉력(법선/마찰) — 운동량 역산과 달리 눌리는 하중 자체 ──
+                    _cfx = _contact_forces()
+                    if _cfx is not None:
+                        _cn, _ct, _cc = _cfx
+                        _nn_ = np.linalg.norm(_cn, axis=1)
+                        _tn_ = np.linalg.norm(_ct, axis=1)
+                        _r["cf_n_mean"].append(float(_nn_.mean()))
+                        _r["cf_n_max"].append(float(_nn_.max()))
+                        _r["cf_n_p95"].append(float(np.quantile(_nn_, 0.95)))
+                        _r["cf_n_sum"].append(_cn.sum(axis=0))
+                        _r["cf_t_mean"].append(float(_tn_.mean()))
+                        _r["cf_t_max"].append(float(_tn_.max()))
+                        _r["cf_t_p95"].append(float(np.quantile(_tn_, 0.95)))
+                        # 접촉 중인 알 = 법선힘이 자중의 1% 를 넘는 알
+                        _r["cf_n_cnt"].append(int((_nn_ > 0.01 * _m_g1 * 9.81).sum()))
+                        _r["cf_types"].append([_cc.get(_p, 0) for _p in _ptypes])
                     if k % CRUSH_FIELD_EVERY == 0:
                         from scipy.spatial import cKDTree as _KD
                         _r["fld_step"].append(k)
@@ -3212,6 +3320,9 @@ def main(use_viewer: bool = False):
                         _r["fld_f"].append(_fg.astype(np.float32))
                         _r["fld_nn"].append(_KD(_pg).query(_pg, k=2)[0][:, 1].astype(np.float32))
                         _r["fld_dbag"].append(_KD(_vp).query(_pg)[0].astype(np.float32))
+                        if _cfx is not None:
+                            _r["fld_fn"].append(_cn.astype(np.float32))
+                            _r["fld_ft"].append(_ct.astype(np.float32))
                 if k % CRUSH_BAG_EVERY == 0:
                     _r["bagv_step"].append(k)
                     _r["bagv_pos"].append(_vp.astype(np.float32))
@@ -3321,6 +3432,7 @@ def main(use_viewer: bool = False):
                 d_hat=IPC_D_HAT, cloth_thick=CLOTH_THICK, cloth_E=CLOTH_E,
                 newton_tol=(NEWTON_TOL or 0.0),
                 joint_names=np.array([j.name for j in crusher.joints]),
+                cf_type_names=np.array(_ptypes if _csf is not None else []),
                 # 링크 이름은 엔티티 간에 중복된다(world/box_baselink) — 전역
                 # 인덱스를 같이 남겨야 어느 링크인지 특정된다.
                 link_names=np.array(_cd_names),
@@ -3367,6 +3479,34 @@ def main(use_viewer: bool = False):
                 _ext1 = (_A["g_hi"][-1] - _A["g_lo"][-1]) * 1e3
                 print(f"[RESULT] 낟알 더미 bbox {np.round(_ext0, 2)} -> "
                       f"{np.round(_ext1, 2)} mm (변화 {np.round(_ext1-_ext0, 2)})")
+                if "cf_n_max" in _A:
+                    _w1c = _m_g1 * 9.81
+                    _cn_, _ct_ = _A["cf_n_max"][1:], _A["cf_t_max"][1:]
+                    print(f"[RESULT] **접촉력(법선)** 알당 평균 {_A['cf_n_mean'][1:].mean()*1e3:.4f} mN  "
+                          f"95% {_A['cf_n_p95'][1:].mean()*1e3:.4f} mN  최대 {_cn_.max()*1e3:.4f} mN "
+                          f"(= 자중 {_w1c*1e3:.4f} mN 의 {_cn_.max()/_w1c:.0f} 배)")
+                    # **주의**: 아래 비는 알당 **합력** 비다. 알 하나에 접촉 항목이
+                    # 평균 9개 붙고 그걸 벡터합으로 모았으므로, 마주보는 법선은
+                    # 상쇄되고 마찰은 안 상쇄돼 비가 mu 를 넘는다. Coulomb 한계는
+                    # 접촉 하나하나의 조건이지 합력 조건이 아니다(§27-12).
+                    print(f"[RESULT] **마찰력**       알당 평균 {_A['cf_t_mean'][1:].mean()*1e3:.4f} mN  "
+                          f"95% {_A['cf_t_p95'][1:].mean()*1e3:.4f} mN  최대 {_ct_.max()*1e3:.4f} mN")
+                    print(f"[RESULT] |합마찰|/|합법선| 최대비 "
+                          f"{_ct_.max()/max(_cn_.max(),1e-12):.3f} — mu={GRAIN_FRICTION} 로 "
+                          f"묶이지 않는다(합력이라 법선이 상쇄된다)")
+                    _ss = np.linalg.norm(_A["cf_n_sum"], axis=1)
+                    print(f"[RESULT] 무리 법선 합력 중앙 {np.median(_ss):.3f} N  "
+                          f"최대 {_ss.max():.3f} N  (전체 자중 {_w1c*int(d_n):.4f} N)"
+                          if False else
+                          f"[RESULT] 무리 법선 합력 중앙 {np.median(_ss):.3f} N  "
+                          f"최대 {_ss.max():.3f} N  "
+                          f"(전체 자중 {_w1c*len(_pprev[0]):.4f} N)")
+                    print(f"[RESULT] 접촉 중인 알 평균 {_A['cf_n_cnt'][1:].mean():.0f} / "
+                          f"최대 {_A['cf_n_cnt'][1:].max()} (법선힘 > 자중 1%)")
+                    if "cf_types" in _A:
+                        _tt = _A["cf_types"].sum(axis=0)
+                        print("[RESULT] 접촉 프리미티브 누적: " + "  ".join(
+                            f"{n}={int(v)}" for n, v in zip(_ptypes, _tt) if v))
                 if "fld_nn" in _A:
                     _nn = _A["fld_nn"]
                     print(f"[RESULT] 최근접 낟알 간격 중앙값 {np.median(_nn[0])*1e3:.3f} -> "

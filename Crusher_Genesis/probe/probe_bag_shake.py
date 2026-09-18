@@ -177,8 +177,22 @@ def main():
     else:
         print("[shake] 파우더 없음 (대조군)")
 
-    cam = scene.add_camera(res=(960, 720), pos=(0.42, -0.38, 0.30),
-                           lookat=(0.0, 0.0, 0.21), fov=42, GUI=False, debug=True)
+    # 카메라를 환경변수로 뺀다(2026-09-14, 사용자 지적: "봉투가 너무 작고 멀다").
+    # 기본값은 종전 그대로라 예전 런과 그림이 같다. 좁히려면 CAM_FOV 를 줄이거나
+    # CAM_DIST 로 lookat 쪽으로 당긴다(1.0 = 종전 거리).
+    #   담기는 세로폭 = 2 * 거리 * tan(fov/2).
+    #   종전 42deg / 0.573m -> 0.44m 라 90mm 봉투가 화면의 20% 밖에 안 됐다.
+    #   봉투(90mm) + 좌우 스윙(+-40mm) + 파우더 팽창을 담으려면 0.22m 면 충분하다.
+    _cl = (0.0, 0.0, float(os.environ.get("CAM_Z", "0.21")))
+    _cp = np.array([0.42, -0.38, 0.30]) - np.array(_cl)
+    _cp = np.array(_cl) + _cp * float(os.environ.get("CAM_DIST", "1.0"))
+    _res = int(os.environ.get("CAM_W", "960")), int(os.environ.get("CAM_H", "720"))
+    cam = scene.add_camera(res=_res, pos=tuple(float(v) for v in _cp), lookat=_cl,
+                           fov=float(os.environ.get("CAM_FOV", "42")), GUI=False, debug=True)
+    _d = float(np.linalg.norm(_cp - np.array(_cl)))
+    print(f"[cam] pos={np.round(_cp,3)} lookat={_cl} fov={os.environ.get('CAM_FOV','42')}deg "
+          f"거리 {_d:.3f}m -> 세로 담김 "
+          f"{2*_d*np.tan(np.radians(float(os.environ.get('CAM_FOV','42'))/2))*1e3:.0f}mm  res={_res}")
 
     print(f"[shake] DRIVE={DRIVE} dt={DT*1e3:.2f}ms  {n_steps}스텝  "
           f"진폭 {AMP*1e3:.0f}mm @ {FREQ:.2f}Hz  {SECONDS:.0f}s")
