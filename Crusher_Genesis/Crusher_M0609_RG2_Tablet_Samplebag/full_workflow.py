@@ -668,6 +668,9 @@ CRUSH_DATA = os.environ.get("CRUSH_DATA", "1") == "1"
 CRUSH_DATA_EVERY = max(1, int(os.environ.get("CRUSH_DATA_EVERY", "1")))
 CRUSH_FIELD_EVERY = max(1, int(os.environ.get("CRUSH_FIELD_EVERY", "5")))
 CRUSH_BAG_EVERY = max(1, int(os.environ.get("CRUSH_BAG_EVERY", "10")))
+# 접촉 **쌍 테이블**(§27-13). 스텝당 접촉이 2천 개 넘게 나오므로 매 스텝 남기면
+# 12,000스텝에 수억 행이 된다 — 전량 좌표와 같은 간격으로 솎는다. 0 이면 끈다.
+CRUSH_PAIR_EVERY = int(os.environ.get("CRUSH_PAIR_EVERY", str(CRUSH_FIELD_EVERY)))
 CRANK_RPM = 8.0
 CRANK_OMEGA = CRANK_RPM * 2.0 * np.pi / 60.0     # 0.8378 rad/s
 CRANK_TORQUE_LIM = float(os.environ.get("CRANK_TORQUE_LIM_NM", "12.5"))
@@ -1546,6 +1549,10 @@ _nt = os.environ.get("NEWTON_TOL")
 NEWTON_TOL = float(_nt) if _nt else None
 _ev = os.environ.get("EPS_VEL")
 EPS_VEL = float(_ev) if _ev else None
+# 허용오차를 조이면 반복이 늘어난다 — 상한에 걸리면 "조였는데 안 풀리는" 상태가
+# 되고, 그건 tol 을 더 내려도 안 바뀐다. 같이 뺄 수 있어야 구분이 된다(2026-09-23).
+_ni = os.environ.get("NEWTON_MAX_IT")
+NEWTON_MAX_IT = int(_ni) if _ni else None
 # ── Phase 13 흡착 개구 (2026-09-02) ────────────────────────────────────────
 # 행정은 50mm 가 아니라 20mm 다(사용자 지시). 조 한계는 -50mm 지만 끝까지
 # 열면 불안정하고, SuctionV1_only 실측에서 20mm 가 follow 0.98 로 더 좋다
@@ -1785,6 +1792,7 @@ def main(use_viewer: bool = False):
             constraint_strength_rotation=IPC_CONSTRAINT_STRENGTH,
             **({"newton_tolerance": NEWTON_TOL} if NEWTON_TOL else {}),
             **({"contact_eps_velocity": EPS_VEL} if EPS_VEL else {}),
+            **({"newton_max_iterations": NEWTON_MAX_IT} if NEWTON_MAX_IT else {}),
         ),
         fem_options=gs.options.FEMOptions(damping=FEM_DAMPING),
         vis_options=gs.options.VisOptions(
@@ -3215,12 +3223,29 @@ def main(use_viewer: bool = False):
                     print(f"[crush] 접촉력 채널 사용 불가({_e!r}) — 운동량 역산만 남긴다")
 
             def _contact_forces():
-                """낟알별 (법선힘, 마찰힘, 타입별 접촉수). 못 읽으면 None."""
+                """낟알별 접촉력. 못 읽으면 None.
+
+                반환 (fn, ft, fn_mag, fn_pk, cnt):
+                  fn/ft    알별 **벡터합** [N] — 알짜 접촉력. 힘평형 검산용이다.
+                  fn_mag   알별 접촉 **크기합** sum|f_i| [N]
+                  fn_pk    알별 **최대 단일 접촉** max|f_i| [N]
+
+                **벡터합만으로는 force chain 을 못 읽는다(2026-09-23).** 양옆에서
+                같은 크기로 눌리는 알은 두 법선이 상쇄돼 `fn` 이 0 이 된다 —
+                §27-11 이 "알짜힘이 아니라 눌리는 하중"을 잡겠다고 뚫은 채널인데,
+                받은 gradient 를 알마다 벡터로 더해 버려 §27-5 와 같은 상쇄를
+                그대로 되풀이하고 있었다. gradient 항목 하나하나가 그 접촉의 힘
+                분담분이므로, 크기로 따로 모으면 상쇄 없이 남는다:
+                    fn_pk   그 알을 가장 세게 미는 접촉 하나 — "몇 N 에 눌리나"
+                    fn_mag  그 알이 받는 접촉 하중의 총량(맞누르면 2배로 센다)
+                단순 압착이면 fn_pk 가 곧 압축 하중이고 fn_mag = 2*fn_pk 다.
+                """
                 if _csf is None:
                     return None
                 import uipc.geometry as _ug
                 n_g = _g_hi_i - _g_lo_i
-                fn = np.zeros((n_g, 3)); ft = np.zeros((n_g, 3)); cnt = {}
+                fn = np.zeros((n_g, 3)); ft = np.zeros((n_g, 3))
+                fn_mag = np.zeros(n_g); fn_pk = np.zeros(n_g); cnt = {}
                 for _pt in _ptypes:
                     _geo = _ug.Geometry()
                     _csf.contact_gradient(_pt, _geo)
@@ -3235,14 +3260,106 @@ def main(use_viewer: bool = False):
                     cnt[_pt] = int(_m.sum())
                     if not _m.any():
                         continue
-                    _tgt = ft if _pt.endswith("+F") else fn
-                    np.add.at(_tgt, _ix[_m] - _g_lo_i, -_gr[_m] / (DT * DT))
-                return fn, ft, cnt
+                    _f = -_gr[_m] / (DT * DT)
+                    _j = _ix[_m] - _g_lo_i
+                    np.add.at(ft if _pt.endswith("+F") else fn, _j, _f)
+                    if not _pt.endswith("+F"):          # 크기 집계는 법선만
+                        _a = np.linalg.norm(_f, axis=1)
+                        np.add.at(fn_mag, _j, _a)
+                        np.maximum.at(fn_pk, _j, _a)
+                return fn, ft, fn_mag, fn_pk, cnt
+
+            # ── 접촉을 **쌍 그대로** 남긴다 (§27-13, 2026-09-23 사용자 지시) ──
+            # 위 `_contact_forces()` 는 알별로 모은다. 모으는 순간 "누가 누구를
+            # 밀었나"가 사라지고, 그러면 알당 값 하나를 쓰기 위해 벡터합/크기합/
+            # 최댓값 중 무엇이냐를 매번 정당화해야 한다 — 검증 절차가 길어진다.
+            #
+            # **gradient 는 이미 접촉별 행이다.** 합쳐져 있지 않다(실측:
+            # probe/probe_contact_pairs.py, 12알 기둥에서 PP 22행 = 11접촉 x 2정점).
+            # 그래서 arity 만큼 끊어 읽으면 접촉이 그대로 복원된다:
+            #
+            #   PP 점-점      2행    PE 점-모서리 3행
+            #   PT 점-삼각형  4행    EE 모서리-모서리 4행    PH 점-평면 1행
+            #
+            # 검산이 두 줄로 끝난다 — 프로브 실측:
+            #   뉴턴 3법칙  |g_k + g_k+1| / |g_k| < 1e-9  (11쌍 전부)
+            #   힘 방향     두 알을 잇는 축과 |cos| = 1.000000
+            #   정적평형    12알 기둥의 k번째 접촉 = 1알 자중의 정확히 k배
+            #
+            # 저장은 CSR 꼴이다(스텝마다 접촉 수가 달라 2차원 배열이 안 된다):
+            #   pair_step (m,)    표본 스텝
+            #   pair_off  (m+1,)  각 표본이 차지하는 구간
+            #   pair_i    (P,)    낟알 **로컬 ID** = get_grain_positions() 행 번호
+            #   pair_j    (P,)    상대 **전역 정점 인덱스**. g_lo<=j<g_hi 면 낟알
+            #                     (로컬 ID = j-g_lo), 아니면 봉투/기구. PH 는 -1.
+            #   pair_t    (P,)    프리미티브 타입 = cf_type_names 인덱스
+            #   pair_f    (P,3)   그 접촉이 알 i 에 가한 힘 [N]
+            # 파생량이 없다. 알당 값이 필요하면 **읽는 쪽에서** 모으고, 그때
+            # 모으는 방식은 그 분석이 책임진다.
+            _ARITY = {"PP": 2, "PE": 3, "PT": 4, "EE": 4, "PH": 1}
+            _arity_bad = set()
+
+            def _contact_pair_rows():
+                """이 스텝의 접촉 전량을 (i, j, type, f) 행으로. 없으면 None."""
+                if _csf is None:
+                    return None
+                import uipc.geometry as _ug
+                I, J, T, F = [], [], [], []
+                for _ti, _pt in enumerate(_ptypes):
+                    _ar = _ARITY.get(_pt[:2])
+                    if _ar is None or _pt in _arity_bad:
+                        continue
+                    _geo = _ug.Geometry()
+                    _csf.contact_gradient(_pt, _geo)
+                    _inst = _geo.instances()
+                    _n = _inst.size()
+                    if _n == 0:
+                        continue
+                    if _n % _ar:
+                        # arity 가정이 깨지면 **조용히 지나가면 안 된다** — 그 타입은
+                        # 통째로 빼고 한 번만 알린다(알별 집계 쪽은 그대로 돈다).
+                        _arity_bad.add(_pt)
+                        print(f"[crush] 경고: {_pt} 행수 {_n} 이 arity {_ar} 로 안 "
+                              f"나눠진다 — 이 타입은 쌍으로 안 남긴다")
+                        continue
+                    _gr = np.asarray(_inst.find("grad").view()).reshape(_n, 3)
+                    _ix = np.asarray(_inst.find("i").view()).reshape(_n).astype(np.int64)
+                    _gi = _ix.reshape(-1, _ar)                  # (접촉, arity)
+                    _gf = (-_gr / (DT * DT)).reshape(-1, _ar, 3)
+                    _ing = (_gi >= _g_lo_i) & (_gi < _g_hi_i)
+                    _rr, _cc = np.nonzero(_ing)                 # 낟알 쪽 행만
+                    if not len(_rr):
+                        continue
+                    I.append(_gi[_rr, _cc] - _g_lo_i)
+                    F.append(_gf[_rr, _cc])
+                    T.append(np.full(len(_rr), _ti, np.int8))
+                    if _ar == 1:                                # PH: 상대 정점 없음
+                        J.append(np.full(len(_rr), -1, np.int64))
+                    else:
+                        # 상대 = 같은 접촉의 다른 행. PP 면 유일하고, PT/PE/EE 면
+                        # 여럿이라 **가장 작은 상대 정점**을 대표로 남긴다(타입을
+                        # 같이 저장하므로 읽는 쪽이 여럿임을 안다).
+                        _BIG = np.int64(1) << 62
+                        _oth = _gi[_rr].copy()
+                        _oth[np.arange(len(_rr)), _cc] = _BIG   # 자기 자신 제외
+                        J.append(_oth.min(axis=1))
+                if not I:
+                    return None
+                return (np.concatenate(I).astype(np.int32),
+                        np.concatenate(J).astype(np.int32),
+                        np.concatenate(T), np.concatenate(F).astype(np.float32))
 
             _rec = dict(t=[], step=[], dof_q=[], dof_v=[], dof_cf=[], dof_f=[],
                         cf_n_mean=[], cf_n_max=[], cf_n_p95=[], cf_n_sum=[],
                         cf_t_mean=[], cf_t_max=[], cf_t_p95=[], cf_n_cnt=[],
                         cf_types=[], fld_fn=[], fld_ft=[],
+                        # 상쇄 없는 알별 하중(§27-12) + 매 스텝 수렴 검산
+                        cf_pk_mean=[], cf_pk_max=[], cf_pk_p95=[],
+                        cf_mag_mean=[], cf_mag_max=[], cf_mag_p95=[],
+                        cf_close=[], fld_fn_pk=[], fld_fn_mag=[],
+                        # 접촉 쌍 테이블(CSR) — 파생량 없는 원본 기록
+                        pair_step=[], pair_n=[], pair_i=[], pair_j=[],
+                        pair_t=[], pair_f=[],
                         link_F=[], link_T=[],
                         g_com=[], g_lo=[], g_hi=[], g_vmean=[], g_vmax=[], g_ke=[],
                         g_fmean=[], g_fmax=[], g_fp95=[], g_fsum=[], g_ncon=[],
@@ -3299,7 +3416,7 @@ def main(use_viewer: bool = False):
                     # ── 접촉력(법선/마찰) — 운동량 역산과 달리 눌리는 하중 자체 ──
                     _cfx = _contact_forces()
                     if _cfx is not None:
-                        _cn, _ct, _cc = _cfx
+                        _cn, _ct, _cmag, _cpk, _cc = _cfx
                         _nn_ = np.linalg.norm(_cn, axis=1)
                         _tn_ = np.linalg.norm(_ct, axis=1)
                         _r["cf_n_mean"].append(float(_nn_.mean()))
@@ -3312,6 +3429,19 @@ def main(use_viewer: bool = False):
                         # 접촉 중인 알 = 법선힘이 자중의 1% 를 넘는 알
                         _r["cf_n_cnt"].append(int((_nn_ > 0.01 * _m_g1 * 9.81).sum()))
                         _r["cf_types"].append([_cc.get(_p, 0) for _p in _ptypes])
+                        # 상쇄 없는 하중(§27-12)
+                        _r["cf_pk_mean"].append(float(_cpk.mean()))
+                        _r["cf_pk_max"].append(float(_cpk.max()))
+                        _r["cf_pk_p95"].append(float(np.quantile(_cpk, 0.95)))
+                        _r["cf_mag_mean"].append(float(_cmag.mean()))
+                        _r["cf_mag_max"].append(float(_cmag.max()))
+                        _r["cf_mag_p95"].append(float(np.quantile(_cmag, 0.95)))
+                        # **수렴 검산을 매 스텝 남긴다.** 자유입자는 최소점에서
+                        # f_contact = m(a-g) 가 항등식이라, 무리 합력 z 는 총 자중과
+                        # 같아야 한다. 1.0 에서 멀면 Newton 이 안 풀린 것이고 그
+                        # 스텝의 접촉력은 힘이 아니라 잔차다(2026-09-23 실측 1896배).
+                        _r["cf_close"].append(float(
+                            (_cn + _ct).sum(axis=0)[2] / (_m_g1 * 9.81 * len(_cn))))
                     if k % CRUSH_FIELD_EVERY == 0:
                         from scipy.spatial import cKDTree as _KD
                         _r["fld_step"].append(k)
@@ -3323,6 +3453,18 @@ def main(use_viewer: bool = False):
                         if _cfx is not None:
                             _r["fld_fn"].append(_cn.astype(np.float32))
                             _r["fld_ft"].append(_ct.astype(np.float32))
+                            _r["fld_fn_pk"].append(_cpk.astype(np.float32))
+                            _r["fld_fn_mag"].append(_cmag.astype(np.float32))
+                    # ── 접촉 쌍 테이블 (§27-13) ─────────────────────────
+                    if CRUSH_PAIR_EVERY and k % CRUSH_PAIR_EVERY == 0:
+                        _pr = _contact_pair_rows()
+                        if _pr is not None:
+                            _r["pair_step"].append(k)
+                            _r["pair_n"].append(len(_pr[0]))
+                            _r["pair_i"].append(_pr[0])
+                            _r["pair_j"].append(_pr[1])
+                            _r["pair_t"].append(_pr[2])
+                            _r["pair_f"].append(_pr[3])
                 if k % CRUSH_BAG_EVERY == 0:
                     _r["bagv_step"].append(k)
                     _r["bagv_pos"].append(_vp.astype(np.float32))
@@ -3415,7 +3557,20 @@ def main(use_viewer: bool = False):
 
         # ── 계측 저장 + 요약 ────────────────────────────────────────────────
         if _rec is not None and _rec["t"]:
+            # 쌍 테이블은 표본마다 길이가 달라 2차원 배열이 안 된다 — 이어붙이고
+            # 오프셋을 따로 낸다(CSR). 나머지 채널과 섞이지 않게 먼저 뺀다.
+            _PAIRK = ("pair_i", "pair_j", "pair_t", "pair_f")
+            _pair_out = {}
+            if _rec.get("pair_step"):
+                _pair_out["pair_step"] = np.asarray(_rec["pair_step"], np.int32)
+                _pair_out["pair_off"] = np.concatenate(
+                    [[0], np.cumsum(_rec["pair_n"])]).astype(np.int64)
+                for _k in _PAIRK:
+                    _pair_out[_k] = np.concatenate(_rec[_k])
+            for _k in _PAIRK + ("pair_step", "pair_n"):
+                _rec.pop(_k, None)
             _A = {k: np.asarray(v) for k, v in _rec.items() if v}
+            _A.update(_pair_out)
             _npz_c = os.path.join(CASE_DIR, f"crush_{_TAG}.npz")
             _meta = dict(
                 dt=DT, crush_seconds=CRUSH_SECONDS, n_crush=n_crush,
@@ -3430,7 +3585,13 @@ def main(use_viewer: bool = False):
                 grain_radius=GRAIN_RADIUS_M, grain_rho=GRAIN_RHO,
                 grain_mass=_m_g1, grain_friction=GRAIN_FRICTION,
                 d_hat=IPC_D_HAT, cloth_thick=CLOTH_THICK, cloth_E=CLOTH_E,
-                newton_tol=(NEWTON_TOL or 0.0),
+                newton_tol=(NEWTON_TOL or 0.0), eps_vel=(EPS_VEL or 0.0),
+                newton_max_it=(NEWTON_MAX_IT or 0),
+                # pair_j 를 되돌리는 데 필요하다 — g_lo<=j<g_hi 면 낟알 j-g_lo.
+                # (_rec 의 g_lo/g_hi 는 더미 AABB 라 이름이 겹치면 안 된다)
+                grain_vert_lo=(_g_lo_i if _csf is not None else -1),
+                grain_vert_hi=(_g_hi_i if _csf is not None else -1),
+                pair_every=CRUSH_PAIR_EVERY,
                 joint_names=np.array([j.name for j in crusher.joints]),
                 cf_type_names=np.array(_ptypes if _csf is not None else []),
                 # 링크 이름은 엔티티 간에 중복된다(world/box_baselink) — 전역
@@ -3503,6 +3664,61 @@ def main(use_viewer: bool = False):
                           f"(전체 자중 {_w1c*len(_pprev[0]):.4f} N)")
                     print(f"[RESULT] 접촉 중인 알 평균 {_A['cf_n_cnt'][1:].mean():.0f} / "
                           f"최대 {_A['cf_n_cnt'][1:].max()} (법선힘 > 자중 1%)")
+                    # ── 상쇄 없는 알별 하중 + 수렴 검산 (§27-12) ──────────────
+                    if "cf_pk_max" in _A:
+                        print(f"[RESULT] **알별 최대 단일 접촉** 평균 "
+                              f"{_A['cf_pk_mean'][1:].mean()*1e3:.4f} mN  95% "
+                              f"{_A['cf_pk_p95'][1:].mean()*1e3:.4f} mN  최대 "
+                              f"{_A['cf_pk_max'][1:].max()*1e3:.4f} mN   "
+                              f"(크기합 평균 {_A['cf_mag_mean'][1:].mean()*1e3:.4f} mN)")
+                    # ── 쌍 테이블 요약 + 뉴턴 3법칙 검산 (§27-13) ─────────────
+                    if "pair_i" in _A and len(_A["pair_i"]):
+                        _pi, _pj = _A["pair_i"], _A["pair_j"]
+                        _pf, _pt_ = _A["pair_f"], _A["pair_t"]
+                        _isg = (_pj >= _g_lo_i) & (_pj < _g_hi_i)
+                        _nm = [str(x) for x in _ptypes]
+                        _npp = int(sum(_isg & np.isin(_pt_, [i for i, n in enumerate(_nm)
+                                                             if n.startswith("PP")])))
+                        print(f"[RESULT] **접촉 쌍 테이블** {len(_pi):,}행 / "
+                              f"{len(_A['pair_step'])}표본 (매 {CRUSH_PAIR_EVERY}스텝)  "
+                              f"표본당 평균 {len(_pi)/max(1,len(_A['pair_step'])):.0f}접촉  "
+                              f"알-알 {100*_isg.mean():.1f}%")
+                        # 검산: 낟알-낟알 접촉은 두 행이 한 접촉이므로 f 가 정확히
+                        # 반대여야 한다. **타입을 키에 넣어야 한다** — 같은 (i,j)
+                        # 에 법선(PP+N)과 마찰(PP+F) 행이 따로 있어서, 타입을 빼면
+                        # 법선과 마찰을 짝지어 엉뚱한 잔차가 나온다(실측 2.19e+03).
+                        _e0 = _A["pair_off"][1] if len(_A["pair_off"]) > 1 else 0
+                        _mm = _isg[:_e0]
+                        if _mm.any():
+                            _NG = _g_hi_i - _g_lo_i
+                            _ii = _pi[:_e0][_mm].astype(np.int64)
+                            _jj = _pj[:_e0][_mm].astype(np.int64) - _g_lo_i
+                            _tt = _pt_[:_e0][_mm].astype(np.int64)
+                            _key = (_tt * _NG + _ii) * _NG + _jj
+                            _rev = (_tt * _NG + _jj) * _NG + _ii
+                            _pos = {int(k): n for n, k in enumerate(_key)}
+                            _idx = np.array([_pos.get(int(r), -1) for r in _rev])
+                            _hit = _idx >= 0
+                            if _hit.any():
+                                _fa = _pf[:_e0][_mm][_hit]
+                                _fb = _pf[:_e0][_mm][_idx[_hit]]
+                                _res = (np.linalg.norm(_fa + _fb, axis=1)
+                                        / np.maximum(np.linalg.norm(_fa, axis=1), 1e-30))
+                                print(f"[RESULT] 뉴턴 3법칙 검산(첫 표본, 짝 찾은 "
+                                      f"{int(_hit.sum())}행): |f_ij+f_ji|/|f_ij| "
+                                      f"중앙 {np.median(_res):.2e}  p99 "
+                                      f"{np.quantile(_res, 0.99):.2e}  최대 {_res.max():.2e}")
+                    if "cf_close" in _A:
+                        _cl = _A["cf_close"][1:]
+                        _ok = float(np.mean(np.abs(_cl - 1.0) < 0.1)) * 100
+                        print(f"[RESULT] **수렴 검산** sum f_z / 총자중 = 1.0 이어야 한다 — "
+                              f"중앙 {np.median(_cl):,.1f}  평균 {_cl.mean():,.1f}  "
+                              f"|오차|<10% 스텝 {_ok:.1f}%")
+                        if _ok < 50:
+                            print(f"[RESULT] ** 경고: Newton 이 안 풀렸다. 이 런의 알별 "
+                                  f"접촉력은 힘이 아니라 잔차다. NEWTON_TOL 을 낟알 "
+                                  f"속력({np.median(_A['g_vmean'][1:])*1e3:.2f} mm/s) 아래로 "
+                                  f"내려야 한다(기본 velocity_tol=50 mm/s).**")
                     if "cf_types" in _A:
                         _tt = _A["cf_types"].sum(axis=0)
                         print("[RESULT] 접촉 프리미티브 누적: " + "  ".join(
