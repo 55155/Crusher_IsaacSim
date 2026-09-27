@@ -1,0 +1,3 @@
+# nacl_dummy.py 로 몇 초 만에 똑같이 다시 생긴다 (시드 고정)
+loadcell_*.csv
+sim_*.npz
