@@ -1475,6 +1475,17 @@ RIGID_RIGID = os.environ.get("RIGID_RIGID", "0") == "1"
 # 비계가 됐다(grainmom_N884_R0.5_20260907_191610.npz 실측). 여기 IPC_D_HAT 은
 # 1e-4 라 R=0.5mm 에서 비율 0.2 — 정제에서 쓰던 것과 같은 안전역이다.
 GRAIN = os.environ.get("GRAIN", "0") == "1"
+# ── 낟알을 무엇으로 표현하나 (2026-09-29, 사용자 제안) ──────────────────────
+#   particle (기본) uipc Particle = 점질량. 방향이 없어 구름/스핀/토크가 없다.
+#   rigid           Genesis 강체 구. uipc 에서 ABD 로 들어간다.
+# **배리어력은 이걸로 안 바뀐다**(probe_grain_impact 실측 정지 간격: Particle
+# 96.0um / FEM 61.6~66.5um / Rigid 68.8um — 전부 d_hat 규모로 떠 있다). 배리어는
+# constitution 이 아니라 contact system 의 속성이라 표현을 바꿔도 같은 d_hat 을
+# 탄다. 강체로 얻는 것은 힘의 절대값이 아니라 **회전**이다 — 점질량에 아예 없는
+# 구름/스핀/토크 전달이 생기므로 벌크 거동 충실도가 올라간다. 대가는 비용:
+# 점 N개가 표면 메시를 가진 ABD 바디 N개가 되고 접촉이 PP -> PT/PE/EE 로 바뀐다.
+GRAIN_MODEL = os.environ.get("GRAIN_MODEL", "particle").lower()
+assert GRAIN_MODEL in ("particle", "rigid"), f"GRAIN_MODEL={GRAIN_MODEL!r}"
 N_GRAINS = int(os.environ.get("N_GRAINS", "500"))
 GRAIN_RADIUS_M = float(os.environ.get("GRAIN_RADIUS_MM", "0.5")) * 1e-3
 GRAIN_RHO = float(os.environ.get("GRAIN_RHO", "1500"))
@@ -1816,6 +1827,7 @@ def main(use_viewer: bool = False):
     # 기반 클래스 메서드를 패치하므로 서브클래스가 그대로 물려받는다.
     grain_coupler = None
     grain_spec = None
+    grain_rigids = []          # GRAIN_MODEL=rigid 일 때 강체 구 엔티티들
     # 낟알을 화면에 그릴지. 대기/이송 중에는 **끈다** — 그 구간은 낟알을 SPC 로
     # 붙잡아 옮기는 중이라, 그리면 강체 덩어리가 공중에 굳은 채 미끄러지는 그림이
     # 돼 물리가 멈춘 것처럼 오독된다(사용자 지적, 2026-09-08). 해제하는 순간 켠다.
@@ -2098,11 +2110,26 @@ def main(use_viewer: bool = False):
                   f"— GRAIN_FILL_R/H 를 키워라")
         grain_park_pos = _pts
         _m1 = GRAIN_RHO * (4.0 / 3.0) * np.pi * GRAIN_RADIUS_M ** 3
-        # start 는 봉투 안에서 바로 자유롭게 두므로 SPC 가 필요 없다.
-        grain_spec = grain_coupler.add_grains(
-            grain_park_pos, radius=GRAIN_RADIUS_M, mass_density=GRAIN_RHO,
-            friction_mu=GRAIN_FRICTION,
-            spc_strength=(None if GRAIN_WHEN == "start" else GRAIN_SPC_K))
+        if GRAIN_MODEL == "rigid":
+            # 강체 구 N개. coup_type="ipc_only" 로 IPC 커플러에 실린다(바닥 평면과
+            # 같은 방식). RIGID_RIGID 가 꺼져 있으면 구-구 접촉은 IPC 를 안 타고
+            # Genesis 자체 강체 솔버가 푼다 — 두 접촉 모델이 섞이는 것이므로
+            # 결과를 읽을 때 반드시 그걸 감안해야 한다(§21 의 혼용 위험).
+            for _p in grain_park_pos:
+                grain_rigids.append(scene.add_entity(
+                    gs.morphs.Sphere(radius=GRAIN_RADIUS_M, pos=tuple(_p)),
+                    material=gs.materials.Rigid(rho=GRAIN_RHO,
+                                                friction=GRAIN_FRICTION,
+                                                coup_type="ipc_only")))
+            print(f"[grain] **강체 구 {len(grain_rigids)}개** 등록 "
+                  f"(RIGID_RIGID={int(RIGID_RIGID)} — 구-구는 "
+                  f"{'IPC' if RIGID_RIGID else 'Genesis 강체 솔버'})")
+        else:
+            # start 는 봉투 안에서 바로 자유롭게 두므로 SPC 가 필요 없다.
+            grain_spec = grain_coupler.add_grains(
+                grain_park_pos, radius=GRAIN_RADIUS_M, mass_density=GRAIN_RHO,
+                friction_mu=GRAIN_FRICTION,
+                spc_strength=(None if GRAIN_WHEN == "start" else GRAIN_SPC_K))
         print(f"[grain] {len(grain_park_pos)}알 등록  R={GRAIN_RADIUS_M*1e3:.2f}mm "
               f"1알={_m1*1e6:.3f}mg 총={_m1*len(grain_park_pos)*1e3:.3f}g  "
               f"d_hat/R={IPC_D_HAT/GRAIN_RADIUS_M:.2f}  최소간격={_dmin*1e3:.2f}mm  "
@@ -2228,6 +2255,9 @@ def main(use_viewer: bool = False):
               + ("  ** 초기 겹침 위험 **" if _bad else "  OK"))
     elif GRAIN:
         # 대기 지점에 세워 둔다 — 여기서 놓으면 워크플로 내내 떨어져 버린다.
+        if GRAIN_MODEL == "rigid":
+            raise SystemExit("GRAIN_MODEL=rigid 는 GRAIN_WHEN=start 만 지원한다 "
+                             "— 강체엔 SPC 대기/이송 경로가 없다.")
         _n_hold = grain_coupler.hold_grains(grain_spec, targets=grain_park_pos)
         print(f"[grain] 대기 구속 {_n_hold}/{len(grain_park_pos)}알 "
               f"(SPC k={GRAIN_SPC_K:g})")
@@ -2398,7 +2428,7 @@ def main(use_viewer: bool = False):
         # 파지/삽입/압착/이송을 거치는 내내 담겨 있어야 공정이 성립한다.
         if grain_coupler is not None and _grain_visible[0]:
             try:
-                _pg = grain_coupler.get_grain_positions(grain_spec)
+                _pg = _grain_pos()
                 _in, _z0, _z1 = _grain_inside(_pg)
                 _gtrace.append((name, _step_n[0], int(_in.sum()), len(_pg)))
                 print(f"[grain] @{name:16s} 담김 {int(_in.sum()):4d}/{len(_pg)}  "
@@ -2563,7 +2593,7 @@ def main(use_viewer: bool = False):
             # 렌더러가 원래 그릴 대상이 없다 — 매 프레임 직접 그려야 보인다
             # (Powder_flip_test 에서 확인한 것과 같은 제약).
             scene.clear_debug_objects()
-            scene.draw_debug_spheres(grain_coupler.get_grain_positions(grain_spec),
+            scene.draw_debug_spheres(_grain_pos(),
                                      radius=GRAIN_RADIUS_M, color=(0.85, 0.75, 0.55, 1.0))
         cam_over.render()
         bc = _bag_com()
@@ -3207,7 +3237,10 @@ def main(use_viewer: bool = False):
             # 빼먹으면 힘이 1/40000 로 나온다. 정적평형 검산은 probe/probe_contact_force.py.
             # 비용은 10타입 1회 0.17ms 라 매 스텝 떠도 12,000스텝에 2초다.
             _csf = _g_lo_i = _g_hi_i = None
-            if GRAIN:
+            if GRAIN and GRAIN_MODEL == "rigid":
+                print("[crush] 접촉력 채널 OFF — 강체 구는 uipc 에서 ABD 라 정점이 "
+                      "없다(gradient 에 안 잡힌다). 운동량 역산과 커플링 반력만 남긴다.")
+            elif GRAIN:
                 try:
                     import uipc as _u, uipc.core as _uc, uipc.geometry as _ug
                     _csf = scene.sim.coupler._ipc_world.features().find(_uc.ContactSystemFeature)
@@ -3366,7 +3399,7 @@ def main(use_viewer: bool = False):
                         b_com=[], b_lo=[], b_hi=[], b_zmin=[], b_zmax=[],
                         fld_step=[], fld_pos=[], fld_vel=[], fld_f=[],
                         fld_nn=[], fld_dbag=[], bagv_step=[], bagv_pos=[])
-            _pprev = [grain_coupler.get_grain_positions(grain_spec) if GRAIN else None]
+            _pprev = [_grain_pos() if GRAIN else None]
             _vprev = [np.zeros_like(_pprev[0]) if GRAIN else None]
             print(f"[crush] 계측 ON — 관절 {crusher.n_dofs}dof, 커플링 링크 "
                   f"{len(_cd_names)}개, 낟알 {0 if not GRAIN else len(_pprev[0])}알  "
@@ -3393,7 +3426,7 @@ def main(use_viewer: bool = False):
                 _r["b_zmax"].append(float(_vp[:, 2].max()))
                 # 낟알
                 if GRAIN:
-                    _pg = grain_coupler.get_grain_positions(grain_spec)
+                    _pg = _grain_pos()
                     _vg = (_pg - _pprev[0]) / DT        # 좌표 차분(위 (3) 참고)
                     # 접촉 합력 = 운동량 변화 - 중력
                     _fg = _m_g1 * ((_vg - _vprev[0]) / DT - np.array([0.0, 0.0, -9.81]))
@@ -4253,7 +4286,7 @@ def main(use_viewer: bool = False):
         print()
         print(f"[grain] 자유낙하 시험 — 대기 지점에서 그대로 해제, "
               f"{GRAIN_SECONDS:.1f}s 관측 (봉투/이송 없음)")
-        _z0 = float(grain_coupler.get_grain_positions(grain_spec)[:, 2].mean())
+        _z0 = float(_grain_pos()[:, 2].mean())
         grain_coupler.release_grains(grain_spec)
         _grain_visible[0] = True      # 여기서부터 낟알을 그린다
         _ff = []
@@ -4262,7 +4295,7 @@ def main(use_viewer: bool = False):
             scene.step()
             _step_n[0] += 1
             render_cams()
-            _pgf = grain_coupler.get_grain_positions(grain_spec)
+            _pgf = _grain_pos()
             _ff.append(((k + 1) * DT, float(_pgf[:, 2].mean()), float(_pgf[:, 2].std())))
         _ff = np.array(_ff)
         _drop = _z0 - _ff[:, 1]
@@ -4298,7 +4331,7 @@ def main(use_viewer: bool = False):
         # (파지/리프트/삽입/압착/분쇄/회수/흡착)를 통과한 뒤 얼마나 남았는지만 잰다.
         from scipy.spatial import cKDTree
         _tmark("14 grain 판정")
-        _pg = grain_coupler.get_grain_positions(grain_spec)
+        _pg = _grain_pos()
         _in, _z0, _z1 = _grain_inside(_pg)
         _held = int(_in.sum())
         _leak = int((_pg[:, 2] < _z0).sum())
@@ -4363,7 +4396,7 @@ def main(use_viewer: bool = False):
                 _step_n[0] += 1
                 render_cams()
             _moved = _moved + _leg
-        _pg = grain_coupler.get_grain_positions(grain_spec)
+        _pg = _grain_pos()
         print(f"[grain] 이송 완료 — 낟알 z=[{_pg[:, 2].min()*1e3:.1f},"
               f"{_pg[:, 2].max()*1e3:.1f}]mm  목표 {_pour[2]*1e3:.1f}mm")
 
@@ -4379,14 +4412,14 @@ def main(use_viewer: bool = False):
             _step_n[0] += 1
             render_cams()
             if (k + 1) % 5 == 0:
-                _pg = grain_coupler.get_grain_positions(grain_spec)
+                _pg = _grain_pos()
                 _in, _z0, _z1 = _grain_inside(_pg)
                 _com = _pg[_in].mean(axis=0) if _in.any() else np.full(3, np.nan)
                 _ghist.append(((k + 1) * DT, *_com, int(_in.sum()),
                                int((_pg[:, 2] < _z0).sum()),
                                int((_pg[:, 2] > _z1).sum())))
             if (k + 1) % 100 == 0:
-                _pg = grain_coupler.get_grain_positions(grain_spec)
+                _pg = _grain_pos()
                 _in, _z0, _z1 = _grain_inside(_pg)
                 print(f"[grain] t={(k+1)*DT:5.2f}s  담김 {int(_in.sum())}/{len(_pg)}  "
                       f"누출(바닥아래) {int((_pg[:, 2] < _z0).sum())}  "
@@ -4396,7 +4429,7 @@ def main(use_viewer: bool = False):
 
         # 3) 판정 — 바닥 z / 상단 z / xy 외곽을 모두 본다(§_grain_inside).
         from scipy.spatial import cKDTree
-        _pg = grain_coupler.get_grain_positions(grain_spec)
+        _pg = _grain_pos()
         _in, _z0, _z1 = _grain_inside(_pg)
         _held = int(_in.sum())
         _leak = int((_pg[:, 2] < _z0).sum())
