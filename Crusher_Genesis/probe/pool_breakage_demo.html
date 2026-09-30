@@ -1,0 +1,205 @@
+<div id="root">
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">입자 풀 방식 파쇄 간이 시뮬레이션: 최대 알 수를 체 한도로 미리 정하고, 파쇄 때 풀에서 자식 입자를 꺼내 부풀린다.</h2>
+<style>
+#root{padding:1rem 0;display:grid;gap:12px;font-size:14px;color:var(--text-primary,#222)}
+#root .card{border:0.5px solid var(--border,#ccc);border-radius:12px;padding:12px;background:var(--surface-1,#fafafa)}
+#root .row{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+#root label{font-size:13px;color:var(--text-secondary,#666);display:flex;gap:6px;align-items:center}
+#root input[type=number]{width:72px}
+#root .k{font-size:13px;color:var(--text-secondary,#666)}
+#root .v{font-weight:500;font-size:16px;color:var(--text-primary,#222)}
+#root canvas{width:100%;display:block}
+#root button{font-size:13px;padding:4px 12px}
+</style>
+<div class="card">
+<div class="row">
+<label>시료 g <input id="m" type="number" value="2.0" step="0.1"></label>
+<label>밀도 kg/m³ <input id="rho" type="number" value="2165" step="10"></label>
+<label>초기 d µm <input id="d0" type="number" value="725" step="5"></label>
+<label>체 한도 µm <input id="dm" type="number" value="100" step="5"></label>
+</div>
+<div class="row" style="margin-top:10px">
+<span class="k">초기 알 수 <span id="n0" class="v"></span></span>
+<span class="k">최대 알 수(풀) <span id="nm" class="v"></span></span>
+<span class="k">배율 <span id="ratio" class="v"></span></span>
+</div>
+</div>
+<div class="card">
+<div class="row">
+<button id="play">일시정지</button>
+<button id="reset">초기화</button>
+<label>2D 데모 체 한도 <select id="dmin"><option value="100">100 µm</option><option value="150">150 µm</option><option value="212">212 µm</option></select></label>
+<label>속도 <input id="spd" type="range" min="2" max="24" value="10"></label>
+</div>
+<canvas id="cv" style="margin-top:8px"></canvas>
+<div class="row" style="margin-top:6px">
+<span class="k">스트로크 <span id="sn" class="v">0</span></span>
+<span class="k">활성 알 <span id="na" class="v">0</span></span>
+<span class="k">풀 사용 <span id="pu" class="v">0</span></span>
+<span class="k">직전 파쇄 <span id="nb" class="v">0</span></span>
+<span class="k">d50 <span id="d50" class="v">-</span></span>
+</div>
+<canvas id="psd" style="margin-top:10px"></canvas>
+</div>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const css=(n,f)=>{const v=getComputedStyle(document.documentElement).getPropertyValue(n).trim();return v||f};
+const fmt=n=>n>=1e4?(n/1e4).toFixed(n>=1e6?0:1)+'만':Math.round(n).toLocaleString();
+function calc(){
+  const M=+$('m').value*1e-3,rho=+$('rho').value,d0=+$('d0').value*1e-6,dm=+$('dm').value*1e-6;
+  const v=d=>rho*Math.PI/6*d*d*d;
+  $('n0').textContent=fmt(M/v(d0));$('nm').textContent=fmt(M/v(dm));
+  $('ratio').textContent=Math.round((d0/dm)**3)+'×';
+}
+['m','rho','d0','dm'].forEach(k=>$(k).addEventListener('input',calc));calc();
+
+const WX=9,LID=3.8,XRET=-1.0,XADV=1.25,TPER=1.2,DT=1/1200,G=3000,ITER=4,MU=0.35,DAMP=0.995,SETTLE=0.6;
+let F0=0.25,KF=8.0,X0=725;window.__P=(a,b)=>{F0=a;KF=b};
+const EDGES=[850,600,425,300,212,150];
+const COLS=['#7F77DD','#D4537E','#D85A30','#BA7517','#639922','#1D9E75','#378ADD'];
+let S=null,running=true;
+
+function init(){
+  const dmin=+$('dmin').value,rmin=dmin/2000,N0=60;
+  let A=0;const rs=[];
+  for(let i=0;i<N0;i++){const r=(600+250*Math.random())/2000;rs.push(r);A+=Math.PI*r*r}
+  const NMAX=Math.floor(A/(Math.PI*rmin*rmin));
+  const s={dmin,rmin,NMAX,n:0,t:0,stroke:0,lastBreak:0,frame:0,
+    x:new Float64Array(NMAX),y:new Float64Array(NMAX),px:new Float64Array(NMAX),py:new Float64Array(NMAX),
+    r:new Float64Array(NMAX),rt:new Float64Array(NMAX),pk:new Float64Array(NMAX),ld:new Float64Array(NMAX),
+    born:new Int32Array(NMAX).fill(-999),act:new Uint8Array(NMAX),free:[],edges:EDGES.filter(e=>e>dmin).concat([dmin])};
+  for(let i=NMAX-1;i>=N0;i--)s.free.push(i);
+  for(let i=0;i<N0;i++){
+    const rt=rs[i],r=0.55*rt;let ok=false,tries=0,x,y;
+    while(!ok&&tries<5000){tries++;x=XRET+r+Math.random()*(WX-XRET-2*r);y=r+Math.random()*(LID-2*r);ok=true;
+      for(let j=0;j<i;j++){const dx=x-s.x[j],dy=y-s.y[j];if(dx*dx+dy*dy<(r+s.r[j])**2){ok=false;break}}}
+    s.x[i]=s.px[i]=x;s.y[i]=s.py[i]=y;s.r[i]=r;s.rt[i]=rt;s.act[i]=1;
+  }
+  s.n=N0;s.psd0=psd(s);S=s;
+}
+function plateX(t){
+  if(t<SETTLE)return XRET;
+  const th=-Math.PI+2*Math.PI*((t-SETTLE)/TPER),rc=20,L=80,sn=Math.sin(th);
+  const u=(rc+L-(rc*Math.cos(th)+Math.sqrt(L*L-rc*rc*sn*sn)))/(2*rc);
+  return XADV-u*(XADV-XRET);
+}
+let head,next,gnx,gny,gcs,gx0=XRET-1;
+function grid(s){
+  let mr=0;for(let i=0;i<s.NMAX;i++)if(s.act[i]&&s.rt[i]>mr)mr=s.rt[i];
+  gcs=2*mr;gnx=Math.ceil((WX-gx0+1)/gcs);gny=Math.ceil((LID+1)/gcs);
+  if(!head||head.length<gnx*gny)head=new Int32Array(gnx*gny);head.fill(-1);
+  if(!next||next.length<s.NMAX)next=new Int32Array(s.NMAX);
+  for(let i=0;i<s.NMAX;i++){if(!s.act[i])continue;
+    let cx=Math.floor((s.x[i]-gx0)/gcs),cy=Math.floor(s.y[i]/gcs);
+    cx=cx<0?0:cx>=gnx?gnx-1:cx;cy=cy<0?0:cy>=gny?gny-1:cy;const c=cy*gnx+cx;next[i]=head[c];head[c]=i}
+}
+function pair(s,i,j,first,last){
+  const dx=s.x[j]-s.x[i],dy=s.y[j]-s.y[i],rr=s.r[i]+s.r[j],d2=dx*dx+dy*dy;
+  if(d2>=rr*rr||d2===0)return;
+  const d=Math.sqrt(d2),ov=rr-d,nx=dx/d,ny=dy/d,wi=1/(s.rt[i]*s.rt[i]),wj=1/(s.rt[j]*s.rt[j]),ws=wi+wj;
+  if(first){const a=ov/s.rt[i],b=ov/s.rt[j];if(a>s.ld[i])s.ld[i]=a;if(b>s.ld[j])s.ld[j]=b}
+  s.x[i]-=nx*ov*wi/ws;s.y[i]-=ny*ov*wi/ws;s.x[j]+=nx*ov*wj/ws;s.y[j]+=ny*ov*wj/ws;
+  if(last){
+    let tx=(s.x[i]-s.px[i])-(s.x[j]-s.px[j]),ty=(s.y[i]-s.py[i])-(s.y[j]-s.py[j]);
+    const dn=tx*nx+ty*ny;tx-=dn*nx;ty-=dn*ny;const tl=Math.hypot(tx,ty);
+    if(tl>1e-12){const c=Math.min(tl,MU*ov)/tl;s.x[i]-=tx*c*wi/ws;s.y[i]-=ty*c*wi/ws;s.x[j]+=tx*c*wj/ws;s.y[j]+=ty*c*wj/ws}
+  }
+}
+function step(s){
+  const xp=plateX(s.t);
+  for(let i=0;i<s.NMAX;i++){if(!s.act[i])continue;
+    const vx=(s.x[i]-s.px[i])*DAMP,vy=(s.y[i]-s.py[i])*DAMP;s.px[i]=s.x[i];s.py[i]=s.y[i];
+    s.x[i]+=vx;s.y[i]+=vy-G*DT*DT;
+    if(s.r[i]<s.rt[i])s.r[i]=Math.min(s.rt[i],s.r[i]+0.004*s.rt[i]);s.ld[i]=0}
+  grid(s);
+  for(let it=0;it<ITER;it++){
+    const first=it===0,last=it===ITER-1;
+    for(let c=0;c<gnx*gny;c++){
+      const cx=c%gnx,cy=(c/gnx)|0;
+      for(let i=head[c];i>=0;i=next[i]){
+        for(let j=next[i];j>=0;j=next[j])pair(s,i,j,first,last);
+        const nb=[[1,0],[-1,1],[0,1],[1,1]];
+        for(const[ox,oy]of nb){const ax=cx+ox,ay=cy+oy;if(ax<0||ax>=gnx||ay>=gny)continue;
+          for(let j=head[ay*gnx+ax];j>=0;j=next[j])pair(s,i,j,first,last)}
+      }
+    }
+    for(let i=0;i<s.NMAX;i++){if(!s.act[i])continue;const r=s.r[i];let dd;
+      if((dd=xp+r-s.x[i])>0){s.x[i]+=dd;if(first&&dd/s.rt[i]>s.ld[i])s.ld[i]=dd/s.rt[i]}
+      if((dd=s.x[i]+r-WX)>0){s.x[i]-=dd;if(first&&dd/s.rt[i]>s.ld[i])s.ld[i]=dd/s.rt[i]}
+      if((dd=r-s.y[i])>0){s.y[i]+=dd;if(first&&dd/s.rt[i]>s.ld[i])s.ld[i]=dd/s.rt[i]}
+      if((dd=s.y[i]+r-LID)>0){s.y[i]-=dd;if(first&&dd/s.rt[i]>s.ld[i])s.ld[i]=dd/s.rt[i]}}
+  }
+  for(let i=0;i<s.NMAX;i++)if(s.act[i]&&s.ld[i]>s.pk[i])s.pk[i]=s.ld[i];
+  const k0=Math.floor((s.t-SETTLE)/TPER);s.t+=DT;const k1=Math.floor((s.t-SETTLE)/TPER);
+  if(s.t>SETTLE&&k1>k0&&k0>=0)endStroke(s);
+}
+function endStroke(s){
+  s.stroke++;let nb=0;const cand=[];
+  for(let i=0;i<s.NMAX;i++)if(s.act[i])cand.push(i);
+  for(const i of cand){
+    if(s.r[i]<s.rt[i]*0.999)continue;
+    const rt=s.rt[i],d=rt*2000,umin=Math.max(0.25,(s.rmin/rt)**2);
+    if(umin>0.5)continue;
+    const Fmin=F0*(X0/d),P=1-Math.exp(-KF*Math.max(0,s.pk[i]-Fmin));
+    if(Math.random()>=P||!s.free.length)continue;
+    const u=umin+Math.random()*(1-2*umin),r1=rt*Math.sqrt(u),r2=rt*Math.sqrt(1-u),sc=rt/(r1+r2),a=Math.random()*2*Math.PI;
+    const ca=Math.cos(a),sa=Math.sin(a),cx=s.x[i],cy=s.y[i],vx=s.x[i]-s.px[i],vy=s.y[i]-s.py[i],j=s.free.pop();
+    s.x[i]=cx+ca*(rt-sc*r1);s.y[i]=cy+sa*(rt-sc*r1);s.r[i]=sc*r1;s.rt[i]=r1;
+    s.x[j]=cx-ca*(rt-sc*r2);s.y[j]=cy-sa*(rt-sc*r2);s.r[j]=sc*r2;s.rt[j]=r2;
+    s.px[i]=s.x[i]-vx;s.py[i]=s.y[i]-vy;s.px[j]=s.x[j]-vx;s.py[j]=s.y[j]-vy;
+    s.act[j]=1;s.born[i]=s.born[j]=s.frame;s.n++;nb++;
+  }
+  s.pkq=cand.map(i=>s.pk[i]).sort((a,b)=>a-b);s.pk.fill(0);s.lastBreak=nb;s.psdNow=psd(s);
+}
+function bin(s,d){for(let b=0;b<s.edges.length-1;b++)if(d>=s.edges[b+1])return b;return s.edges.length-2}
+function psd(s){const m=new Array(s.edges.length-1).fill(0);let tot=0;
+  for(let i=0;i<s.NMAX;i++)if(s.act[i]){const a=s.rt[i]*s.rt[i];m[bin(s,s.rt[i]*2000)]+=a;tot+=a}
+  return m.map(v=>v/tot)}
+function d50(s){const L=[];let tot=0;for(let i=0;i<s.NMAX;i++)if(s.act[i]){const a=s.rt[i]**2;L.push([s.rt[i]*2000,a]);tot+=a}
+  L.sort((p,q)=>p[0]-q[0]);let c=0;for(const[d,a]of L){c+=a;if(c>=tot/2)return d}return 0}
+
+function sizeCv(cv,asp){const w=cv.clientWidth||600,dpr=window.devicePixelRatio||1;cv.width=w*dpr;cv.height=w*asp*dpr;return[w,w*asp,dpr]}
+function draw(){
+  const s=S,cv=$('cv'),ctx=cv.getContext('2d');const[w,h,dpr]=sizeCv(cv,0.42);
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  const vx0=XRET-0.6,vx1=WX+0.4,sc=w/(vx1-vx0),oy=h-8;
+  const X=x=>(x-vx0)*sc,Y=y=>oy-y*sc;
+  const line=css('--border-strong','#999'),txt=css('--text-secondary','#666');
+  ctx.strokeStyle=line;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(X(XRET-0.5),Y(0));ctx.lineTo(X(WX),Y(0));ctx.lineTo(X(WX),Y(LID));ctx.stroke();
+  ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(X(XRET-0.5),Y(LID));ctx.lineTo(X(WX),Y(LID));ctx.stroke();ctx.setLineDash([]);
+  const xp=plateX(s.t);ctx.fillStyle=line;ctx.fillRect(X(xp)-6,Y(LID),6,LID*sc);
+  for(let i=0;i<s.NMAX;i++){if(!s.act[i])continue;
+    ctx.fillStyle=COLS[bin(s,s.rt[i]*2000)];ctx.beginPath();ctx.arc(X(s.x[i]),Y(s.y[i]),Math.max(0.6,s.r[i]*sc),0,6.2832);ctx.fill();
+    if(s.frame-s.born[i]<25){ctx.strokeStyle=css('--text-primary','#222');ctx.lineWidth=1;ctx.stroke()}}
+  ctx.fillStyle=txt;ctx.font='12px sans-serif';
+  ctx.fillText('판(크랭크 구동)',X(XRET-0.5),Y(LID)-6);ctx.textAlign='right';ctx.fillText('고정 벽',X(WX),Y(LID)-6);
+  ctx.fillText('점선 = 봉투 대신 뚜껑',X(WX)-80,Y(LID)-6);ctx.textAlign='left';
+  $('sn').textContent=s.stroke;$('na').textContent=s.n.toLocaleString();
+  $('pu').textContent=s.n.toLocaleString()+' / '+s.NMAX.toLocaleString();$('nb').textContent=s.lastBreak;
+  $('d50').textContent=Math.round(d50(s))+' µm';
+  drawPsd();
+}
+function drawPsd(){
+  const s=S,cv=$('psd'),ctx=cv.getContext('2d');const[w,h,dpr]=sizeCv(cv,0.22);
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+  const now=s.psdNow||s.psd0,nb=now.length,pad=28,bw=(w-pad)/nb,hh=h-34,txt=css('--text-secondary','#666');
+  ctx.font='12px sans-serif';ctx.fillStyle=txt;ctx.fillText('질량분율 (2D라 면적)',0,12);
+  for(let b=0;b<nb;b++){const x=pad+b*bw+6,wb=bw-12,yb=h-20;
+    ctx.fillStyle=COLS[b];ctx.fillRect(x,yb-now[b]*hh,wb,now[b]*hh);
+    ctx.strokeStyle=txt;ctx.setLineDash([3,3]);ctx.strokeRect(x,yb-s.psd0[b]*hh,wb,s.psd0[b]*hh);ctx.setLineDash([]);
+    ctx.fillStyle=txt;ctx.textAlign='center';ctx.fillText(s.edges[b+1]+'–'+s.edges[b],x+wb/2,h-5);ctx.textAlign='left'}
+  ctx.fillText('점선 = 초기',w-70,12);
+}
+function loop(){
+  if(running){const n=+$('spd').value;for(let k=0;k<n;k++)step(S);S.frame++}
+  draw();requestAnimationFrame(loop);
+}
+$('play').onclick=()=>{running=!running;$('play').textContent=running?'일시정지':'재생'};
+$('reset').onclick=init;$('dmin').onchange=init;
+init();requestAnimationFrame(loop);
+window.__S=()=>S;
+})();
+</script>
+</div>
