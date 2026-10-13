@@ -641,6 +641,15 @@ C_COUPFRIC   = float(os.environ.get("COUP_FRICTION", "0.4"))
 # 0 이면 "표면 안쪽에 이미 들어온 입자"만 밀어낸다 -> 관통 후 뒤늦은 보정.
 # diag2 에서 피스톤 하면 위로 입자 10,927개(10%)가 관통한 원인 후보 1순위.
 C_COUPSOFT   = float(os.environ.get("COUP_SOFTNESS", "0.0"))
+# coup_restitution: **래칫을 깨는 유일한 노브**(2026-09-30). legacy_coupler 의
+# `_func_collide_in_rigid_geom` 은 법선 상대속도를
+#     rvel_normal = -n * rvel_normal_magnitude * coup_restitution
+# 으로 되돌리는데, 기본값 0 이면 이게 0 — 즉 "튕겨 나감"이 아니라 "더는 안 들어감"이다.
+# 게다가 보정 조건이 `if rvel_normal_magnitude < 0`(들어오는 중)이라 **나가는 방향엔
+# 아무 작용이 없다.** 그래서 한 번 표면을 넘은 입자는 영구히 안에 남고 피스톤과 같은
+# 법선속도로 실려 간다 = 관통이 누적만 되는 래칫. 0 보다 올리면 법선속도가 실제로
+# 반전돼 입자가 밀려 나간다. Genesis Rigid 기본값도 0 이다.
+C_COUPREST   = float(os.environ.get("COUP_RESTITUTION", "0.0"))
 # substep_dt = DT/SUBSTEPS 는 MPMSolver 가 grid_density 에서 계산하는 suggested_dt
 # 이하로 유지해야 한다. grid_density=2000(dx=0.5mm) 에서 suggested_dt=1e-5 이므로
 # 2e-4/20 = 1e-5 로 맞춘다. (스모크5 는 2.5e-5 로 돌아 불안정 경고가 났고, 베드가
@@ -733,7 +742,8 @@ def main_compaction():
     )
 
     mat_rigid = gs.materials.Rigid(needs_coup=True, coup_friction=C_COUPFRIC,
-                                   coup_softness=C_COUPSOFT)
+                                   coup_softness=C_COUPSOFT,
+                                   coup_restitution=C_COUPREST)
     mat_vis   = gs.materials.Rigid(needs_coup=False)   # 화면 표시 전용(커플링 없음)
 
     # ── 다이: 바닥판 + 벽 4장 — 전부 시각 보조. 실제 구속은 MPM 도메인 경계 ──
@@ -783,6 +793,9 @@ def main_compaction():
 
     print(f"\n[cfg] MAT={C_MAT} grid_density={C_GRID} dx={dx*1e3:.2f}mm cells={n_cells:,}")
     print(f"[cfg] dt={C_DT} substeps={C_SUB} piston_vel={C_PIS_VEL} travel={C_PIS_TRAVEL*1e3:.1f}mm")
+    print(f"[cfg] coup: softness={C_COUPSOFT*1e3:.2f}mm friction={C_COUPFRIC} "
+          f"restitution={C_COUPREST}  (서브스텝당 피스톤 이동 "
+          f"{C_PIS_VEL*C_DT/C_SUB*1e6:.3f}um vs dx {1e3/C_GRID:.2f}mm)")
     print(f"[cfg] steps: settle={n_settle} load={n_load} hold={n_hold} "
           f"unload={n_unload} free={n_free} total={n_total}")
     print("[build] scene.build() ...")
@@ -846,8 +859,19 @@ def main_compaction():
         if len(p) == 0:
             return np.nan, 0, np.nan, 0
         # 피스톤 하면보다 위에 있는 입자 수 = 관통/분출 지표.
-        n_above = int((p[:, 2] > (z_cmd - PIS_H / 2)).sum())
-        return float(np.quantile(p[:, 2], 0.98)), int(len(p)), float(p[:, 2].mean()), n_above
+        _pb = z_cmd - PIS_H / 2
+        n_above = int((p[:, 2] > _pb).sum())
+        # ── bed_top 을 **갇힌 입자와 분리한다** (2026-09-30) ────────────────
+        # 종전 bed_top 은 전체 입자 z 의 98분위였다. 그런데 관통한 입자는
+        # restitution=0 이라 피스톤과 같은 법선속도로 실려 가므로(legacy_coupler
+        # `_func_collide_in_rigid_geom`), **제하 중 피스톤이 그 입자를 끌고 올라간다.**
+        # 그러면 98분위가 갇힌 입자를 따라가 베드가 "부푼" 것처럼 읽힌다 —
+        # 실측: sand 가 9.8 -> 15.7mm, snow 가 26.5mm 로 보고됐는데 둘 다 이 인공물이고
+        # 그 때문에 "영구압밀 없음(탄성 복원)" 판정까지 틀렸다.
+        # 베드는 **피스톤 하면 아래 입자만**으로 재고, 갇힌 쪽은 따로 센다.
+        _below = p[p[:, 2] <= _pb]
+        bed_top = float(np.quantile(_below[:, 2], 0.98)) if len(_below) else np.nan
+        return bed_top, int(len(p)), float(p[:, 2].mean()), n_above
 
     # 반력 경로 확정(소스 확인, 2026-09-03): legacy_coupler._func_collide_in_rigid_geom 은
     # MPM->rigid 반작용을 rigid_solver._func_apply_external_force 로 넘기고, 그 함수는
