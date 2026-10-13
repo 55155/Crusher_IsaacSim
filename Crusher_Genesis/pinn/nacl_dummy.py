@@ -21,13 +21,22 @@
   * 대상은 정제가 아니라 **파우더**다. 초기 입도 600–850 µm.
 
 실행:  python nacl_dummy.py        (출력: ./RESULT_dummy_nacl/)
+       TWIN=ipc python nacl_dummy.py  (출력: ./RESULT_dummy_nacl_ipc/)
+
+TWIN=ipc 이면 트윈 대체의 몫 분포를 지수분포 대신 **실제 IPC 런**(full_workflow,
+NEWTON_TOL=1e-4, R=1 mm 332알)의 하중 구간 알별 몫으로 쓴다. 로드셀·체질·정답 커널은
+그대로 더미다 — 바뀌는 것은 "트윈이 주는 분포" 하나뿐이다.
 """
 import json
 import os
 
 import numpy as np
 
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RESULT_dummy_nacl")
+HERE = os.path.dirname(os.path.abspath(__file__))
+TWIN = os.environ.get("TWIN", "exp")            # exp: 지수분포 몫 / ipc: 실제 IPC 런의 몫
+OUT = os.path.join(HERE, "RESULT_dummy_nacl" + ("_ipc" if TWIN == "ipc" else ""))
+IPC_RUN = os.path.join(HERE, "..", "Crusher_M0609_RG2_Tablet_Samplebag", "RESULT_conv_nt1e-4",
+                       "grip-28mm", "crush_grip-28mm_yoff+0.0mm_20260923_171239.npz")
 
 # ── 기구 (docs/motor_spec.md) ────────────────────────────────────────────────
 CRANK_R = 0.020                    # [m] 크랭크 반경
@@ -62,6 +71,7 @@ SHIELD = 0.25                      # 힘사슬에서 빠진(가려진) 알 비�
 REARRANGE = 0.4                    # 스트로크마다 재배열되는 몫
 Z_COORD = 3.0                      # Σ|f_i| / F_판  (내부 쌍이 중복 집계되므로 > 1)
 K_BARRIER = 7.3                    # **가짜 배리어 배율** — 절대값이 틀렸다는 가정
+IPC_W = None                       # TWIN=ipc 일 때 실런 몫 (main 에서 채움, N_GR 도 바뀜)
 
 # ── 정답 PBM (Vogel–Peukert 선택함수 + Austin 파쇄분포) ─────────────────────
 EDGES_UM = np.array([850, 600, 425, 300, 212, 150, 106, 75, 53, 0], float)  # √2 체
@@ -125,12 +135,36 @@ def stroke_work(theta, F):
     return w_load, w_unl
 
 
+def ipc_shares(path=IPC_RUN):
+    """실런 crush npz → 하중 구간(θ ≤ 0) 알별 법선력 크기합 적분의 몫. 합 = 1."""
+    from features import field_crank
+    z = np.load(path)
+    th = field_crank(z)
+    I = z["fld_fn_mag"].astype(np.float64)[th <= 0].sum(0)
+    return I / I.sum()
+
+
+def draw_shares(rng, n_gr):
+    w = rng.exponential(1.0, n_gr)
+    w[rng.random(n_gr) < SHIELD] *= 0.05
+    return w
+
+
+def rearrange(w, rng):
+    """스트로크 사이 재배열. exp: 새 난수와 섞는다. ipc: REARRANGE 비율의 알끼리 몫을
+    맞바꾼다 — 실측 분포는 그대로 두고 알 ID 만 섞는다(§9-5 자기상관은 미측정)."""
+    if TWIN == "ipc":
+        sel = np.flatnonzero(rng.random(len(w)) < REARRANGE)
+        w = w.copy(); w[sel] = w[rng.permutation(sel)]
+        return w
+    return (1 - REARRANGE) * w + REARRANGE * draw_shares(rng, len(w))
+
+
 def make_level(lv, dmax0, rng, b_true, x):
     steps_per = int(round(T_STROKE / DT))
     t_all, th_all, F_all = [], [], []
     fld_step, fld_mag, fld_q = [], [], []
-    w = rng.exponential(1.0, N_GR)
-    w[rng.random(N_GR) < SHIELD] *= 0.05
+    w = rng.permutation(IPC_W) if TWIN == "ipc" else draw_shares(rng, N_GR)
     s_perm = 0.0
     m = np.zeros(len(x)); m[0] = 1.0
     psd = {0: m.copy()}
@@ -145,9 +179,7 @@ def make_level(lv, dmax0, rng, b_true, x):
 
         # 트윈 대체 — 알별 법선력 크기합. 몫 w 를 따라 판 힘을 나눠 갖는다.
         if n:
-            w_new = rng.exponential(1.0, N_GR)
-            w_new[rng.random(N_GR) < SHIELD] *= 0.05
-            w = (1 - REARRANGE) * w + REARRANGE * w_new
+            w = rearrange(w, rng)
         kk = k[::FLD_EVERY]
         f_i = (K_BARRIER * Z_COORD * F[kk, None] * (w / w.sum())[None, :]
                * (1 + 0.05 * rng.standard_normal((len(kk), N_GR))))
@@ -195,12 +227,19 @@ def make_level(lv, dmax0, rng, b_true, x):
 
 
 def main():
+    global IPC_W, N_GR
     os.makedirs(OUT, exist_ok=True)
+    if TWIN == "ipc":
+        IPC_W = ipc_shares(); N_GR = len(IPC_W)
+        e = IPC_W * N_GR
+        print(f"[twin] IPC 실런 몫 {N_GR}알  CV={e.std():.2f}  0근처={np.mean(e < .05):.2f}  "
+              f"p90={np.quantile(e, .9):.2f}  max={e.max():.1f}")
     rng = np.random.default_rng(20260928)
     x = class_sizes()
     b_true = austin_b(**AUSTIN)
     truth = dict(note="DUMMY 정답 — 실험에는 없는 파일", austin=AUSTIN, fmat=FMAT,
                  emin_ref=EMIN_REF, x_ref=X_REF, k_barrier=K_BARRIER, mass=MASS,
+                 twin=TWIN, ipc_run=os.path.relpath(IPC_RUN, HERE) if TWIN == "ipc" else None,
                  edges_um=EDGES_UM.tolist(), levels={})
     for lv, d0 in LEVELS.items():
         r = make_level(lv, d0, rng, b_true, x)

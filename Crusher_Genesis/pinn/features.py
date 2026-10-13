@@ -41,11 +41,20 @@ def loadcell_features(csv_path):
     return {k: np.asarray(v) for k, v in out.items()}
 
 
+def field_crank(z):
+    """fld_* 프레임마다의 크랭크각 [rad]. 실런 crush npz 는 dof_q 가 매 스텝, fld_* 는
+    field_every 마다라 fld_step(crush 시작 기준 스텝 번호)으로 골라야 한다. 더미는 같은 길이."""
+    q = z["dof_q"][:, 0].astype(np.float64)
+    if len(q) == len(z["fld_fn_mag"]):
+        return q
+    return np.unwrap(q)[z["fld_step"]]
+
+
 def share_features(npz_path):
     """트윈 알별 몫. 반환 share: (스트로크, 낟알), 행 합 = 1."""
     z = np.load(npz_path)
     mag = z["fld_fn_mag"].astype(np.float64)
-    idx = stroke_index(z["dof_q"][:, 0].astype(np.float64))
+    idx = stroke_index(field_crank(z))
     shares = []
     for n in np.unique(idx):
         I = mag[idx == n].sum(0)

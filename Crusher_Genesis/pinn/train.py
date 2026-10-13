@@ -27,7 +27,7 @@ import torch.nn as nn
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from features import stroke_features            # noqa: E402
-from nacl_dummy import (OUT, MASS, EDGES_UM, class_sizes, austin_b,  # noqa: E402
+from nacl_dummy import (OUT, TWIN, MASS, EDGES_UM, class_sizes, austin_b,  # noqa: E402
                         vp_selection)
 
 torch.manual_seed(0)
@@ -263,7 +263,8 @@ def plot(raw, psd, report, models, truth):
     a.set_title("(d) d50(n) — 선: PINN(트윈 분포), 점선: 평균장, ○: 더미 체질", loc="left")
     a.legend(fontsize=8); a.grid(alpha=.3, which="both")
 
-    fig.suptitle("NaCl 가상 시나리오 (DUMMY 데이터) — 600–850 µm, 2 g, 8 RPM × 40회",
+    fig.suptitle("NaCl 가상 시나리오 (DUMMY 데이터) — 600–850 µm, 2 g, 8 RPM × 40회"
+                 + ("\n트윈 몫 = IPC 실런 (NEWTON_TOL=1e-4, 332알) · 로드셀·체질·정답 커널은 더미" if TWIN == "ipc" else ""),
                  fontsize=13, fontweight="bold")
     fig.tight_layout()
     p = os.path.join(OUT, "nacl_dummy_pinn.png")

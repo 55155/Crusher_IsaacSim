@@ -10,6 +10,8 @@
  "x_ref": 0.000725,
  "k_barrier": 7.3,
  "mass": 0.002,
+ "twin": "exp",
+ "ipc_run": null,
  "edges_um": [
   850.0,
   600.0,
