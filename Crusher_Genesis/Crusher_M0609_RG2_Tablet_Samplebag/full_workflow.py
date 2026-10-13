@@ -2141,6 +2141,15 @@ def main(use_viewer: bool = False):
         else:
             print(f"[grain] 대기 z={GRAIN_PARK_Z*1e3:.0f}mm")
 
+    def _grain_pos():
+        """낟알 좌표 (N,3) — 표현에 무관한 조회구(§27-14). 행 순서는 스폰 순서다.
+
+        계측 코드 전체가 이 한 곳만 보게 해서 GRAIN_MODEL 분기가 번지지 않게 한다.
+        """
+        if GRAIN_MODEL == "rigid":
+            return np.array([_npy(e.get_pos()).squeeze() for e in grain_rigids])
+        return grain_coupler.get_grain_positions(grain_spec)
+
     import time as _time
     print("\n[build] scene.build() 시작...")
     _t_build = _time.time()
