@@ -1,10 +1,10 @@
 """
-full_workflow.py — 정제 낙하 -> 봉투가 받음 -> M0609+RG2 가 봉투를 파지·리프트
+full_workflow.py — 정제 낙하 -> 봉투가 받음 -> M1013+RG2 가 봉투를 파지·리프트
 -> Crusher 슬롯(Wall3~Left_Wall gap)까지 옮겨서 삽입.
 
 Crusher_Samplebag.py(§PBD 버전, "박스+봉투를 carrier 로 슬롯에 삽입" 시도)를
 참고해 슬롯 위치 계산·크랭크/슬라이더 프리셋 로직을 그대로 가져오고, 봉투
-이동 수단만 carrier 텔레포트 대신 **M0609+RG2 로봇이 실제로 파지해서 옮기는
+이동 수단만 carrier 텔레포트 대신 **M1013+RG2 로봇이 실제로 파지해서 옮기는
 것**으로 바꿨다(§docs/DigitalTwin.md §9 조합8 파이프라인 재사용).
 
 시퀀스:
@@ -222,7 +222,8 @@ MP4_SIDE = os.path.join(CASE_DIR, f"full_workflow_{_TAG}_sideview.mp4")
 #   고정장치     (-315.00,  52.50,  30.00)   없음   MotorDriver     표준편차 0
 #   회수장치2    (-378.99,  65.78, 182.52)   없음   M_Top/F_Top/RachetGear 0.002
 #   석션V1      (-366.55, 202.50,  30.00)   Z+90   Hbeam_L/B/M, Dummy 로 확인
-#   로봇 M0609   (-600.00, 650.00,  30.00)   없음   STEP BASE_M0609 배치 (미대조)
+#   로봇 M1013   (-600.00, 650.00, 170.00)   없음   STEP BASE 배치 + 지그 140mm
+#                                                   (M0609->M1013 교체 2026-10-14)
 #
 # **Crusher 는 EULER 0 이다** — MJCF 의 모든 geom 이 quat="0.5 0.5 0.5 0.5"
 # (X->+Y, Y->+Z, Z->+X)를 이미 갖고 있고 이것이 STEP 의 Crusher 자세 (90,0,90)과
@@ -1050,8 +1051,16 @@ def slot_geometry():
     }
 
 
-# ── M0609+RG2(v2) + 정제 + 샘플백 ───────────────────────────────────────────
-ROBOT_MJCF = os.path.join(paths.ROBOTS_DIR, "m0609_rg2_v2.xml")
+# ── M1013+RG2(v2) + 정제 + 샘플백 ───────────────────────────────────────────
+# 2026-10-14: 실기가 M0609 -> **M1013** 로 교체됐다(사용자 통보). 에셋은
+# `assets/robots/m1013_rg2_v2.xml` — m0609 판의 복제본에서 기구학(링크 길이,
+# joint_3 range)과 메시만 M1013 공식값으로 바꾼 것이고 RG2 부착부는 동일하다.
+# 도달 900 -> 1300mm 로 늘었고, 밑에 지그(JIG_SIZE)가 들어가 베이스가 140mm
+# 올라갔다. **월드의 다른 장치는 하나도 안 움직였다** — 그래서 Q_GRASP/Q_LIFT
+# 는 M0609 가 쓰던 TCP world 자세를 그대로 겨냥해 M1013 기구학으로 다시 풀었고
+# (probe/probe_m1013_pose.py), FINGER_MID_BASE 는 지그 높이만큼 내려 FINGER_MID
+# (= 봉투/선반/정제 스폰의 기준)이 교체 전과 같은 월드 좌표에 남게 했다.
+ROBOT_MJCF = os.path.join(paths.ROBOTS_DIR, "m1013_rg2_v2.xml")
 COACD_DIR_REL = "rg2/reference_onrobot_ros/meshes/rg2_v1/coacd"
 FLEX_FINGER_HULLS = [f"flex_finger_hull_{i:03d}.stl" for i in range(7)]
 # 실링부 1mm 판으로 전환(2026-08-25, 사용자 지시). 기존 `Samplebag_seal_pouch3.stl`
@@ -1303,8 +1312,21 @@ FINGER_LINKS = ("f1_flex_finger", "f2_flex_finger")
 # "리프트 중 orientation 불변" 트릭도 그대로 유지됨을 확인했다.
 FINGER_TCP_LOCAL = np.array([-0.020, 0.0, 0.0])  # f1 로컬 프레임 기준 f1-f2 진짜 중앙 오프셋
 VERTICAL_QUAT = np.array([0.0, 0.0, 1.0, 0.0])   # 완전 수직(핑거 진행축이 world -Z와 정확히 반대)
-Q_GRASP = np.array([-0.00063, -0.23137, 1.17360, 0.00050, 2.19917, -0.00054], float)
-Q_LIFT = np.array([-0.00063, 0.11974, 0.31246, 0.00097, 2.70918, 0.00005], float)
+# 2026-10-14 M1013 재계산(probe/probe_m1013_pose.py). 구 M0609 값은
+#   Q_GRASP = [-0.00063, -0.23137, 1.17360, 0.00050, 2.19917, -0.00054]
+#   Q_LIFT  = [-0.00063,  0.11974, 0.31246, 0.00097, 2.70918,  0.00005]
+# 이었다. 그 두 자세의 **TCP 월드 좌표**(grasp (-21.542, 256.180, 436.252)mm,
+# lift (-21.689, 256.206, 562.073)mm)를 목표로 M1013 기구학 + 지그 140mm 에서
+# 다시 풀었다 — 위치/자세는 보존되고 관절각만 바뀐다. 도달오차 grasp 0.018mm,
+# lift 0.250mm, orientation 은 VERTICAL_QUAT 과 1e-4 안. joint_3 사용량
+# 2.271/2.043 rad vs 한계 ±2.7925 로 여유 있다.
+# joint_1/joint_6 이 0 -> -0.140 rad 로 간 것은 분기 변경이 아니다: M1013 의
+# joint_2 측면 오프셋이 6.2 -> 34.5mm 로 커져 팔 평면이 28mm 더 밀리므로,
+# 같은 TCP 를 맞추려면 베이스가 그만큼(-8.0deg) 돌아야 하고 손목이 그걸 되돌려
+# 그리퍼 닫힘축을 월드에 정렬시킨다. "리프트 중 orientation 불변" 트릭도
+# 유지된다 — q2+q3+q5 합이 3.1413 / 3.1405 로 양쪽 모두 pi 다.
+Q_GRASP = np.array([-0.14018, -0.61213, 2.27058, 0.00027, 1.48285, -0.14041], float)
+Q_LIFT = np.array([-0.14082, -0.60693, 2.04279, 0.00071, 1.70460, -0.14081], float)
 # 손목 트위스트(joint 6) — 2026-07-16 에 BAG_EULER 가 (90,0,90) 이 되면서 0 으로
 # 제거됐던 값이다. 실배치에서 봉투를 (90,0,0) 으로 되돌리면 두께축이 world X ->
 # Y 로 옮겨가므로 그리퍼 닫힘축도 같이 90도 돌려야 한다.
@@ -1342,11 +1364,28 @@ assert FING_CLOSE <= 1.3, f"gripper_joint 상한 1.3 초과: {FING_CLOSE}"  # MJ
 # 슬롯(약 (-0.33,-0.05,0.09))에서 0.87m 떨어진 원래 위치((0,0.7,0))는 orientation
 # 고정 IK 오차가 12cm 까지 났다 — 슬롯에 훨씬 가까운 위치로 재배치(오차 <0.001m
 # 확인, 이 스크립트 개발 중 격리 테스트로 검증).
-ROBOT_OFFSET = np.array([-0.2250, 0.2500, 0.0]) if LAYOUT_FROM_STEP else np.array([-0.330, -0.65, 0.0])
+# ── 로봇 받침 지그 (2026-10-14, 실기 추가) ──────────────────────────────────
+# 베이스 판 위에 올라간 170 x 170 x 140mm 검정 박스. 로봇 베이스 바로 밑에
+# 깔리는 받침대라 **로봇만 140mm 올라가고 나머지 장치는 제자리**다. 판 상면이
+# z=0 이므로 지그는 z 0~0.140 을 차지하고, 중심은 로봇 베이스 XY 와 같다.
+# 판(750x800, X +-0.375 / Y +-0.4) 안에 완전히 들어간다: X [-0.310,-0.140],
+# Y [+0.165,+0.335].
+JIG_SIZE = (0.170, 0.170, 0.140)
+JIG_COLOR = (0.08, 0.08, 0.08)          # 검정(사용자 지정)
+JIG_ON = os.environ.get("JIG", "1") == "1" and LAYOUT_FROM_STEP
+JIG_H = JIG_SIZE[2] if JIG_ON else 0.0
+# **LAYOUT_FROM_STEP=0 은 M1013 교체로 더 이상 재현되지 않는다** — Q_GRASP/
+# Q_LIFT 가 M1013 기구학으로 다시 풀린 값이라 구 배치의 TCP 와 맞지 않는다.
+ROBOT_OFFSET = (np.array([-0.2250, 0.2500, JIG_H]) if LAYOUT_FROM_STEP
+                else np.array([-0.330, -0.65, 0.0]))
+JIG_POS = (float(ROBOT_OFFSET[0]), float(ROBOT_OFFSET[1]), JIG_SIZE[2] / 2)
 # 2026-07-24 재계산: Q_GRASP_NEW에서 f1-f2 진짜 중앙(FINGER_TCP_LOCAL 적용)을
 # FK로 실측한 값 - ROBOT_OFFSET (이전 FINGER_MID_BASE는 f1 단독 기준이라 위
 # 20mm 어긋남 버그를 그대로 포함하고 있었다).
-FINGER_MID_BASE = np.array([0.20346321, 0.00617990, 0.43625346])
+# 2026-10-14 M1013: 월드 TCP 를 M0609 때와 같은 자리에 두는 것이 목표이므로
+# base 프레임 기준값은 지그 높이만큼 내려간다 (world = base + ROBOT_OFFSET).
+# probe/probe_m1013_pose.py 가 새 Q_GRASP FK 로 이 값을 검산한다.
+FINGER_MID_BASE = np.array([0.20346321, 0.00617990, 0.43625346 - JIG_H])
 FINGER_MID = FINGER_MID_BASE + ROBOT_OFFSET
 
 BAG_SCALE = 1.0
@@ -1656,14 +1695,14 @@ def solve_descent_waypoints(robot, link, target_xy, z0, z1, n_way=41):
 
 def _prepare_robot_mjcf():
     src_dir = paths.ROBOTS_DIR
-    tmp_dir = tempfile.mkdtemp(prefix="m0609_fw_v2_")
+    tmp_dir = tempfile.mkdtemp(prefix="m1013_fw_v2_")
     for root_dir, _, files in os.walk(src_dir):
         rel = os.path.relpath(root_dir, src_dir)
         dst_dir = os.path.join(tmp_dir, rel) if rel != "." else tmp_dir
         os.makedirs(dst_dir, exist_ok=True)
         for f in files:
             shutil.copy2(os.path.join(root_dir, f), os.path.join(dst_dir, f))
-    dst = os.path.join(tmp_dir, "m0609_rg2_v2_patched.xml")
+    dst = os.path.join(tmp_dir, "m1013_rg2_v2_patched.xml")
     tree = ET.parse(ROBOT_MJCF)
     root = tree.getroot()
 
@@ -1885,6 +1924,16 @@ def main(use_viewer: bool = False):
         material=gs.materials.Rigid(coup_type="ipc_only", coup_friction=0.3),
         surface=gs.surfaces.Default(color=(0.75, 0.78, 0.82)),
     )
+    # 로봇 받침 지그 — 정적 소품. 봉투/정제가 닿는 곳이 아니라 IPC 에는
+    # `ipc_only`(판/선반과 같은 취급)로만 넣는다.
+    if JIG_ON:
+        scene.add_entity(
+            gs.morphs.Box(size=JIG_SIZE, pos=JIG_POS, fixed=True),
+            material=gs.materials.Rigid(coup_type="ipc_only", coup_friction=0.3),
+            surface=gs.surfaces.Default(color=JIG_COLOR, roughness=0.6),
+        )
+        print(f"[jig] 로봇 받침 {JIG_SIZE[0]*1e3:.0f}x{JIG_SIZE[1]*1e3:.0f}x"
+              f"{JIG_SIZE[2]*1e3:.0f}mm @ {JIG_POS} — 베이스 상면 z={JIG_SIZE[2]:.3f}")
 
     scene.add_entity(
         gs.morphs.MJCF(file=FIXTURE_MJCF, pos=FIXTURE_POS, decimate=False),
