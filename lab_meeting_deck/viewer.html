@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>Lab Meeting Deck</title>
+<style>
+:root{--bg:#E7E7E7;--fg:#262626}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:var(--fg)}
+#bar{position:sticky;top:0;z-index:9;display:flex;gap:16px;align-items:center;padding:8px 16px;background:#262626;color:#fff;font-size:13px}
+#bar a{color:#fff} #err{white-space:pre-wrap;background:#fff3f3;color:#900;font:12px monospace;padding:10px 16px;display:none}
+#list{display:flex;flex-direction:column;align-items:center;gap:20px;padding:20px 16px}
+.slide{width:min(100%,1280px)} .slide h6{margin:0 0 4px;font-size:12px;color:#595959;font-weight:400}
+.frame{position:relative;width:100%;aspect-ratio:16/9;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.2);overflow:hidden}
+.frame iframe{position:absolute;left:0;top:0;width:1920px;height:1080px;border:0;transform-origin:0 0}
+</style></head><body>
+<div id="bar"><b>Lab Meeting Deck · 로컬</b><span id="st"></span><span style="flex:1"></span><span>파일 바뀌면 자동 새로고침</span></div>
+<div id="err"></div>
+<div id="list"></div>
+<script>
+// 슬라이드 HTML 은 아티팩트와 같은 파일을 그대로 쓴다. 폰트·표 기본값만 아티팩트 런타임과 맞춰 둔다.
+const HEAD = `<!doctype html><meta charset="utf-8"><style>
+@font-face{font-family:'Pretendard';src:url(/_blob/4a881bbb14d5d0ad085ad33bedb7cbb2)}
+@font-face{font-family:'Pretendard Bold';src:url(/_blob/fe6eacfc052cba1d95bcdba2354a137c)}
+*{margin:0;padding:0;box-sizing:border-box} html,body{width:1920px;height:1080px;overflow:hidden}
+section{position:relative;width:1920px;height:1080px;overflow:hidden} aside{display:none}
+table{border-collapse:collapse;width:100%} th{font-family:'Pretendard Bold';font-weight:400;border-bottom:2px solid #262626;padding:14px 12px}
+td{border-bottom:1px solid #D9D9D9;padding:14px 12px;vertical-align:top}
+x-icon{display:inline-block;background:currentColor}
+x-icon[name=ArrowRight]{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M12 5l7 7-7 7'/%3E%3C/svg%3E") center/contain no-repeat}
+x-icon[name=ArrowDown]{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M19 12l-7 7-7-7'/%3E%3C/svg%3E") center/contain no-repeat}
+</style>`;
+let ver = 0;
+async function load() {
+  const deck = await (await fetch('/deck2/project/deck.json', {cache: 'no-store'})).json();
+  const list = document.getElementById('list'), y = scrollY;
+  const html = await Promise.all(deck.order.map(id => fetch(`/deck2/project/slides/${id}.html`, {cache: 'no-store'}).then(r => r.text())));
+  list.innerHTML = '';
+  deck.order.forEach((id, i) => {
+    const d = document.createElement('div'); d.className = 'slide';
+    d.innerHTML = `<h6>${i + 1} · ${id}</h6><div class="frame"><iframe></iframe></div>`;
+    list.appendChild(d);
+    d.querySelector('iframe').srcdoc = HEAD + html[i];
+  });
+  fit(); scrollTo(0, y);
+  document.getElementById('st').textContent = '갱신 ' + new Date().toLocaleTimeString();
+}
+function fit() {
+  document.querySelectorAll('.frame').forEach(f => { f.firstChild.style.transform = `scale(${f.clientWidth / 1920})`; });
+}
+async function poll() {
+  try {
+    const r = await (await fetch('/version', {cache: 'no-store'})).json();
+    const e = document.getElementById('err');
+    e.style.display = r.err ? 'block' : 'none'; e.textContent = r.err ? 'gen_slides.py 오류\n' + r.err : '';
+    if (r.v !== ver) { ver = r.v; await load(); }
+  } catch (_) {}
+  setTimeout(poll, 1000);
+}
+addEventListener('resize', fit);
+poll();
+</script></body></html>
