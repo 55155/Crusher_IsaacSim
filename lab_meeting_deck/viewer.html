@@ -25,7 +25,7 @@ td{border-bottom:1px solid #D9D9D9;padding:14px 12px;vertical-align:top}
 x-icon{display:inline-block;background:currentColor}
 x-icon[name=ArrowRight]{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M12 5l7 7-7 7'/%3E%3C/svg%3E") center/contain no-repeat}
 x-icon[name=ArrowDown]{-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M19 12l-7 7-7-7'/%3E%3C/svg%3E") center/contain no-repeat}
-</style>`;
+</style><script>addEventListener('DOMContentLoaded',()=>document.querySelectorAll('img[data-video]').forEach(i=>{const v=document.createElement('video');v.src=i.dataset.video;v.poster=i.src;v.autoplay=v.loop=v.muted=true;v.playsInline=true;v.style.cssText=i.style.cssText;i.replaceWith(v);}));<\/script>`;
 let ver = 0;
 async function load() {
   const deck = await (await fetch('/deck2/project/deck.json', {cache: 'no-store'})).json();

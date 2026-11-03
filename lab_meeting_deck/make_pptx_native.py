@@ -70,7 +70,8 @@ addEventListener('load', async () => {
     if (el.tagName == 'IMG') {
       const nw = el.naturalWidth || r[2], nh = el.naturalHeight || r[3], s = Math.min(r[2] / nw, r[3] / nh);
       const w = nw * s, h = nh * s;
-      out.items.push({t: 'img', r: [r[0] + (r[2] - w) / 2, r[1] + (r[3] - h) / 2, w, h], src: el.getAttribute('src')});
+      out.items.push({t: 'img', r: [r[0] + (r[2] - w) / 2, r[1] + (r[3] - h) / 2, w, h], src: el.getAttribute('src'),
+                       video: el.getAttribute('data-video')});
       return;
     }
     if (el.tagName == 'X-ICON') { out.items.push({t: 'icon', r, name: el.getAttribute('name'), color: col(cs.color)}); return; }
@@ -210,7 +211,13 @@ def build():
                 if not os.path.isfile(src):                      # 사진 자리표시(src 없음) 등은 건너뛴다
                     print(f'  {sid}: 그림 없음 {it["src"]}')
                     continue
-                sl.shapes.add_picture(src, Emu(int(x * E)), Emu(int(y * E)), Emu(int(w * E)), Emu(int(h * E)))
+                vid = it.get('video') or ''
+                if vid.startswith('file:///') and os.path.isfile(vid[8:]):
+                    # data-video 가 붙은 그림 = 동영상 (그림은 포스터) — 슬라이드 쇼에서 클릭하면 재생
+                    sl.shapes.add_movie(vid[8:], Emu(int(x * E)), Emu(int(y * E)), Emu(int(w * E)), Emu(int(h * E)),
+                                        poster_frame_image=src, mime_type='video/mp4')
+                else:
+                    sl.shapes.add_picture(src, Emu(int(x * E)), Emu(int(y * E)), Emu(int(w * E)), Emu(int(h * E)))
             elif it['t'] == 'raster':
                 p = os.path.join(OUT, f'{sid}_eq{n["raster"]}.png')
                 shot.crop((int(x), int(y), int(x + w + 1), int(y + h + 1))).save(p)
