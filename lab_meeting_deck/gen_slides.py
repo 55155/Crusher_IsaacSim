@@ -247,8 +247,8 @@ slides['prev'] = sec('prev', 'Previous Work · Problem', '기존 연구방향 ::
               w='width:700px', h='align-items:stretch;padding:44px 36px 32px;'),
         frame('발생한 문제 ① · 보기 좋은 시뮬레이션 ≠ 물리적으로 옳은 시뮬레이션',
               col(bul('디지털트윈 영상: 그럴듯함', 28), bul(f'힘 데이터: {B("물리적 충실도 매우 낮음")} → PINN 입력 오류', 28),
-                  img('/_blob/0358a6a30d03b1f0c3a6040c6e45e164', 'Genesis IPC 런: (a) 최근접 입자 표면 간격 분포, barrier 에 84% 정지, (b) 접촉력 대 운동량 수지 힘 비율, 중앙값 22.4배', 880, 370),
-                  cap(f'(a) 입자 {B("84 %")}가 barrier 거리에 정지 &nbsp;·&nbsp; (b) 접촉력 / 운동량 수지 중앙값 {B("×22.4")}'),
+                  img('/_blob/f2b0a37c030284743c65b2d73b5f3c60', 'Genesis IPC 런: (a) 가장 가까운 알과의 틈, 83% 가 100 µm 떨어져 멈춤, (b) 보고된 접촉력과 실제 움직임으로 역산한 힘의 비율', 880, 370),
+                  cap(f'(a) 알 {B("83 %")} 가 100 µm 떨어져 멈춤 &nbsp;·&nbsp; (b) 힘이 실제 움직임과 2배 이내로 맞는 경우 {B("8.6 %")}'),
                   '<p style="font-size:20px;color:#7F7F7F">Genesis IPC 500알 (d = 1 mm), 8 rpm × 60 s, 2,400 프레임</p>', w='width:100%;flex:1'),
               w='flex:1', h='align-items:stretch;padding:44px 40px 28px;'), gap=32, grow=True) +
     key('결론', f'PINN 의 입력인 시뮬레이션 힘 데이터를 믿을 수 없음 → {B("물리적 정합성 확보가 선행 과제")}'),
@@ -256,8 +256,8 @@ slides['prev'] = sec('prev', 'Previous Work · Problem', '기존 연구방향 ::
 
 slides['ipc'] = sec('ipc', 'Current Work', '물리적 정합성 :: IPC 제거 → DEM 채택',
     row(frame('Fig. 5 &nbsp;IPC 점질량 vs DEM · 정합성',
-              img('/_blob/c11be2bdceb46341869e87ea8a7745ff', 'IPC vs DEM: (a) 최근접 표면 간격 분포, (b) 접촉력-간격 법칙', 725, 240) +
-              cap(f'IPC: 표면 접촉 전 힘 발생 ({B("+81 µm, 0.22 N")}) · 입자 쌍 92–96 % 비접촉'), w='flex:1'),
+              img('/_blob/e7cc80d354ce38c0d87acbd606c9f6f3', 'IPC vs DEM: (a) 가장 가까운 알과 맞닿은 비율, (b) 두 알 사이 틈과 힘', 725, 249) +
+              cap(f'IPC: 닿기 전에 힘 ({B("+81 µm, 0.22 N")}) · 알 {B("83 %")} 가 100 µm 떨어져 멈춤'), w='flex:1'),
         frame('Fig. 6 &nbsp;FEM 샘플백 결합 vs 사전 런 · 계산비용',
               img('/_blob/a119220b272835e4baeaebf3c90c4740', '결합 FEM 샘플백+DEM vs 사전 런+DEM: (a) 스트로크당 계산시간, (b) 누적 계산시간', 746, 240) +
               cap(f'IPC 저비용 = dt 가 접촉시간 ×487 (미해상) · 결합 시 {B("14,932 s")}/스트로크 ({R("8.1배")})'), w='flex:1'), gap=28) +
@@ -291,7 +291,7 @@ slides['lit2'] = sec('lit2', 'Novelty', '본 논문의 노벨티 :: 반복압밀
 slides['sensor'] = sec('sensor', 'Experiment', '실험 하드웨어 :: 점검 완료 + 센서 추가',
     row(frame('하드웨어 점검',
               col(table([['기구', '상태'], ['로봇팔 (M1013)', '정상'], ['석션 모듈', '정상'], ['크러셔', '정상'], ['로드셀', '정상'], ['홀더 / 회수장치', '정상']], ['62%', '38%'], fs=24),
-                  key('결과', f'전 기구 {B("이상 없음")}', fs=24), w='width:100%'), w='width:470px', h='align-items:stretch;'),
+                  f'<p style="font-size:26px;text-align:center">→ 전 기구 {B("이상 없음")}</p>', w='width:100%'), w='width:470px', h='align-items:stretch;'),
         frame('실기 풀시퀀스',
               '<img alt="[실기 풀시퀀스 사진 또는 영상]" style="width:440px;height:400px;background:#F2F2F2">', w='width:500px'),
         frame('추가 센서 · 피드백 대응',
