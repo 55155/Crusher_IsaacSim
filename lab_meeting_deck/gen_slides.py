@@ -356,6 +356,40 @@ slides['cdm'] = sec('cdm', 'Novelty', '선행 연구 :: Tavares 반복충격 손
                   w='width:100%'), w='flex:1', h='align-items:stretch;padding:38px 24px 16px;'), gap=28, grow=True),
     '제가 공부한 Tavares 그룹의 반복충격 손상 모델입니다. 식 번호는 2002 논문과 2009 논문을 같이 적었습니다. 식 (1)부터 (4)는 한 번의 충격에서 손상이 쌓이고 강성이 떨어지는 과정이고, 2002 식 (9)부터 (11), 2009 식 (5)와 (6)은 그 결과 파쇄 비에너지가 충격마다 줄어드는 과정입니다. 2009 식 (13)은 깨질 때 파편 입도입니다. 오른쪽은 이 식들이 DEM 한 스텝의 어디에 들어가는지입니다.')
 
+# ── Esnault 2015 §5.4–5.5 (Rittinger + 투입 에너지) → 크랭크 F(θ) 로 옮긴 것 (2026-11-03 요청) ──
+# 원문: Esnault, Zhou, Heitzmann, Minerals Eng. 73 (2015) 7–15. 식 (6) 피적분의 추가 x 는 단위상 오기 (해설 노트 동일).
+# DEM 수치: crusher_scene/crush_out/dem.npz ctrl 열 — 판 변위 적분과 θ 적분이 0.11840 J 로 일치, 질량 3.00 g.
+P_, x_, h_, rho, ph, th_, r_, L_, A_, W_, SS = (v(s) for s in ('P', 'x', 'h', 'ρ', 'φ', 'θ', 'r', 'L', 'A', 'W', 'SS'))
+INT = '<span style="font-size:1.25em">∫</span>'
+dSSdW, dWdph = frac(f'∂{SS}', f'∂{W_}'), frac(f'∂{W_}', f'∂{ph}')
+sqk = f'√({L_}<sup>2</sup> − {r_}<sup>2</sup>sin<sup>2</sup>{th_})'
+def eqw(num, body, note=''):  # cdm 의 eq 보다 번호 칸이 좁고 설명 칸이 넓다
+    n = f'<p style="font-size:20px;color:#595959;width:70px;flex:none">{num}</p>'
+    b = f'<p style="font-size:27px;{MF};color:#262626;flex:1">{body}</p>'
+    t = f'<p style="font-size:19px;color:#7F7F7F;width:230px;flex:none">{note}</p>'
+    return f'<div style="display:flex;align-items:center;gap:8px;width:100%">{n}{b}{t}</div>'
+slides['esn'] = sec('esn', 'Novelty', '선행 연구 :: Esnault (2015) 압축분쇄 PBM → 크랭크 F(θ) 적용',
+    row(frame('Esnault 외 (2015) · 강체 다이 (piston-die)',
+              col2(eqw('(5)', f'{SS}({v("F")}<sub>n+1</sub>) − {SS}({v("F")}<sub>n</sub>) = {dSSdW} {dWdph} ({ph}<sub>n+1</sub> − {ph}<sub>n</sub>)', '새 표면적 = 한 일 (Rittinger)'),
+                   eqw('(6)', f'{W_} = {frac("1", m_)} {INT}<sub>0</sub><sup>{x_}<sub>fin</sub></sup> {A_} {P_}({x_}) d{x_}', '투입 에너지 [J/kg]'),
+                   eqw('(S5)', f'{dWdph} = − {frac(P_, f"{rho} (1 − {ph})<sup>2</sup>")}', f'{m_} = {rho}{A_}{h_}(1 − {ph}) → {B("강체 다이 전제")}'),
+                   '<p style="font-size:20px;color:#7F7F7F;margin-top:4px">시간 변수 = 공극률 φ · 고정 B / 가변 B(φ) · 식 (6) 피적분의 추가 x 는 단위상 오기</p>',
+                   w='width:100%'), w='flex:1', h='align-items:stretch;padding:38px 26px 14px;'),
+        frame('본 시스템 · 크랭크-슬라이더 + 샘플백',
+              col2(eqw('x(θ)', f'{x_} = {r_}(1 − cos{th_}) + {L_} − {sqk}', 'r 20 · L 80 mm'),
+                   eqw('W', f'{W_}<sub>k</sub> = {frac("1", m_)} {INT}<sub>stroke k</sub> {v("F")}({th_}) {frac(f"d{x_}", f"d{th_}")} d{th_}', f'스트로크마다 {B("θ 로 적분")}'),
+                   eqw('', f'&nbsp;&nbsp;&nbsp;&nbsp;= {frac("1", m_)} {INT} τ<sub>load</sub>({th_}) d{th_}', '모터 토크로 교차검증'),
+                   f'<p style="font-size:22px;color:#404040;margin-top:4px">DEM 1 스트로크: 0.118 J / 3 g = {B("39.5 J/kg")} · Esnault ~10<sup>3</sup> J/kg → {B("반복 필수")}</p>',
+                   w='width:100%'), w='flex:1', h='align-items:stretch;padding:38px 26px 14px;'), gap=28) +
+    frame('공극률 φ 를 쓸 수 없을 때 — 샘플백 (측면 구속 없음)',
+          table([['Esnault (강체 다이)', '본 시스템', '근거'],
+                 ['시간 변수 = φ', B('누적 W = Σ W<sub>k</sub>'), '판 변위 ≠ 압밀 · W 는 F(θ) 로 측정 가능'],
+                 ['∂W/∂φ 로 환산', f'불필요 · ΔSS = (∂SS/∂W) {B("ΔW")}', '식 (5) 에서 φ 는 연쇄법칙 매개일 뿐'],
+                 ['층 환경 = φ 하나', B('DEM 입자별 하중 · 에너지 → CDM'), '국소 φ 불균일 · 판 아래 단층 (3,758 개)'],
+                 ['W 전부 → 표면', f'W − {B("W<sub>빈 백</sub>")} − W<sub>측면 유동</sub>', '빈 백 스트로크 실측 · 유동분은 DEM 분리']],
+                ['22%', '36%', '42%'], fs=23, hl=1), h='align-items:stretch;padding:36px 26px 10px;'),
+    'Esnault 2015 의 5.4–5.5 절입니다. 새로 생긴 표면적을 한 일과 같다고 두고, 그 일을 피스톤 압력과 변위로 적분합니다. 강체 다이라서 층 높이가 곧 공극률이고, 그래서 φ 를 시간 변수로 씁니다. 저희 시스템은 판이 크랭크로 움직이므로 같은 일을 F(θ)와 dx/dθ 로 θ 에 대해 적분했고, DEM 한 스트로크는 39.5 J/kg 입니다. 샘플백은 측면 구속이 없어 φ 를 쓸 수 없으므로, 시간 변수를 누적 에너지로 바꾸고 층 환경은 DEM 입자별 하중으로 대신합니다.')
+
 for sid, h in slides.items():
     open(os.path.join(OUT, sid + '.html'), 'w', encoding='utf-8').write(h)
 print(len(slides))
