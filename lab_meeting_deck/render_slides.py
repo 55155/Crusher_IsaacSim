@@ -8,7 +8,7 @@ blob = {'4a881bbb14d5d0ad085ad33bedb7cbb2': 'Pretendard-Regular.otf', 'fe6eacfc0
         'aec3d4938bc0a7aa27c3e059ff582169': 'fig5_ipc_vs_dem.png', '653bc8a89bd63246e934d0fd8a2c15d7': 'fig6_cost_coupled_vs_prerun.png',
         'c11be2bdceb46341869e87ea8a7745ff': 'fig5_ab.png', 'a119220b272835e4baeaebf3c90c4740': 'fig6_ab.png',
         '626a6c7d4fcd3c6a215313203cfe784f': 'crush3d_tight_still.png', 'fda41a7f784e2612d79c7b55516e094f': 'crush3d.gif', '9cdeca776862c0e56bc37175c5873ffb': 'crush2d.gif',
-        'a223490e04c46501e5a26b25f35c64f8': 'fig_ipc_problem.png', 'e26fe63f8218394d461ade6b917a3c5c': 'fig_escape.png',
+        'a223490e04c46501e5a26b25f35c64f8': 'fig_ipc_problem.png', '0358a6a30d03b1f0c3a6040c6e45e164': 'fig_ipc_problem.png', 'e26fe63f8218394d461ade6b917a3c5c': 'fig_escape.png',
         '9cf5453c8dd9c900b98e1e8f59d09266': 'crush_still.png', 'e3a5930830a09bd3236ab68e3b228488': 'cdm_still.png'}
 head = f"""<!doctype html><meta charset="utf-8"><style>
 @font-face{{font-family:'Pretendard';src:url(file:///{A}/Pretendard-Regular.otf)}}

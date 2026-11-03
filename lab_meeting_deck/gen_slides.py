@@ -393,6 +393,36 @@ slides['esn'] = sec('esn', 'Novelty', '선행 연구 :: Esnault (2015) 압축분
           h='align-items:stretch;padding:34px 22px 8px;'),
     'Esnault 2015 의 5.4–5.5 절입니다. 새로 생긴 표면적을 한 일과 같다고 두고, 그 일을 피스톤 압력과 변위로 적분합니다. 강체 다이라서 층 높이가 곧 공극률이고, 그래서 φ 를 시간 변수로 씁니다. 저희 시스템은 판이 크랭크로 움직이므로 같은 일을 F(θ)와 dx/dθ 로 θ 에 대해 적분했고, DEM 한 스트로크는 39.5 J/kg 입니다. 샘플백은 측면 구속이 없어 φ 를 쓸 수 없으므로, 시간 변수를 누적 에너지로 바꾸고 층 환경은 DEM 입자별 하중으로 대신합니다.')
 
+# ── 마지막 장: 연구 정리 1–4 + PINN 의 자리 (2026-11-03 요청) ──
+def stepcol(title, *items):
+    return frame(title, col(*[bul(t, 23) for t in items], w='width:100%'), w='flex:1', h='align-items:stretch;padding:36px 18px 14px;')
+slides['summary'] = sec('summary', 'Summary', '정리 :: 반복압밀 입도분포 예측 — DEM · CDM · PBM · PINN',
+    row(stepcol('① 문제 → 해결',
+                f'IPC 접촉력 ≠ 운동량 수지 ({B("×22")})',
+                f'IPC 제거 → {B("DEM 채택")}',
+                '정합성 + 계산비용 확보 (완료)'),
+        stepcol('② 선행연구 공백',
+                f'Tavares: 손상누적 {B("확률")}만',
+                f'Esnault: {B("1회")} 압축 · 강체 다이 φ',
+                f'샘플백: φ 불가 ({B("27 %")} 측면 유출)'),
+        stepcol('③ 결합 모델',
+                f'시간 변수 φ → {B("누적 W")} (F(θ) 적분)',
+                f'층 환경 φ → {B("DEM 하중")} → CDM',
+                f'파편 t<sub>10</sub> → {B("PBM")} 스트로크별 갱신'),
+        stepcol('④ 실기 검증',
+                f'ForceGage + 모터 토크 → {B("W")}',
+                f'빈 백 스트로크 → {B("백 에너지 제거")}',
+                f'스트로크별 {B("체질 PSD")} 비교'), gap=20) +
+    frame('PINN 의 자리 — DEM–CDM 대리모델 + S · B 역추정',
+          flow(gbox(f'DEM–CDM<br>{sp("수 스트로크", 21)}', fs=26),
+               gbox(f'PINN<br>{sp("물리 손실: 질량보존 · Rittinger · CDM 비가역", 21)}', True, 26),
+               gbox(f'100 스트로크<br>{sp("PSD 외삽", 21)}', fs=26),
+               gbox(f'실기 체질<br>{sp("역보정 S(W, x) · B · η", 21)}', fs=26)) +
+          f'<p style="font-size:21px;color:#7F7F7F">DEM 1,825 s/스트로크 × 100 ≈ {B("51 h/조건", "#595959")} · 체질 데이터는 드문드문 → 데이터 손실 + 물리 손실 · 순방향 PBM 은 행렬곱이라 PINN 불필요</p>',
+          h='padding:38px 30px 16px;') +
+    key('본 연구', f'로봇 크러셔 반복압밀 · {B("누적 에너지 W 기반 PBM + 입자 CDM + PINN")} → 스트로크별 입도분포 예측', fs=30),
+    '정리하겠습니다. 첫째, IPC 결합 시뮬레이션의 힘 데이터는 운동량 수지와 맞지 않아 DEM 으로 바꿨습니다. 둘째, Tavares 는 손상누적 파쇄 확률만, Esnault 는 1회 압축의 입도분포만 다루고, 샘플백에서는 공극률을 쓸 수 없습니다. 셋째, 그래서 시간 변수를 크랭크 F(θ)로 구한 누적 에너지로, 층 환경을 DEM 입자별 하중과 CDM 으로 바꿔 PBM 과 결합합니다. 넷째, 실기에서 힘과 토크, 빈 백 시험, 스트로크별 체질로 검증합니다. PINN 은 DEM 을 100 스트로크 돌리기엔 비용이 너무 커서, 몇 스트로크의 DEM 결과와 드문 체질 데이터를 물리 손실로 묶어 외삽하고 역보정하는 자리에 들어갑니다. 원래 계획이었던 하중 데이터에서 PINN 으로 입도분포를 예측하는 구조가 입력 데이터를 바로잡은 뒤 다시 살아나는 셈입니다.')
+
 for sid, h in slides.items():
     open(os.path.join(OUT, sid + '.html'), 'w', encoding='utf-8').write(h)
 print(len(slides))
