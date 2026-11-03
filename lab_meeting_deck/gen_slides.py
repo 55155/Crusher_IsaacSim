@@ -382,12 +382,15 @@ slides['esn'] = sec('esn', 'Novelty', '선행 연구 :: Esnault (2015) 압축분
                    f'<p style="font-size:22px;color:#404040;margin-top:4px">DEM 1 스트로크: 0.118 J / 3 g = {B("39.5 J/kg")} · Esnault ~10<sup>3</sup> J/kg → {B("반복 필수")}</p>',
                    w='width:100%'), w='flex:1', h='align-items:stretch;padding:38px 26px 14px;'), gap=28) +
     frame('공극률 φ 를 쓸 수 없을 때 — 샘플백 (측면 구속 없음)',
-          table([['Esnault (강체 다이)', '본 시스템', '근거'],
-                 ['시간 변수 = φ', B('누적 W = Σ W<sub>k</sub>'), '판 변위 ≠ 압밀 · W 는 F(θ) 로 측정 가능'],
-                 ['∂W/∂φ 로 환산', f'불필요 · ΔSS = (∂SS/∂W) {B("ΔW")}', '식 (5) 에서 φ 는 연쇄법칙 매개일 뿐'],
-                 ['층 환경 = φ 하나', B('DEM 입자별 하중 · 에너지 → CDM'), '국소 φ 불균일 · 판 아래 단층 (3,758 개)'],
-                 ['W 전부 → 표면', f'W − {B("W<sub>빈 백</sub>")} − W<sub>측면 유동</sub>', '빈 백 스트로크 실측 · 유동분은 DEM 분리']],
-                ['22%', '36%', '42%'], fs=23, hl=1), h='align-items:stretch;padding:36px 26px 10px;'),
+          row(col(img('/_blob/e26fe63f8218394d461ade6b917a3c5c', 'Newton DEM 렌더: 누르면 판 아래 알이 판 밖과 위로 밀려나 단층이 된다', 940, 334) +
+                  cap(f'Newton DEM · 판 아래 알 {B("27 %")} 가 옆으로 밀려남'), w='width:940px'),
+              table([['Esnault', '본 시스템'],
+                     ['시간 변수 = φ', B('누적 W = Σ W<sub>k</sub>')],
+                     ['∂W/∂φ 로 환산', f'불필요 · ΔSS = (∂SS/∂W) {B("ΔW")}'],
+                     ['층 환경 = φ 하나', B('DEM 입자별 하중 → CDM')],
+                     ['W 전부 → 표면', f'W − {B("W<sub>빈 백</sub>")} − W<sub>측면 유동</sub>']],
+                    ['40%', '60%'], fs=21, hl=1), gap=28, align='center'),
+          h='align-items:stretch;padding:34px 22px 8px;'),
     'Esnault 2015 의 5.4–5.5 절입니다. 새로 생긴 표면적을 한 일과 같다고 두고, 그 일을 피스톤 압력과 변위로 적분합니다. 강체 다이라서 층 높이가 곧 공극률이고, 그래서 φ 를 시간 변수로 씁니다. 저희 시스템은 판이 크랭크로 움직이므로 같은 일을 F(θ)와 dx/dθ 로 θ 에 대해 적분했고, DEM 한 스트로크는 39.5 J/kg 입니다. 샘플백은 측면 구속이 없어 φ 를 쓸 수 없으므로, 시간 변수를 누적 에너지로 바꾸고 층 환경은 DEM 입자별 하중으로 대신합니다.')
 
 for sid, h in slides.items():
