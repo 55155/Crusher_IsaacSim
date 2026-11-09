@@ -1,0 +1,261 @@
+<meta charset="utf-8">
+<title>투명 엔드월 간이설계</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 도면 표제란처럼 — 위에 3D 뷰포트+조작 패널, 아래에 계산서 카드 그리드 */
+:root{
+  --bg:#eef0f2; --panel:#ffffff; --ink:#1b2128; --muted:#5b6672; --line:#d3d8de;
+  --glass:#1f8fb0; --amber:#c98a12; --ok:#2f7d4f; --warn:#b3561b; --bad:#b5322a;
+  --vp:#dfe3e7;
+  --sans:"IBM Plex Sans KR",system-ui,"Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#14181d; --panel:#1c2229; --ink:#e4e8ec; --muted:#9aa6b2; --line:#2e3740;
+  --glass:#5cc3e0; --amber:#e3a83a; --ok:#5fbf86; --warn:#e08a4f; --bad:#ec6b62; --vp:#232a32; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14181d; --panel:#1c2229; --ink:#e4e8ec; --muted:#9aa6b2; --line:#2e3740;
+  --glass:#5cc3e0; --amber:#e3a83a; --ok:#5fbf86; --warn:#e08a4f; --bad:#ec6b62; --vp:#232a32; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55}
+.wrap{max-width:1280px;margin:0 auto;padding-block:20px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px;border-bottom:1px solid var(--line);padding-bottom:12px}
+h1{font-size:1.45rem;font-weight:600;margin:0;text-wrap:balance}
+.tag{font-family:var(--mono);font-size:.75rem;color:var(--muted);letter-spacing:.04em}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr)}}
+#vp{position:relative;background:var(--vp);border:1px solid var(--line);border-radius:6px;min-height:520px;overflow:hidden}
+#vp canvas{display:block;width:100%;height:100%;position:absolute;inset:0}
+#tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);font-size:.8rem;padding:3px 8px;border-radius:4px;display:none;white-space:nowrap}
+#hud{position:absolute;left:10px;bottom:8px;font-family:var(--mono);font-size:.72rem;color:var(--muted)}
+#load{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:.9rem}
+aside{display:grid;gap:14px;align-content:start;min-width:0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.box h2{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:500}
+.views{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+button{font:inherit;font-size:.85rem;background:transparent;color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:6px 8px;cursor:pointer}
+button:hover{border-color:var(--glass)}
+button[aria-pressed="true"]{background:var(--glass);border-color:var(--glass);color:var(--panel)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+label.tg{display:flex;align-items:center;gap:8px;font-size:.88rem;padding:3px 0;cursor:pointer}
+.legend{display:grid;gap:4px;font-size:.84rem}
+.legend div{display:flex;gap:8px;align-items:center}
+.sw{width:12px;height:12px;border-radius:2px;flex:none;border:1px solid var(--line)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 18px;min-width:0}
+section.card h3{margin:0 0 4px;font-size:1.02rem;font-weight:600}
+.verdict{display:inline-block;font-size:.75rem;font-weight:600;padding:1px 8px;border-radius:10px;margin-bottom:8px}
+.v-ok{color:var(--ok);border:1px solid var(--ok)} .v-warn{color:var(--warn);border:1px solid var(--warn)}
+section.card p{margin:.4em 0;font-size:.9rem;max-width:68ch}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;font-size:.83rem;width:100%;font-variant-numeric:tabular-nums}
+th,td{border-bottom:1px solid var(--line);padding:4px 8px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+tr.pick td{color:var(--glass);font-weight:600}
+code,.m{font-family:var(--mono);font-size:.82em}
+ul{margin:.3em 0;padding-left:1.2em;font-size:.9rem} li{margin:.15em 0}
+.note{font-size:.8rem;color:var(--muted)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>투명 엔드월 간이설계</h1>
+    <span class="tag">v1 · 2026-11-09 · 유리 t12 · 20 MP · 단위 mm</span>
+  </header>
+
+  <div class="stage">
+    <div id="vp" aria-label="3D 모델 뷰포트">
+      <div id="load">모델 불러오는 중…</div>
+      <div id="tip"></div>
+      <div id="hud">드래그: 회전 · 우클릭 드래그: 이동 · 휠: 확대</div>
+    </div>
+    <aside>
+      <div class="box">
+        <h2>시점</h2>
+        <div class="views">
+          <button id="v-iso" aria-pressed="true">등각</button>
+          <button id="v-side">측면 (단면처럼)</button>
+          <button id="v-front">플레이트 쪽</button>
+          <button id="v-cam">카메라가 보는 화면</button>
+        </div>
+      </div>
+      <div class="box">
+        <h2>표시</h2>
+        <label class="tg"><input type="checkbox" id="t-removed"> 제거 부품 (랙피니언·홀더)</label>
+        <label class="tg"><input type="checkbox" id="t-fov" checked> 카메라 시야 30×20</label>
+        <label class="tg"><input type="checkbox" id="t-shroud" checked> 차광 후드</label>
+        <label class="tg"><input type="checkbox" id="t-mech" checked> 기존 기구 (크랭크·모터)</label>
+      </div>
+      <div class="box">
+        <h2>범례</h2>
+        <div class="legend">
+          <div><span class="sw" style="background:#8cd9f2"></span>강화유리 t12, 80×70</div>
+          <div><span class="sw" style="background:#525c6b"></span>SUS304 프레임·리브</div>
+          <div><span class="sw" style="background:#f28c26"></span>개스킷 t1 (유리–금속 직접 접촉 차단)</div>
+          <div><span class="sw" style="background:#111"></span>카메라·렌즈·후드</div>
+          <div><span class="sw" style="background:#c0c4cc"></span>AL6061 연장판·포커스 슬라이드</div>
+          <div><span class="sw" style="background:#d9403380"></span>제거 부품</div>
+          <div><span class="sw" style="background:#ffd93380"></span>시야 사각뿔</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="grid">
+    <section class="card">
+      <h3>1. 유리 두께: 하중이 중앙에 몰릴 때</h3>
+      <span class="verdict v-ok">t12 · 최악 15.6 MPa · 허용 대비 3.2배</span>
+      <p>설계 반력은 1500 N 이다. 플레이트는 강체라서 파우더가 중앙에 두껍게 쌓이면 하중이 그 자리로 몰린다. 그래서 1500 N 이 중앙의 작은 원(반경 r₀)에 몰리는 경우로 계산했다. 유리는 56×56 개구부에 단순지지된 판으로 본다(Roark Table 11.4). 허용응력은 강화유리 특성강도 120 MPa × 0.4 = 50 MPa 로 잡았다.</p>
+      <div class="tbl"><table>
+        <tr><th>하중 반경 r₀</th><th>t 8</th><th>t 10</th><th>t 12</th><th>t 15</th></tr>
+        <tr><td>25 mm (플레이트 전면)</td><td>9.7</td><td>6.2</td><td>4.3</td><td>2.8</td></tr>
+        <tr><td>10 mm</td><td>22.2</td><td>14.2</td><td>9.9</td><td>6.3</td></tr>
+        <tr><td>5 mm</td><td>31.7</td><td>20.3</td><td>13.5</td><td>8.2</td></tr>
+        <tr class="pick"><td>0.5 mm (최악)</td><td>40.5</td><td>24.0</td><td>15.6 ◀</td><td>9.1</td></tr>
+      </table></div>
+      <p class="note">단위 MPa. r₀ 가 두께보다 작아지면 판 이론이 등가 반경으로 보정해서 응력이 더 오르지 않는다. 그래서 0.5 mm 줄이 최악이다. v0 의 t10 은 최악 24.0 MPa(허용 대비 2.1배)라서 t12 로 올렸다. stall 이 TDC 근처면 반력이 1500 N 을 넘는다(θ=10° 에서 2640 N). 크랭크 각 하한이나 스토퍼는 반력 캘리브레이션 뒤에 정한다.</p>
+    </section>
+
+    <section class="card">
+      <h3>2. 강성: 왜 기존 벽보다 덜 처지나</h3>
+      <span class="verdict v-ok">공극률 오차 약 0.5 %</span>
+      <p>기존 벽은 바닥 한 변만 고정된 외팔보다. 하중점(높이 35 mm)에서 뿌리까지 모멘트가 쌓여 폭당 438 N·mm/mm 가 된다. 유리는 네 변이 지지된 판이라 하중이 네 방향으로 나뉘어 흐르고, 최대 모멘트가 폭당 90 N·mm/mm 로 약 1/5 이다. 유리 탄성률(70 GPa)이 SUS(193 GPa)의 1/3 이어도 처짐이 더 작은 이유다.</p>
+      <div class="tbl"><table>
+        <tr><th>1500 N</th><th>처짐</th><th>강성</th></tr>
+        <tr><td>기존 SUS304 벽 (외팔보)</td><td>11.1 µm</td><td>135 N/µm</td></tr>
+        <tr><td>유리 t12, 균일하중</td><td>2.2 µm</td><td>693 N/µm</td></tr>
+        <tr class="pick"><td>유리 t12, 중앙 집중</td><td>4.9 µm</td><td>304 N/µm</td></tr>
+      </table></div>
+      <p>재료 탄성률 비(유리 70,000 MPa 대 분체층 10–200 MPa, 350–7,000배)는 처짐과 별개의 숫자다. 강체 다이 전제는 플레이트 변위가 곧 압밀이라는 것이므로, 벽이 δ 밀릴 때의 공극률 오차 δ/h 로 판단한다. 층 두께 1 mm, δ 5 µm 이면 약 0.5 % 다. 벽 변형에너지 ½Fδ = 3.7 mJ 는 1 스트로크 일 118 mJ 의 3 % 로, 빈 백 보정에 같이 들어간다.</p>
+      <p class="note">프레임(리브·볼트) 처짐은 아직 계산하지 않았다. 반력 캘리브레이션 때 다이얼 게이지로 같이 잰다.</p>
+    </section>
+
+    <section class="card">
+      <h3>3. 깨지면 유리만 바꾼다</h3>
+      <span class="verdict v-ok">구멍 없는 유리 · 업체 분리 가능</span>
+      <ul>
+        <li>유리를 SUS 프레임 포켓(깊이 13 mm)에 끼우고 실리콘으로 고정한다. 깨지면 실리콘을 걷어내고 유리만 다시 끼운다. 프레임은 그대로 쓴다.</li>
+        <li>유리는 사각 재단·면취·강화만, 프레임은 일반 가공업체에 맡긴다. 두 부품이 맞물리는 조건은 사각 치수와 공차뿐이다.</li>
+        <li>80×70 은 업체에 따라 열강화 최소 크기보다 작을 수 있다. 그러면 화학강화 유리를 쓰거나 유리를 키운다.</li>
+        <li>유리는 소모품으로 보고 3–5 장을 같이 주문한다. 카메라 쪽 면에는 비산방지 PET 필름을 붙인다.</li>
+        <li>설탕구는 PTFE 봉투가 하중을 퍼뜨려서 유리면 압력이 수 MPa 수준이다. 봉투가 찢어진 채 계속 치는 경우만 주의하면 된다.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h3>4. 카메라·광학</h3>
+      <span class="verdict v-ok">5.5 µm/px · 100 µm 알이 18 px</span>
+      <ul>
+        <li>센서는 Sony IMX183, 20 MP 1", 2.4 µm, 흑백이다. 예시 모델은 FLIR BFS-U3-200S6M-C, 저가 대안은 Hikrobot MV-CS200-10UM 이다.</li>
+        <li>렌즈 35 mm(2.4 µm 화소 대응)로 시야 30×20 mm 를 본다. 플레이트 중앙만 보고 해상도를 올리는 선택이다. f/2.8 회절 한계는 물체 쪽 8.6 µm 다.</li>
+        <li>유리 앞면에서 렌즈 앞면까지 92 mm 다. 카메라 뒤끝은 y=508 이다.</li>
+        <li>유리 반사는 링조명과 렌즈에 편광판을 직교로 달아 없앤다.</li>
+        <li>카메라는 어댑터 판, 초점용 수동 직선 스테이지, AL 받침, 베이스 연장판 순서로 베이스에만 연결한다. 프레임에는 닿지 않는다.</li>
+        <li>차광 후드는 검은 PETG/ASA 3D 프린팅이나 판금으로 만든다. 안쪽에 무광 플로킹 시트를 붙이고, 프레임 쪽은 1–2 mm 띄워 스펀지로 막는다.</li>
+      </ul>
+      <p class="note">해상도의 진짜 한계는 반투명 PTFE 봉투일 수 있다. 카메라를 사기 전에 실물 봉투에 체질한 설탕을 넣고 먼저 찍어 본다.</p>
+    </section>
+
+    <section class="card">
+      <h3>5. 바뀌는 부품</h3>
+      <p><b>제거</b> (빨간 반투명, "제거 부품" 체크로 보기): <span class="m">L2_Wall3_1</span>(기존 엔드월), <span class="m">L1_Wall1_1·L1_Wall2_1</span>(벽 받침판), 샘플백 홀더 <span class="m">L2_Left_Wall1_1</span>와 가이드 <span class="m">L1_Guide1/2</span>, 랙피니언 계열(<span class="m">Motor2</span>, 커플러, D컷 축, 베어링 홀더, 스퍼기어, 랙, 기어케이스 3개). 모두 18개다.</p>
+      <p><b>추가</b>: 강화유리 80×70×12, 개스킷 t1, SUS304 프레임 120×85×25(포켓 13 + 백킹 12, 개구부 56×56), 리브 2장(8 mm), M5 볼트 4개, 차광 후드, 편광 링조명, 35 mm 렌즈, 20 MP 카메라, AL 연장판·포커스 슬라이드.</p>
+      <p>유리 앞면은 기존 벽 앞면과 같은 y=336.3 에 둔다. 스트로크 기하와 x(θ)는 바뀌지 않는다. 이 모델은 외형과 배치만 확인하는 간이 모델이다. 탭·구멍·나사산·공차는 상세 CAD 에서 넣는다.</p>
+    </section>
+
+    <section class="card">
+      <h3>6. 정해진 것과 남은 것</h3>
+      <p><b>정해짐</b>: 설계 반력 1500 N(추후 캘리브레이션), 시야 크기 무관, 뒤로 108 mm 길어져도 됨, 설탕구 그대로 사용.</p>
+      <ul>
+        <li>유리 두께 t12 확정 여부</li>
+        <li>실물 봉투 너머 촬영 시험 → 센서와 시야 확정</li>
+        <li>유리 업체 견적 (열강화 최소 크기)</li>
+        <li>기존 벽 체결 구멍 실측 → 상세 CAD</li>
+        <li>보류: 봉투 고정 방법, 크랭크 각 하한</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const GLB_B64 = "__GLB__";
+const NAMES = {
+  new_glass_tempered_t12:"강화유리 80×70×12", new_gasket_t1:"개스킷 t1", new_frame_SUS304:"SUS304 프레임 (포켓+개구부 56×56)",
+  new_gusset_SUS304:"리브 t8 ×2", new_bolts_M5:"M5 볼트", new_shroud_black:"차광 후드",
+  new_ringlight_polarized:"편광 링조명", new_polarizer_filter:"편광 필터", new_lens_35mm_Cmount:"렌즈 35 mm C-mount",
+  new_camera_20MP_1in:"카메라 20 MP 1\" mono", new_base_extension_AL6061:"AL6061 베이스 연장판", new_focus_slide:"포커스 슬라이드",
+  new_camera_riser:"카메라 받침", fov_pyramid:"카메라 시야", keep_L9_PLATE_v3_1:"엔드플레이트 50×50"
+};
+const CX=-48.3, CZ=49.4, Y0=336.3, YL=428.3;
+const vp=document.getElementById('vp'), tip=document.getElementById('tip');
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.outputEncoding=THREE.sRGBEncoding;
+vp.appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(35,1,1,5000); cam.up.set(0,0,1);
+scene.add(new THREE.HemisphereLight(0xffffff,0x445566,0.85));
+const d1=new THREE.DirectionalLight(0xffffff,0.9); d1.position.set(300,600,500); scene.add(d1);
+const d2=new THREE.DirectionalLight(0xffffff,0.35); d2.position.set(-400,-200,300); scene.add(d2);
+const ctl=new THREE.OrbitControls(cam,renderer.domElement); ctl.enableDamping=true;
+const groups={removed:[],fov:[],shroud:[],mech:[],camstack:[]};
+const pickables=[];
+function bytes(b64){const s=atob(b64),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a.buffer}
+new THREE.GLTFLoader().parse(bytes(GLB_B64),'',g=>{
+  scene.add(g.scene);
+  g.scene.traverse(o=>{
+    if(!o.isMesh) return;
+    const n=(o.name||'')+(o.parent?'|'+o.parent.name:''); const key=Object.keys(NAMES).find(k=>n.includes(k))||n.split('|').find(s=>s.startsWith('keep_')||s.startsWith('removed_'))||o.name;
+    o.userData.label=NAMES[key]||key.replace(/^keep_|^removed_/,'').replace(/_1$/,'');
+    if(n.includes('removed_')){groups.removed.push(o);o.userData.label+=' (제거)'}
+    if(n.includes('fov_pyramid')){groups.fov.push(o);o.material.depthWrite=false}
+    if(n.includes('new_shroud')) groups.shroud.push(o);
+    if(/new_(ringlight|polarizer|lens|camera_20MP)/.test(n)) groups.camstack.push(o);
+    if(n.includes('keep_')&&!/base_link|PLATE|Link3_Shaft|Slider_jig|Linear_bush/.test(n)) groups.mech.push(o);
+    if(o.material&&o.material.transparent) o.renderOrder=2;
+    pickables.push(o);
+  });
+  // FOV 테두리선
+  const hw=15,hh=10, P=(x,z)=>new THREE.Vector3(x,Y0,z), A=new THREE.Vector3(CX,YL,CZ);
+  const c=[P(CX-hw,CZ-hh),P(CX+hw,CZ-hh),P(CX+hw,CZ+hh),P(CX-hw,CZ+hh)];
+  const pts=[];c.forEach((p,i)=>{pts.push(A,p,p,c[(i+1)%4])});
+  const lines=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xd99a10}));
+  scene.add(lines); groups.fov.push(lines);
+  document.getElementById('load').remove();
+  apply(); setView('iso');
+});
+const V={
+  iso:  {p:[170,620,260], t:[-55,400,40], fov:35},
+  side: {p:[330,420,60],  t:[-55,420,50], fov:35},
+  front:{p:[-150,150,170],t:[CX,Y0,CZ],   fov:35},
+  cam:  {p:[CX,YL,CZ],    t:[CX,Y0,CZ],   fov:2*Math.atan(8.76/2/35)*180/Math.PI}
+};
+let cur='iso';
+function setView(k){cur=k;const v=V[k];cam.position.set(...v.p);ctl.target.set(...v.t);cam.fov=v.fov;cam.near=k==='cam'?5:1;cam.updateProjectionMatrix();ctl.update();
+  document.querySelectorAll('.views button').forEach(b=>b.setAttribute('aria-pressed',b.id==='v-'+k));apply()}
+['iso','side','front','cam'].forEach(k=>document.getElementById('v-'+k).onclick=()=>setView(k));
+function apply(){
+  const on=id=>document.getElementById(id).checked;
+  groups.removed.forEach(o=>o.visible=on('t-removed'));
+  groups.fov.forEach(o=>o.visible=on('t-fov')&&cur!=='cam');
+  groups.shroud.forEach(o=>o.visible=on('t-shroud')&&cur!=='cam');
+  groups.camstack.forEach(o=>o.visible=cur!=='cam');
+  groups.mech.forEach(o=>o.visible=on('t-mech'));
+}
+['t-removed','t-fov','t-shroud','t-mech'].forEach(id=>document.getElementById(id).onchange=apply);
+function size(){const w=vp.clientWidth,h=Math.max(520,Math.min(720,w*0.62));vp.style.height=h+'px';renderer.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}
+addEventListener('resize',size); size();
+const ray=new THREE.Raycaster(), m=new THREE.Vector2();
+renderer.domElement.addEventListener('pointermove',e=>{
+  const r=renderer.domElement.getBoundingClientRect(); m.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);
+  ray.setFromCamera(m,cam); const hit=ray.intersectObjects(pickables.filter(o=>o.visible&&!o.name.includes('fov')),false)[0];
+  if(hit){tip.textContent=hit.object.userData.label;tip.style.display='block';tip.style.left=(e.clientX-r.left+12)+'px';tip.style.top=(e.clientY-r.top+12)+'px'}else tip.style.display='none'});
+renderer.domElement.addEventListener('pointerleave',()=>tip.style.display='none');
+(function loop(){requestAnimationFrame(loop);ctl.update();renderer.render(scene,cam)})();
+</script>
